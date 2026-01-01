@@ -17,13 +17,14 @@ class PatientForm(QGroupBox):
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Nama pasien")
         self.phone_input = QLineEdit()
-        self.phone_input.setPlaceholderText("Nomor HP")
+        self.phone_input.setPlaceholderText("Nomor HP (kosongkan untuk no sementara)")
         
         self.name_input.setFixedWidth(200)
-        self.phone_input.setFixedWidth(150)
+        self.phone_input.setFixedWidth(180)
         
-        regex = QRegularExpression(r"^\d{10,15}$")
-        self.phone_input.setValidator(QRegularExpressionValidator(regex))
+        # Hapus validator ketat agar mendukung nomor sementara manual jika perlu atau dikosongkan
+        # regex = QRegularExpression(r"^\d{10,15}$")
+        # self.phone_input.setValidator(QRegularExpressionValidator(regex))
         
         row1.addWidget(QLabel("Nama:"))
         row1.addWidget(self.name_input)

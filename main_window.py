@@ -134,7 +134,12 @@ class MainWindow(QMainWindow):
         if not name:
             QMessageBox.warning(self, "Error", "Nama tidak boleh kosong")
             return
-        if not phone.isdigit():
+            
+        # Jika nomor HP kosong, generate nomor sementara
+        if not phone:
+            from datetime import datetime
+            phone = "TEMP-" + datetime.now().strftime("%H%M%S%f")[:10]
+        elif not phone.isdigit() and not phone.startswith("TEMP-"):
             QMessageBox.warning(self, "Error", "Nomor HP harus berupa angka")
             return
 
