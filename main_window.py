@@ -347,7 +347,12 @@ class MainWindow(QMainWindow):
         discount_pct = self.settings.get_discount_percentage()
         point_count = self.visit_section.get_point_count()
         selected_patient = self.patient_list.get_selected_patient()
-        patient_name = selected_patient[1] if selected_patient else "Pasien"
+        
+        if not selected_patient:
+            return
+            
+        patient_id = selected_patient[0]
+        patient_name = selected_patient[1]
         
         therapist_id = self.visit_section.get_selected_therapist_id()
         therapist_name = "--"
@@ -368,8 +373,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             msg_invoice = f"\n\nGagal membuat invoice: {str(e)}"
 
-        # Save to DB
-        self.visit_vm.add_visit(patient_id, point_count, therapist_id, invoice_path)
+        msg = f"Kunjungan dicatat! {point_count} titik | Biaya: Rp {discounted_price:,}"
         if discount_applied:
             msg += f" (Diskon {discount_pct}%!)"
         msg += msg_invoice
