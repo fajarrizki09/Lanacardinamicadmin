@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel
 )
 from PySide6.QtCore import Qt, QTimer
 
@@ -45,7 +45,11 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         main_widget = QWidget()
+        main_widget.setStyleSheet(STYLES.get("main_window", ""))
         self.setCentralWidget(main_widget)
+
+        self.sunnah_calendar_label = QLabel()
+        self.update_sunnah_info()
 
         self.patient_form = PatientForm(self)
         self.patient_list = PatientList(self)
@@ -54,6 +58,7 @@ class MainWindow(QMainWindow):
 
         left_layout = QVBoxLayout()
         left_layout.setSpacing(15)
+        left_layout.addWidget(self.sunnah_calendar_label)
         left_layout.addWidget(self.patient_form)
         left_layout.addWidget(self.patient_list)
 
@@ -72,6 +77,29 @@ class MainWindow(QMainWindow):
         main_widget.setLayout(main_layout)
 
         self.connect_signals()
+
+    def update_sunnah_info(self):
+        from datetime import date
+        today = date.today()
+        # Sunnah dates for Jan 2026 based on search: 17 Rajab (Jan 8), 19 Rajab (Jan 10), 21 Rajab (Jan 12)
+        # For simplicity, let's provide a few sample sunnah dates for Jan/Feb 2026
+        sunnah_dates = [
+            date(2026, 1, 8), date(2026, 1, 10), date(2026, 1, 12),
+            date(2026, 2, 7), date(2026, 2, 9), date(2026, 2, 11)
+        ]
+        
+        if today in sunnah_dates:
+            self.sunnah_calendar_label.setText("🌟 HARI INI: Waktu Sunnah Bekam (17, 19, atau 21 Hijriah)")
+            self.sunnah_calendar_label.setStyleSheet(STYLES["sunnah_label_active"])
+        else:
+            # Find next sunnah date
+            next_date = next((d for d in sunnah_dates if d > today), None)
+            if next_date:
+                days_left = (next_date - today).days
+                self.sunnah_calendar_label.setText(f"📅 Jadwal Sunnah Terdekat: {next_date.strftime('%d %b %Y')} ({days_left} hari lagi)")
+            else:
+                self.sunnah_calendar_label.setText("📅 Jadwal Sunnah Bekam: Tanggal 17, 19, 21 Hijriah")
+            self.sunnah_calendar_label.setStyleSheet(STYLES["sunnah_label"])
 
     def connect_signals(self):
         self.patient_form.add_btn.clicked.connect(self.add_patient)
