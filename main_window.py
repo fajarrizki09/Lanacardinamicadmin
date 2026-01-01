@@ -17,6 +17,7 @@ from dialogs.therapist_dialog import TherapistDialog
 
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
+from helpers.backup_helper import BackupHelper
 from threads.search_thread import SearchThread
 from viewmodels.visit_view_model import VisitViewModel
 
@@ -32,6 +33,10 @@ class MainWindow(QMainWindow):
 
         self.visit_vm = VisitViewModel(db, settings)
         self.invoice_helper = InvoiceHelper()
+        self.backup_helper = BackupHelper()
+        
+        # Auto-backup on startup
+        self.backup_helper.create_backup()
 
         self.search_thread = None
         self.search_timer = QTimer()
