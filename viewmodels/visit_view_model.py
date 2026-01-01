@@ -14,12 +14,12 @@ class VisitViewModel(QObject):
         self._visit_cache = {}
         self._current_thread = None
     
-    def add_visit(self, patient_id, point_count, therapist_id=None):
+    def add_visit(self, patient_id, point_count, therapist_id=None, invoice_path=None):
         if self._current_thread and self._current_thread.isRunning():
             self._current_thread.wait()
         
         self._current_thread = VisitThread(
-            self.db, patient_id, point_count, therapist_id, self.settings
+            self.db, patient_id, point_count, therapist_id, self.settings, invoice_path
         )
         self._current_thread.patient_id = patient_id
         self._current_thread.visit_done.connect(self._on_visit_done)
@@ -49,7 +49,8 @@ class VisitViewModel(QObject):
                 price=float(v_dict['price']),
                 discount_applied=v_dict['discount_applied'],
                 point_count=v_dict.get('point_count', 0),
-                therapist_id=v_dict.get('therapist_id')
+                therapist_id=v_dict.get('therapist_id'),
+                invoice_path=v_dict.get('invoice_path')
             ))
         
         self._visit_cache[patient_id] = visits

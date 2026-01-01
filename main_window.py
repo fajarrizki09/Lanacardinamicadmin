@@ -350,6 +350,7 @@ class MainWindow(QMainWindow):
             therapist_name = self.therapists_dict[therapist_id].name
 
         # Generate Invoice
+        invoice_path = None
         try:
             invoice_path = self.invoice_helper.generate_invoice(
                 patient_name,
@@ -362,7 +363,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             msg_invoice = f"\n\nGagal membuat invoice: {str(e)}"
 
-        msg = f"Kunjungan dicatat! {point_count} titik | Biaya: Rp {discounted_price:,}"
+        # Save to DB
+        self.visit_vm.add_visit(patient_id, point_count, therapist_id, invoice_path)
         if discount_applied:
             msg += f" (Diskon {discount_pct}%!)"
         msg += msg_invoice

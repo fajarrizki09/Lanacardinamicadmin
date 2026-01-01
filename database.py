@@ -49,6 +49,7 @@ class Visit(Base):
     price = Column(Numeric(10, 2), nullable=False)
     discount_applied = Column(Boolean, default=False, nullable=False)
     point_count = Column(Integer, default=0, nullable=False)
+    invoice_path = Column(String, nullable=True)  # Path ke file PDF invoice
 
     patient = relationship("Patient", back_populates="visits")
     therapist = relationship("Therapist", back_populates="visits")
@@ -69,6 +70,7 @@ class VisitData:
     discount_applied: bool
     point_count: int = 0
     therapist_id: Optional[int] = None
+    invoice_path: Optional[str] = None
 
 
 @dataclass
@@ -115,6 +117,7 @@ class Database:
 
     def _migrate_existing_data(self):
         with self.Session() as session:
+            # Migration for point_count
             try:
                 session.execute("SELECT point_count FROM visits LIMIT 1")
             except Exception:
@@ -124,6 +127,16 @@ class Database:
                 except Exception:
                     pass
             
+            # Migration for invoice_path
+            try:
+                session.execute("SELECT invoice_path FROM visits LIMIT 1")
+            except Exception:
+                try:
+                    session.execute("ALTER TABLE visits ADD COLUMN invoice_path TEXT")
+                    session.commit()
+                except Exception:
+                    pass
+
             patients = session.query(Patient).all()
             for patient in patients:
                 if not hasattr(patient, 'address') or patient.address is None:
@@ -168,6 +181,7 @@ class Database:
                             discount_applied=visit.discount_applied,
                             point_count=visit.point_count if hasattr(visit, 'point_count') else 0,
                             therapist_id=visit.therapist_id if hasattr(visit, 'therapist_id') else None,
+                            invoice_path=visit.invoice_path if hasattr(visit, 'invoice_path') else None,
                         )
                         for visit in sorted(patient.visits, key=lambda v: v.date)
                     ]
@@ -243,7 +257,7 @@ class Database:
 
             session.commit()
 
-    def add_visit(self, patient_id, price, point_count=0, therapist_id=None, discount_percentage=0, min_visits_for_discount=5):
+    def add_visit(self, patient_id, price, point_count=0, therapist_id=None, discount_percentage=0, min_visits_for_discount=5, invoice_path=None):
         with self.Session() as session:
             patient = session.query(Patient).options(joinedload(Patient.visits)).get(patient_id)
             if not patient:
@@ -264,6 +278,7 @@ class Database:
                 price=round(final_price, 2),
                 discount_applied=discount_applied,
                 point_count=point_count,
+                invoice_path=invoice_path
             )
             session.add(new_visit)
             session.commit()
@@ -280,6 +295,7 @@ class Database:
                 'discount_applied': v.discount_applied,
                 'point_count': v.point_count if hasattr(v, 'point_count') else 0,
                 'therapist_id': v.therapist_id if hasattr(v, 'therapist_id') else None,
+                'invoice_path': v.invoice_path if hasattr(v, 'invoice_path') else None,
             } for v in visits]
 
     def get_all_visits(self):
@@ -293,6 +309,7 @@ class Database:
                 'point_count': v.point_count if hasattr(v, 'point_count') else 0,
                 'patient_id': v.patient_id,
                 'therapist_id': v.therapist_id if hasattr(v, 'therapist_id') else None,
+                'invoice_path': v.invoice_path if hasattr(v, 'invoice_path') else None,
             } for v in visits]
 
     def add_therapist(self, name, gender, specialization=''):
