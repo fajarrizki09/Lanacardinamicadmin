@@ -311,6 +311,15 @@ class MainWindow(QMainWindow):
 
         self.load_visits()
         self.refresh_patients()
+        
+        # Reset selection to maintain the current patient view
+        selected_patient = self.patient_list.get_selected_patient()
+        if selected_patient:
+            patient_id = selected_patient[0]
+            for i, p in enumerate(self.filtered_patients):
+                if p[0] == patient_id:
+                    self.patient_list.patient_list.setCurrentRow(i)
+                    break
 
     def on_visit_failed(self, message):
         QMessageBox.critical(self, "Gagal", f"Terjadi kesalahan saat mencatat kunjungan:\n{message}")
