@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer
 
+from utils.styles import STYLES
 from components.patient_form import PatientForm
 from components.patient_list import PatientList
 from components.visit_section import VisitSection
