@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "gobject-introspection", "gtk3", "libxcrypt", "pkg-config", "qhull", "tcl", "tk", "libxkbcommon", "xorg.libX11", "xorg.libXrender", "xorg.libXext", "mesa", "xcb-util-cursor"]
+packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libxkbcommon", "mesa", "pkg-config", "qhull", "tcl", "tk", "xcb-util-cursor", "xorg.libX11", "xorg.libXext", "xorg.libXrender"]
 
 [workflows]
 runButton = "Project"

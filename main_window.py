@@ -1,3 +1,4 @@
+import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel
 )
@@ -14,6 +15,7 @@ from dialogs.analytics_dialog import AnalyticsDialog
 from dialogs.settings_dialog import SettingsDialog
 from dialogs.therapist_dialog import TherapistDialog
 
+from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
 from threads.search_thread import SearchThread
 from viewmodels.visit_view_model import VisitViewModel
@@ -29,6 +31,7 @@ class MainWindow(QMainWindow):
         self.import_export = ImportExportHelper(self, db)
 
         self.visit_vm = VisitViewModel(db, settings)
+        self.invoice_helper = InvoiceHelper()
 
         self.search_thread = None
         self.search_timer = QTimer()
@@ -80,7 +83,7 @@ class MainWindow(QMainWindow):
         self.connect_signals()
 
     def update_sunnah_info(self):
-        from datetime import date
+        from datetime import datetime, date
         today = date.today()
         # Sunnah dates for Jan 2026 based on search: 17 Rajab (Jan 8), 19 Rajab (Jan 10), 21 Rajab (Jan 12)
         # For simplicity, let's provide a few sample sunnah dates for Jan/Feb 2026
@@ -338,9 +341,32 @@ class MainWindow(QMainWindow):
     def on_visit_done(self, normal_price, discounted_price, discount_applied):
         discount_pct = self.settings.get_discount_percentage()
         point_count = self.visit_section.get_point_count()
+        selected_patient = self.patient_list.get_selected_patient()
+        patient_name = selected_patient[1] if selected_patient else "Pasien"
+        
+        therapist_id = self.visit_section.get_selected_therapist_id()
+        therapist_name = "--"
+        if therapist_id and therapist_id in self.therapists_dict:
+            therapist_name = self.therapists_dict[therapist_id].name
+
+        # Generate Invoice
+        try:
+            invoice_path = self.invoice_helper.generate_invoice(
+                patient_name,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+                point_count,
+                discounted_price,
+                therapist_name
+            )
+            msg_invoice = f"\n\nInvoice telah dibuat: {os.path.basename(invoice_path)}"
+        except Exception as e:
+            msg_invoice = f"\n\nGagal membuat invoice: {str(e)}"
+
         msg = f"Kunjungan dicatat! {point_count} titik | Biaya: Rp {discounted_price:,}"
         if discount_applied:
             msg += f" (Diskon {discount_pct}%!)"
+        msg += msg_invoice
+        
         QMessageBox.information(self, "✅ Berhasil", msg)
 
         self.load_visits()
