@@ -192,7 +192,7 @@ class Database:
     def get_patients(self):
         with self.Session() as session:
             patients = session.query(Patient).all()
-            return [(p.id, p.name, p.phone, p.gender) for p in patients]
+            return [(p.id, p.name, p.phone, p.gender, p.address) for p in patients]
 
     def get_patient_with_visits(self, patient_id):
         with self.Session() as session:

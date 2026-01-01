@@ -45,10 +45,11 @@ class PatientList(QGroupBox):
             if len(patient_data) >= 3:
                 patient_id, name, phone = patient_data[:3]
                 gender = patient_data[3] if len(patient_data) > 3 else ''
+                address = patient_data[4] if len(patient_data) > 4 else ''
                 total_visits = 0
                 
                 item = QListWidgetItem()
-                widget = PatientItemWidget(name, phone, total_visits, gender)
+                widget = PatientItemWidget(name, phone, total_visits, gender, address)
                 item.setSizeHint(widget.sizeHint())
                 item.setData(Qt.UserRole, patient_data)
                 self.patient_list.addItem(item)

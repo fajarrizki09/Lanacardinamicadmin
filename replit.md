@@ -14,6 +14,7 @@ Desktop patient management application for bekam therapy clinics with dynamic po
 2. **Windows Desktop UX Optimization**
    - Modernized UI with a fresh color palette (soft pastels) and rounded corners.
    - Professional dashboard layout with improved spacing and responsiveness.
+   - **New**: Added address display in patient list and automatic daily database backups.
 
 3. **Islamic Healing (Sunnah) Calendar 2026**
    - Integrated Hijri sunnah dates (17th, 19th, 21st) into the dashboard.
@@ -23,9 +24,10 @@ Desktop patient management application for bekam therapy clinics with dynamic po
    - Automatic generation of temporary IDs (`TEMP-XXXXXX`) for patients without phone numbers.
    - Simplified registration flow while maintaining database integrity.
 
-5. **ORM & Performance**
-   - Fully verified SQLAlchemy 2.0 ORM implementation.
-   - Thread-safe background operations for real-time UI updates after data changes.
+5. **Automated Invoice System**
+   - Generation of professional PDF invoices for every visit.
+   - Automatic linkage between visit records and their respective invoice files.
+   - Searchable invoices directly through Windows Search.
 
 ### Code Architecture
 
