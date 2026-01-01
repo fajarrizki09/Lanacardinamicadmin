@@ -3,33 +3,29 @@
 ## Overview
 Desktop patient management application for bekam therapy clinics with dynamic point-based pricing system. Built with PySide6 (Qt 6) for modern GUI and SQLAlchemy for optimized database operations.
 
-## Recent Changes (November 13, 2025)
+## Recent Changes (January 1, 2026)
 
-### ✅ Completed Optimizations
-1. **Point-Based Dynamic Pricing System**
-   - Admin configures price per point (e.g., Rp 10,000/point)
-   - Visit prices auto-calculated: 13 points × Rp 10,000 = Rp 130,000
-   - Discount applies to calculated price (not hardcoded base price)
-   - Flow: User inputs points → VisitThread calculates price → Database applies discount once
+### ✅ Completed Updates & Improvements
+1. **Intelligent Import/Export System**
+   - Robust JSON export for patients, therapists, and visits.
+   - Smart matching logic: Automaps therapists by name and assigns patients to their "usual" therapist if data is missing.
+   - Seamless handling of empty or null therapist columns.
 
-2. **Database Performance Optimization**
-   - WAL (Write-Ahead Logging) mode enabled for concurrent access
-   - Strategic indexes on: patients.phone, patients.name, therapists.name, therapists.is_active, visits.patient_id, visits.date
-   - Connection pooling (pool_size=10, max_overflow=20)
-   - Migration adds `point_count` column to visits table
+2. **Windows Desktop UX Optimization**
+   - Modernized UI with a fresh color palette (soft pastels) and rounded corners.
+   - Professional dashboard layout with improved spacing and responsiveness.
 
-3. **Multi-Level Caching Strategy**
-   - **Therapist Cache**: Loaded once, filtered in-memory by gender (prevents repeated DB queries)
-   - **Visit Cache**: Per-patient visit data cached, invalidated on update/delete
-   - Cache validity flags prevent unnecessary refreshes
+3. **Islamic Healing (Sunnah) Calendar 2026**
+   - Integrated Hijri sunnah dates (17th, 19th, 21st) into the dashboard.
+   - Real-time notification and countdown for upcoming sunnah healing days.
 
-4. **Debounced Search**
-   - 300ms debounce timer on patient search
-   - Reduces database load from real-time typing
+4. **Smart Patient Identifier**
+   - Automatic generation of temporary IDs (`TEMP-XXXXXX`) for patients without phone numbers.
+   - Simplified registration flow while maintaining database integrity.
 
-5. **Thread-Safe Operations**
-   - Background threading for heavy operations (visit recording, search)
-   - Proper signal/slot connections with float type consistency
+5. **ORM & Performance**
+   - Fully verified SQLAlchemy 2.0 ORM implementation.
+   - Thread-safe background operations for real-time UI updates after data changes.
 
 ### Code Architecture
 
