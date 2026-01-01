@@ -88,25 +88,52 @@ class ImportExportHelper:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # 1. Import Therapists first to maintain relationships
-            therapist_map = {} # Old ID -> New ID
+            # 1. Map existing therapists to avoid duplicates
+            therapists = self.db.get_all_therapists(active_only=False)
+            therapist_name_map = {t.name.lower(): t.id for t in therapists}
+            therapist_id_map = {} # Old ID -> New ID
+
             if "therapists" in data:
-                existing_therapists = {t.name: t.id for t in self.db.get_all_therapists(active_only=False)}
                 for t_data in data["therapists"]:
-                    if t_data["name"] in existing_therapists:
-                        therapist_map[t_data["id"]] = existing_therapists[t_data["name"]]
+                    t_name_lower = t_data["name"].lower()
+                    if t_name_lower in therapist_name_map:
+                        therapist_id_map[t_data["id"]] = therapist_name_map[t_name_lower]
                     else:
                         new_id = self.db.add_therapist(
                             t_data["name"], 
                             t_data["gender"], 
                             t_data.get("specialization", "")
                         )
-                        therapist_map[t_data["id"]] = new_id
+                        therapist_id_map[t_data["id"]] = new_id
+                        therapist_name_map[t_name_lower] = new_id
 
-            # 2. Import Patients and Visits
+            # 2. Pre-calculate frequent therapists for patients in current DB (for matching)
+            # This helps if therapist_id is missing in import data
+            all_visits = self.db.get_all_visits()
+            patient_fav_therapist = {} # patient_id -> therapist_id
+            
+            # Helper to count frequencies
+            patient_therapist_counts = {} # patient_id -> {therapist_id: count}
+            for v in all_visits:
+                p_id = v['patient_id']
+                t_id = v['therapist_id']
+                if t_id:
+                    if p_id not in patient_therapist_counts:
+                        patient_therapist_counts[p_id] = {}
+                    patient_therapist_counts[p_id][t_id] = patient_therapist_counts[p_id].get(t_id, 0) + 1
+            
+            for p_id, counts in patient_therapist_counts.items():
+                patient_fav_therapist[p_id] = max(counts, key=counts.get)
+
+            # 3. Import Patients and Visits
             if "patients" in data:
                 from database import VisitData
+                existing_patients = {p.phone: p.id for p in self.db.get_all_patients()}
+                
                 for p_data in data["patients"]:
+                    phone = p_data["phone"]
+                    p_id = existing_patients.get(phone)
+                    
                     # Handle visits and map therapists
                     visits = []
                     for v_data in p_data.get("visits", []):
@@ -114,9 +141,15 @@ class ImportExportHelper:
                         if isinstance(v_date, str):
                             v_date = datetime.fromisoformat(v_date)
                         
-                        # Map old therapist ID to new one, or None if empty
+                        # Logic for Therapist matching:
+                        # 1. Use mapped therapist_id from file if exists
+                        # 2. If therapist_id missing but name exists in p_data, try matching
+                        # 3. If still missing, try matching based on patient's "usual" therapist
                         old_t_id = v_data.get("therapist_id")
-                        new_t_id = therapist_map.get(old_t_id) if old_t_id is not None else None
+                        new_t_id = therapist_id_map.get(old_t_id) if old_t_id is not None else None
+                        
+                        if new_t_id is None and p_id in patient_fav_therapist:
+                            new_t_id = patient_fav_therapist[p_id]
                         
                         visits.append(VisitData(
                             id=None,
@@ -127,16 +160,20 @@ class ImportExportHelper:
                             therapist_id=new_t_id
                         ))
                     
-                    # Add patient (handle duplicate phone check implicitly in add_patient or here)
-                    self.db.add_patient(
-                        p_data["name"],
-                        p_data["phone"],
-                        p_data.get("address", ""),
-                        p_data.get("gender", "Laki-laki"),
-                        visits=visits
-                    )
+                    if p_id:
+                        # Add visits to existing patient
+                        self.db.update_patient_visits(p_id, visits)
+                    else:
+                        # Add new patient with visits
+                        self.db.add_patient(
+                            p_data["name"],
+                            phone,
+                            p_data.get("address", ""),
+                            p_data.get("gender", "Laki-laki"),
+                            visits=visits
+                        )
             
-            QMessageBox.information(self.parent, "Sukses", "Data berhasil diimpor.")
+            QMessageBox.information(self.parent, "Sukses", "Data berhasil diimpor dengan penyesuaian otomatis.")
             return True
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"Gagal impor data:\n{e}")
