@@ -79,7 +79,7 @@ UI updates with confirmation
 **Database Schema:**
 - `patients` (id, name, phone, address, gender) + indexes
 - `therapists` (id, name, gender, specialization, is_active) + indexes
-- `visits` (id, patient_id, therapist_id, date, price, discount_applied, point_count) + indexes
+- `visits` (id, patient_id, therapist_id, date, price, discount_applied, point_count, invoice_path) + indexes
 
 **Performance Features:**
 - WAL mode for concurrent reads/writes
