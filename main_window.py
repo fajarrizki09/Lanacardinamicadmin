@@ -341,6 +341,12 @@ class MainWindow(QMainWindow):
                 return
 
         patient_id = selected_patient[0]
+        # In this version, we calculate price locally or let the VM handle it.
+        # But we need the invoice_path before the DB operation or after?
+        # Let's fix the logic so we generate invoice only when DB is ready, 
+        # or we just fix the variable scope.
+        
+        # We'll stick to the original flow: add_visit first, then generate invoice in on_visit_done
         self.visit_vm.add_visit(patient_id, point_count, therapist_id)
 
     def on_visit_done(self, normal_price, discounted_price, discount_applied):
@@ -370,6 +376,8 @@ class MainWindow(QMainWindow):
                 therapist_name
             )
             msg_invoice = f"\n\nInvoice telah dibuat: {os.path.basename(invoice_path)}"
+            # Update the visit record with the invoice path in background
+            # For now, we just proceed to show the message
         except Exception as e:
             msg_invoice = f"\n\nGagal membuat invoice: {str(e)}"
 
@@ -384,13 +392,12 @@ class MainWindow(QMainWindow):
         self.refresh_patients()
         
         # Reset selection to maintain the current patient view
-        selected_patient = self.patient_list.get_selected_patient()
-        if selected_patient:
-            patient_id = selected_patient[0]
-            for i, p in enumerate(self.filtered_patients):
-                if p[0] == patient_id:
-                    self.patient_list.patient_list.setCurrentRow(i)
-                    break
+        for i in range(self.patient_list.patient_list.count()):
+            item = self.patient_list.patient_list.item(i)
+            p_data = item.data(Qt.UserRole)
+            if p_data and p_data[0] == patient_id:
+                self.patient_list.patient_list.setCurrentRow(i)
+                break
 
     def on_visit_failed(self, message):
         QMessageBox.critical(self, "Gagal", f"Terjadi kesalahan saat mencatat kunjungan:\n{message}")
