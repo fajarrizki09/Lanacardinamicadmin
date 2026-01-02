@@ -104,13 +104,16 @@ class AnalyticsDialog(QDialog):
                     border-radius: 15px;
                     border: none;
                 }}
+                QLabel {{
+                    background: transparent;
+                }}
             """)
             c_layout = QVBoxLayout(card)
             c_layout.setContentsMargins(20, 15, 20, 15)
             t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px; font-weight: bold; text-transform: uppercase;")
+            t_lbl.setStyleSheet("color: rgba(255,255,255,0.9); font-size: 13px; font-weight: bold; text-transform: uppercase; background: transparent;")
             v_lbl = QLabel("0")
-            v_lbl.setStyleSheet("color: white; font-size: 28px; font-weight: bold;")
+            v_lbl.setStyleSheet("color: white; font-size: 28px; font-weight: bold; background: transparent;")
             c_layout.addWidget(t_lbl)
             c_layout.addWidget(v_lbl)
             c_layout.addStretch()
