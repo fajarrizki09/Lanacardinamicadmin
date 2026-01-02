@@ -65,44 +65,51 @@ class VisitSection(QGroupBox):
         self.visit_table.setHorizontalHeaderLabels(
             ["Tanggal", "Terapis", "Titik", "Harga", "Diskon"]
         )
-        self.visit_table.setMinimumHeight(300)
+        self.visit_table.setMinimumHeight(350)
         self.visit_table.setAlternatingRowColors(True)
         self.visit_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.visit_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.visit_table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
-        self.visit_table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
         self.visit_table.setShowGrid(False)
         self.visit_table.setFocusPolicy(Qt.NoFocus)
+        self.visit_table.setFrameShape(QTableWidget.NoFrame)
         
-        # Style the table header and rows
+        # Modernized Table Styling
         self.visit_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: 1px solid #dcdde1;
-                border-radius: 8px;
-                gridline-color: transparent;
+                border: 1px solid #e1e8ed;
+                border-radius: 10px;
+                selection-background-color: #f0f7ff;
+                selection-color: #2c3e50;
+                outline: none;
             }
             QTableWidget::item {
-                padding: 10px;
-                border-bottom: 1px solid #f1f2f6;
+                padding: 12px;
+                border-bottom: 1px solid #f5f8fa;
+            }
+            QTableWidget::item:selected {
+                background-color: #eaf2f8;
+                border-left: 3px solid #3498db;
             }
             QHeaderView::section {
-                background-color: #f8f9fa;
-                padding: 10px;
+                background-color: #fdfdfd;
+                padding: 12px;
                 border: none;
                 border-bottom: 2px solid #3498db;
                 font-weight: bold;
                 color: #2c3e50;
+                font-size: 13px;
             }
         """)
         
         header = self.visit_table.horizontalHeader()
         from PySide6.QtWidgets import QHeaderView
         header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setDefaultAlignment(Qt.AlignCenter)
 
         # ---- Info Total ----
         self.total_info_label = QLabel(
@@ -203,22 +210,31 @@ class VisitSection(QGroupBox):
                 therapist_name = therapists_dict[therapist_id].name
 
             # Helper to create center-aligned items
-            def create_centered_item(text):
+            def create_centered_item(text, is_bold=False):
                 item = QTableWidgetItem(text)
                 item.setTextAlignment(Qt.AlignCenter)
+                if is_bold:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
                 return item
 
             self.visit_table.setItem(row, 0, create_centered_item(date.strftime("%d/%m/%y %H:%M")))
-            self.visit_table.setItem(row, 1, create_centered_item(therapist_name))
+            
+            # Therapist column also stretched for better space usage
+            t_item = create_centered_item(therapist_name)
+            self.visit_table.setItem(row, 1, t_item)
+            
             self.visit_table.setItem(row, 2, create_centered_item(f"{point_count} pt"))
             
-            price_item = create_centered_item(f"Rp {price:,}")
+            price_item = create_centered_item(f"Rp {price:,}", is_bold=True)
             price_item.setForeground(Qt.darkGreen)
             self.visit_table.setItem(row, 3, price_item)
             
-            self.visit_table.setItem(row, 4, create_centered_item("🎁 Diskon" if discount_applied else "-"))
+            discount_text = "🎁 Diskon" if discount_applied else "-"
+            self.visit_table.setItem(row, 4, create_centered_item(discount_text))
             
-            self.visit_table.setRowHeight(row, 45)
+            self.visit_table.setRowHeight(row, 50)
 
             total_price += price
             total_points += point_count
