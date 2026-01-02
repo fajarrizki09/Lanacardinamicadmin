@@ -110,6 +110,7 @@ class VisitSection(QGroupBox):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         header.setDefaultAlignment(Qt.AlignCenter)
+        header.setMinimumSectionSize(100)
 
         # ---- Info Total ----
         self.total_info_label = QLabel(
@@ -231,7 +232,7 @@ class VisitSection(QGroupBox):
             price_item.setForeground(Qt.darkGreen)
             self.visit_table.setItem(row, 3, price_item)
             
-            discount_text = "🎁 Diskon" if discount_applied else "-"
+            discount_text = "🎁" if discount_applied else "-"
             self.visit_table.setItem(row, 4, create_centered_item(discount_text))
             
             self.visit_table.setRowHeight(row, 50)
