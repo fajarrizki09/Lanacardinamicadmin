@@ -8,16 +8,38 @@ from matplotlib.figure import Figure
 from datetime import datetime
 from collections import defaultdict
 
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QDateEdit, QMessageBox, QGridLayout, QSizePolicy, QGroupBox, QScrollArea, QWidget
+)
+from PySide6.QtCore import Qt, QDate
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from datetime import datetime
+from collections import defaultdict
+
 class AnalyticsDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.setWindowTitle("📊 Analitik Kunjungan & Pemasukan")
-        self.resize(1000, 800)
+        self.resize(1100, 850)
         self.db = db
 
-        layout = QVBoxLayout(self)
+        # Main Layout for the Dialog
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Scroll Area for flexibility
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet("background-color: #f5f6fa;")
+        
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        layout.setSpacing(20)
 
         # ---- HEADER / FILTER ----
         filter_card = QGroupBox("Filter Periode")
@@ -25,35 +47,35 @@ class AnalyticsDialog(QDialog):
             QGroupBox {
                 font-weight: bold;
                 border: 1px solid #dcdde1;
-                border-radius: 8px;
+                border-radius: 12px;
                 margin-top: 10px;
-                padding-top: 10px;
+                padding-top: 15px;
                 background-color: white;
             }
         """)
         filter_layout = QHBoxLayout(filter_card)
-        filter_layout.setContentsMargins(15, 15, 15, 15)
+        filter_layout.setContentsMargins(20, 15, 20, 15)
         filter_layout.setSpacing(15)
 
         self.date_start = QDateEdit(calendarPopup=True)
         self.date_start.setDate(QDate.currentDate().addMonths(-6))
-        self.date_start.setFixedWidth(130)
-        self.date_start.setStyleSheet("padding: 5px; border: 1px solid #ced4da; border-radius: 4px;")
+        self.date_start.setFixedWidth(140)
+        self.date_start.setStyleSheet("padding: 8px; border: 1px solid #ced4da; border-radius: 6px;")
 
         self.date_end = QDateEdit(calendarPopup=True)
         self.date_end.setDate(QDate.currentDate())
-        self.date_end.setFixedWidth(130)
-        self.date_end.setStyleSheet("padding: 5px; border: 1px solid #ced4da; border-radius: 4px;")
+        self.date_end.setFixedWidth(140)
+        self.date_end.setStyleSheet("padding: 8px; border: 1px solid #ced4da; border-radius: 6px;")
 
         self.btn_apply = QPushButton("🔍 Terapkan Filter")
-        self.btn_apply.setFixedWidth(150)
+        self.btn_apply.setFixedWidth(180)
         self.btn_apply.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
                 color: white;
                 font-weight: bold;
-                padding: 8px;
-                border-radius: 5px;
+                padding: 10px;
+                border-radius: 8px;
             }
             QPushButton:hover { background-color: #2980b9; }
         """)
@@ -62,7 +84,7 @@ class AnalyticsDialog(QDialog):
         filter_layout.addWidget(self.date_start)
         filter_layout.addWidget(QLabel("📅 Sampai:"))
         filter_layout.addWidget(self.date_end)
-        filter_layout.addSpacing(10)
+        filter_layout.addSpacing(20)
         filter_layout.addWidget(self.btn_apply)
         filter_layout.addStretch()
 
@@ -70,57 +92,89 @@ class AnalyticsDialog(QDialog):
 
         # ---- SUMMARY CARDS ----
         stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(15)
+        stats_layout.setSpacing(20)
 
         def create_stat_card(title, color):
             card = QGroupBox()
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            card.setMinimumHeight(110)
             card.setStyleSheet(f"""
                 QGroupBox {{
                     background-color: {color};
-                    border-radius: 10px;
+                    border-radius: 15px;
                     border: none;
                 }}
             """)
             c_layout = QVBoxLayout(card)
+            c_layout.setContentsMargins(20, 15, 20, 15)
             t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("color: white; font-size: 14px; font-weight: bold;")
+            t_lbl.setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px; font-weight: bold; text-transform: uppercase;")
             v_lbl = QLabel("0")
-            v_lbl.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")
+            v_lbl.setStyleSheet("color: white; font-size: 28px; font-weight: bold;")
             c_layout.addWidget(t_lbl)
             c_layout.addWidget(v_lbl)
+            c_layout.addStretch()
             return card, v_lbl
 
-        self.card_patients, self.val_patients = create_stat_card("TOTAL PASIEN", "#34495e")
-        self.card_visits, self.val_visits = create_stat_card("TOTAL KUNJUNGAN", "#3498db")
-        self.card_income, self.val_income = create_stat_card("TOTAL PEMASUKAN", "#2ecc71")
+        self.card_patients, self.val_patients = create_stat_card("Total Pasien", "#2c3e50")
+        self.card_visits, self.val_visits = create_stat_card("Total Kunjungan", "#2980b9")
+        self.card_income, self.val_income = create_stat_card("Total Pemasukan", "#27ae60")
 
         stats_layout.addWidget(self.card_patients)
         stats_layout.addWidget(self.card_visits)
         stats_layout.addWidget(self.card_income)
         layout.addLayout(stats_layout)
 
-        # ---- CHARTS ----
+        # ---- CHARTS CONTAINER ----
         charts_container = QHBoxLayout()
+        charts_container.setSpacing(20)
         
-        # Left Chart
+        # Left Chart (Visits)
         left_box = QGroupBox("📈 Tren Kunjungan")
-        left_box.setStyleSheet("font-weight: bold; background-color: white; border: 1px solid #dcdde1; border-radius: 8px;")
+        left_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        left_box.setMinimumHeight(450)
+        left_box.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                background-color: white;
+                border: 1px solid #dcdde1;
+                border-radius: 12px;
+                margin-top: 10px;
+                padding-top: 15px;
+            }
+        """)
         left_layout = QVBoxLayout(left_box)
+        left_layout.setContentsMargins(10, 15, 10, 10)
         self.canvas_visits = FigureCanvas(Figure(figsize=(5, 4), dpi=100))
         left_layout.addWidget(self.canvas_visits)
         self.ax_visits = self.canvas_visits.figure.add_subplot(111)
         charts_container.addWidget(left_box)
 
-        # Right Chart
+        # Right Chart (Income)
         right_box = QGroupBox("💰 Tren Pemasukan")
-        right_box.setStyleSheet("font-weight: bold; background-color: white; border: 1px solid #dcdde1; border-radius: 8px;")
+        right_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        right_box.setMinimumHeight(450)
+        right_box.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                background-color: white;
+                border: 1px solid #dcdde1;
+                border-radius: 12px;
+                margin-top: 10px;
+                padding-top: 15px;
+            }
+        """)
         right_layout = QVBoxLayout(right_box)
+        right_layout.setContentsMargins(10, 15, 10, 10)
         self.canvas_income = FigureCanvas(Figure(figsize=(5, 4), dpi=100))
         right_layout.addWidget(self.canvas_income)
         self.ax_income = self.canvas_income.figure.add_subplot(111)
         charts_container.addWidget(right_box)
 
         layout.addLayout(charts_container)
+        
+        scroll.setWidget(content_widget)
+        main_layout.addWidget(scroll)
 
         self.btn_apply.clicked.connect(self.refresh_data)
         self.refresh_data()
@@ -170,15 +224,17 @@ class AnalyticsDialog(QDialog):
         values = [data[m] for m in months]
         labels = [datetime.strptime(m, "%Y-%m").strftime("%b %y") for m in months]
 
-        bars = ax.bar(labels, values, color="#3498db", alpha=0.7)
-        ax.set_title("Kunjungan per Bulan", fontsize=10, pad=10)
+        bars = ax.bar(labels, values, color="#3498db", alpha=0.8, width=0.6)
+        ax.set_title("Jumlah Kunjungan per Bulan", fontsize=11, fontweight='bold', pad=15)
         ax.grid(axis='y', linestyle='--', alpha=0.3)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='x', rotation=30)
         
         for bar in bars:
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.1, f'{int(height)}', ha='center', va='bottom', fontsize=8)
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.1, f'{int(height)}', 
+                    ha='center', va='bottom', fontsize=9, fontweight='bold', color="#2c3e50")
             
         self.canvas_visits.figure.tight_layout()
         self.canvas_visits.draw()
@@ -194,12 +250,21 @@ class AnalyticsDialog(QDialog):
         values = [data[m] for m in months]
         labels = [datetime.strptime(m, "%Y-%m").strftime("%b %y") for m in months]
 
-        ax.plot(labels, values, marker='o', color="#2ecc71", linewidth=2, markersize=6)
-        ax.fill_between(labels, values, color="#2ecc71", alpha=0.1)
-        ax.set_title("Pemasukan per Bulan", fontsize=10, pad=10)
+        ax.plot(labels, values, marker='o', color="#27ae60", linewidth=3, markersize=8, markerfacecolor='white', markeredgewidth=2)
+        ax.fill_between(labels, values, color="#27ae60", alpha=0.15)
+        ax.set_title("Tren Pemasukan Bulanan", fontsize=11, fontweight='bold', pad=15)
         ax.grid(axis='y', linestyle='--', alpha=0.3)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='x', rotation=30)
+
+        def format_k(x, pos):
+            if x >= 1_000_000: return f'{x/1_000_000:.1f}jt'
+            if x >= 1_000: return f'{x/1_000:.0f}rb'
+            return str(x)
+            
+        from matplotlib.ticker import FuncFormatter
+        ax.yaxis.set_major_formatter(FuncFormatter(format_k))
 
         self.canvas_income.figure.tight_layout()
         self.canvas_income.draw()
