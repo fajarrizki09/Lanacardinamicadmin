@@ -65,8 +65,44 @@ class VisitSection(QGroupBox):
         self.visit_table.setHorizontalHeaderLabels(
             ["Tanggal", "Terapis", "Titik", "Harga", "Diskon"]
         )
-        self.visit_table.setMinimumHeight(250)
+        self.visit_table.setMinimumHeight(300)
         self.visit_table.setAlternatingRowColors(True)
+        self.visit_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.visit_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.visit_table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
+        self.visit_table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
+        self.visit_table.setShowGrid(False)
+        self.visit_table.setFocusPolicy(Qt.NoFocus)
+        
+        # Style the table header and rows
+        self.visit_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dcdde1;
+                border-radius: 8px;
+                gridline-color: transparent;
+            }
+            QTableWidget::item {
+                padding: 10px;
+                border-bottom: 1px solid #f1f2f6;
+            }
+            QHeaderView::section {
+                background-color: #f8f9fa;
+                padding: 10px;
+                border: none;
+                border-bottom: 2px solid #3498db;
+                font-weight: bold;
+                color: #2c3e50;
+            }
+        """)
+        
+        header = self.visit_table.horizontalHeader()
+        from PySide6.QtWidgets import QHeaderView
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
 
         # ---- Info Total ----
         self.total_info_label = QLabel(
@@ -145,6 +181,7 @@ class VisitSection(QGroupBox):
         total_points = 0
 
         for row, visit in enumerate(visits):
+            # ... (data extraction logic)
             if isinstance(visit, dict):
                 date = visit.get("date")
                 price = visit.get("price", 0)
@@ -165,11 +202,23 @@ class VisitSection(QGroupBox):
             if therapist_id and therapists_dict and therapist_id in therapists_dict:
                 therapist_name = therapists_dict[therapist_id].name
 
-            self.visit_table.setItem(row, 0, QTableWidgetItem(date.strftime("%Y-%m-%d %H:%M")))
-            self.visit_table.setItem(row, 1, QTableWidgetItem(therapist_name))
-            self.visit_table.setItem(row, 2, QTableWidgetItem(str(point_count)))
-            self.visit_table.setItem(row, 3, QTableWidgetItem(f"Rp {price:,}"))
-            self.visit_table.setItem(row, 4, QTableWidgetItem("✅" if discount_applied else "-"))
+            # Helper to create center-aligned items
+            def create_centered_item(text):
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignCenter)
+                return item
+
+            self.visit_table.setItem(row, 0, create_centered_item(date.strftime("%d/%m/%y %H:%M")))
+            self.visit_table.setItem(row, 1, create_centered_item(therapist_name))
+            self.visit_table.setItem(row, 2, create_centered_item(f"{point_count} pt"))
+            
+            price_item = create_centered_item(f"Rp {price:,}")
+            price_item.setForeground(Qt.darkGreen)
+            self.visit_table.setItem(row, 3, price_item)
+            
+            self.visit_table.setItem(row, 4, create_centered_item("🎁 Diskon" if discount_applied else "-"))
+            
+            self.visit_table.setRowHeight(row, 45)
 
             total_price += price
             total_points += point_count
