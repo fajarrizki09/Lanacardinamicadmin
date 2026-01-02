@@ -5,3 +5,5 @@ matplotlib
 PySide6
 SQLAlchemy
 reportlab
+openpyxl
+pandas
