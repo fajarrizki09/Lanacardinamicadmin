@@ -26,18 +26,41 @@ class ImportExportHelper:
                     file_path += ".xlsx"
                 try:
                     patients = self.db.get_all_patients()
+                    therapists = self.db.get_all_therapists(active_only=False)
+                    t_dict = {t.id: t.name for t in therapists}
+                    
                     data = []
                     for p in patients:
-                        data.append({
-                            "Nama": p.name,
-                            "Telepon": p.phone,
-                            "Alamat": p.address,
-                            "Gender": p.gender,
-                            "Total Kunjungan": len(p.visits)
-                        })
+                        for v in p.visits:
+                            data.append({
+                                "Nama Pasien": p.name,
+                                "Telepon": p.phone,
+                                "Alamat": p.address,
+                                "Gender": p.gender,
+                                "Tanggal Kunjungan": v.date.strftime("%Y-%m-%d %H:%M"),
+                                "Terapis": t_dict.get(v.therapist_id, "-"),
+                                "Jumlah Titik": v.point_count,
+                                "Harga": v.price,
+                                "Diskon": "Ya" if v.discount_applied else "Tidak"
+                            })
+                    
+                    if not data: # Handle case with no visits
+                        for p in patients:
+                            data.append({
+                                "Nama Pasien": p.name,
+                                "Telepon": p.phone,
+                                "Alamat": p.address,
+                                "Gender": p.gender,
+                                "Tanggal Kunjungan": "-",
+                                "Terapis": "-",
+                                "Jumlah Titik": 0,
+                                "Harga": 0,
+                                "Diskon": "-"
+                            })
+
                     df = pd.DataFrame(data)
                     df.to_excel(file_path, index=False)
-                    QMessageBox.information(self.parent, "Sukses", f"Data berhasil diekspor ke {file_path}")
+                    QMessageBox.information(self.parent, "Sukses", f"Data detail kunjungan berhasil diekspor ke {file_path}")
                 except Exception as e:
                     QMessageBox.critical(self.parent, "Error", f"Gagal ekspor data:\n{e}")
 
@@ -114,25 +137,62 @@ class ImportExportHelper:
                 df = pd.read_excel(file_path)
                 # Map column names to expected fields
                 column_mapping = {
-                    'nama': 'name', 'name': 'name',
+                    'nama pasien': 'name', 'nama': 'name', 'name': 'name',
                     'telepon': 'phone', 'phone': 'phone', 'no hp': 'phone',
                     'alamat': 'address', 'address': 'address',
-                    'gender': 'gender', 'jenis kelamin': 'gender'
+                    'gender': 'gender', 'jenis kelamin': 'gender',
+                    'tanggal kunjungan': 'v_date', 'tanggal': 'v_date',
+                    'terapis': 'v_therapist',
+                    'jumlah titik': 'v_points', 'titik': 'v_points',
+                    'harga': 'v_price',
+                    'diskon': 'v_discount'
                 }
                 df.columns = [column_mapping.get(c.lower(), c) for c in df.columns]
                 
-                for _, row in df.iterrows():
-                    name = row.get('name')
-                    phone = row.get('phone')
-                    address = row.get('address') or ''
-                    gender = row.get('gender') or 'Laki-laki'
-                    
-                    if name:
-                        if not phone:
-                            phone = "TEMP-" + datetime.now().strftime("%H%M%S%f")[:10]
-                        self.db.add_patient(name, str(phone), address, gender)
+                # Group by patient to handle multiple visits in one import
+                from database import VisitData
+                therapists = self.db.get_all_therapists(active_only=False)
+                t_name_map = {t.name.lower(): t.id for t in therapists}
                 
-                QMessageBox.information(self.parent, "Sukses", "Data Excel berhasil diimpor!")
+                patient_groups = df.groupby(['name', 'phone'])
+                
+                for (name, phone), group in patient_groups:
+                    address = group['address'].iloc[0] if 'address' in group.columns else ''
+                    gender = group['gender'].iloc[0] if 'gender' in group.columns else 'Laki-laki'
+                    
+                    visits = []
+                    if 'v_date' in group.columns:
+                        for _, row in group.iterrows():
+                            v_date_raw = row.get('v_date')
+                            if pd.isna(v_date_raw) or v_date_raw == "-": continue
+                            
+                            try:
+                                v_date = pd.to_datetime(v_date_raw).to_pydatetime()
+                                v_price = row.get('v_price', 0)
+                                v_points = row.get('v_points', 0)
+                                v_discount = str(row.get('v_discount', '')).lower() in ['ya', 'yes', 'true', '1']
+                                t_name = str(row.get('v_therapist', '')).lower()
+                                t_id = t_name_map.get(t_name)
+                                
+                                visits.append(VisitData(
+                                    id=None, date=v_date, price=int(v_price),
+                                    discount_applied=v_discount, point_count=int(v_points),
+                                    therapist_id=t_id
+                                ))
+                            except: continue
+
+                    if name:
+                        if not phone or pd.isna(phone):
+                            phone = "TEMP-" + datetime.now().strftime("%H%M%S%f")[:10]
+                        
+                        # Check if patient exists
+                        existing = self.db.get_patient_by_phone(str(phone))
+                        if existing:
+                            self.db.update_patient_visits(existing.id, visits)
+                        else:
+                            self.db.add_patient(name, str(phone), address, gender, visits=visits)
+                
+                QMessageBox.information(self.parent, "Sukses", "Data detail kunjungan berhasil diimpor!")
                 return True
 
             else:
