@@ -1,61 +1,67 @@
 STYLES = {
     "main_window": "background-color: #f5f6fa;",
     "add_button": """
-        padding: 8px 20px; 
-        background-color: #2ecc71; 
+        padding: 10px 22px; 
+        background-color: #27ae60; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
+        font-size: 13px;
     """,
     "delete_button": """
-        padding: 8px 15px; 
+        padding: 10px 18px; 
         background-color: #e74c3c; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
+        font-size: 13px;
     """,
     "update_button": """
-        padding: 8px 15px; 
-        background-color: #3498db; 
+        padding: 10px 18px; 
+        background-color: #2980b9; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
+        font-size: 13px;
     """,
     "visit_button": """
-        padding: 10px 20px; 
+        padding: 12px 20px; 
         background-color: #1abc9c; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 10px;
         border: none;
-        font-size: 14px;
+        font-size: 15px;
     """,
     "action_button": """
-        padding: 8px 25px; 
+        padding: 10px 25px; 
         background-color: #7f8c8d; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
+        font-size: 13px;
     """,
     "analytics_button": """
-        padding: 8px 20px; 
-        background-color: #9b59b6; 
+        padding: 10px 22px; 
+        background-color: #8e44ad; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
+        font-size: 13px;
     """,
     "settings_button": """
-        padding: 8px 20px; 
-        background-color: #f39c12; 
+        padding: 10px 22px; 
+        background-color: #d35400; 
         color: white; 
         font-weight: bold; 
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
+        font-size: 13px;
     """,
     "sunnah_label": """
         padding: 10px;
