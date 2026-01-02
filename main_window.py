@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel
 )
 from PySide6.QtCore import Qt, QTimer
-
+from datetime import datetime
 from utils.styles import STYLES
 from components.patient_form import PatientForm
 from components.patient_list import PatientList
