@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QGroupBox, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem,
-    QPushButton, QLineEdit
+    QPushButton, QLineEdit, QMenu
 )
 from PySide6.QtCore import Qt
 
@@ -30,22 +30,6 @@ class PatientList(QGroupBox):
         self.patient_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.patient_list.customContextMenuRequested.connect(self.show_context_menu)
 
-    def show_context_menu(self, pos):
-        from PySide6.QtWidgets import QMenu
-        item = self.patient_list.itemAt(pos)
-        if not item:
-            return
-            
-        menu = QMenu(self)
-        edit_action = menu.addAction("✏️ Edit Pasien")
-        delete_action = menu.addAction("🗑️ Hapus Pasien")
-        
-        action = menu.exec_(self.patient_list.mapToGlobal(pos))
-        if action == edit_action:
-            self.update_btn.click()
-        elif action == delete_action:
-            self.delete_btn.click()
-
         # 🔘 Tombol
         button_layout = QHBoxLayout()
         self.update_btn = QPushButton("Edit")
@@ -62,11 +46,22 @@ class PatientList(QGroupBox):
         layout.addWidget(self.patient_list)
         layout.addLayout(button_layout)
 
+    def show_context_menu(self, pos):
+        item = self.patient_list.itemAt(pos)
+        if not item:
+            return
+            
+        menu = QMenu(self)
+        edit_action = menu.addAction("✏️ Edit Pasien")
+        delete_action = menu.addAction("🗑️ Hapus Pasien")
+        
+        action = menu.exec_(self.patient_list.mapToGlobal(pos))
+        if action == edit_action:
+            self.update_btn.click()
+        elif action == delete_action:
+            self.delete_btn.click()
+
     def update_list(self, patients_data):
-        """
-        patients_data:
-        list of tuple -> (id, name, phone, gender, address, total_visits)
-        """
         self.patient_list.clear()
 
         for patient_data in patients_data:
@@ -78,7 +73,6 @@ class PatientList(QGroupBox):
             phone = patient_data[2]
             gender = patient_data[3] if len(patient_data) > 3 else ""
             address = patient_data[4] if len(patient_data) > 4 else ""
-            # total_visits is at index 5
             total_visits = patient_data[5] if len(patient_data) > 5 else 0
 
             item = QListWidgetItem()
@@ -91,8 +85,6 @@ class PatientList(QGroupBox):
             )
 
             item.setSizeHint(widget.sizeHint())
-
-            # ⬅️ SIMPAN SEMUA DATA PASIEN
             item.setData(Qt.UserRole, patient_data)
 
             self.patient_list.addItem(item)
