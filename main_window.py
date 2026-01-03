@@ -15,6 +15,7 @@ from dialogs.analytics_dialog import AnalyticsDialog
 from dialogs.settings_dialog import SettingsDialog
 from dialogs.therapist_dialog import TherapistDialog
 from dialogs.invoice_dialog import InvoiceDialog
+from dialogs.custom_invoice_dialog import CustomInvoiceDialog
 
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
@@ -122,6 +123,8 @@ class MainWindow(QMainWindow):
 
         self.action_buttons.therapist_btn.clicked.connect(self.show_therapist_dialog)
         self.action_buttons.settings_btn.clicked.connect(self.show_settings_dialog)
+        self.action_buttons.settings_btn.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.action_buttons.settings_btn.customContextMenuRequested.connect(self.show_settings_context_menu)
         self.action_buttons.analytics_btn.clicked.connect(self.show_analytics)
         self.action_buttons.export_btn.clicked.connect(self.import_export.export_data)
         self.action_buttons.import_btn.clicked.connect(self.handle_import)
@@ -374,6 +377,7 @@ class MainWindow(QMainWindow):
             point_count,
             discounted_price,
             therapist_name,
+            self.settings,
             self
         )
         invoice_dlg.exec_()
@@ -409,6 +413,21 @@ class MainWindow(QMainWindow):
                 self, "Pengaturan Diperbarui",
                 f"Harga per titik sekarang: Rp {price_per_point:,}"
             )
+
+    def show_settings_context_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        custom_action = menu.addAction("Kustomisasi Cetak Invoice")
+        action = menu.exec_(self.action_buttons.settings_btn.mapToGlobal(pos))
+        if action == custom_action:
+            self.show_custom_invoice_dialog()
+
+    def show_custom_invoice_dialog(self):
+        dlg = CustomInvoiceDialog(self.settings, self)
+        if dlg.exec_():
+            data = dlg.get_data()
+            self.settings.save_custom_invoice_settings(data)
+            QMessageBox.information(self, "Sukses", "Kustomisasi invoice berhasil disimpan.")
 
     def show_therapist_dialog(self):
         dlg = TherapistDialog(self.db, self)

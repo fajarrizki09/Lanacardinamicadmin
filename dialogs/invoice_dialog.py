@@ -8,7 +8,7 @@ from utils.styles import STYLES
 from datetime import datetime
 
 class InvoiceDialog(QDialog):
-    def __init__(self, patient_name, visit_date, points, price, therapist_name, parent=None):
+    def __init__(self, patient_name, visit_date, points, price, therapist_name, settings=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Invoice - {patient_name}")
         self.setMinimumSize(450, 600)
@@ -17,6 +17,7 @@ class InvoiceDialog(QDialog):
         self.points = points
         self.price = price
         self.therapist_name = therapist_name
+        self.settings = settings
         self.init_ui()
 
     def init_ui(self):
@@ -25,15 +26,22 @@ class InvoiceDialog(QDialog):
         layout.setSpacing(20)
         self.setStyleSheet("background-color: white; color: #2c3e50;")
 
+        custom = self.settings.get_custom_invoice_settings() if self.settings else {
+            "clinic_name": "Klinik Bekam Sunnah Pro",
+            "clinic_tagline": "Professional Cupping Therapy",
+            "invoice_footer": "Semoga menjadi wasilah kesembuhan yang berkah.",
+            "admin_label": "Admin Klinik,"
+        }
+
         # Header Container
         header_frame = QFrame()
         header_layout = QVBoxLayout(header_frame)
         
-        title = QLabel("INVOICE LAYANAN BEKAM")
+        title = QLabel(custom.get("clinic_name", "INVOICE LAYANAN BEKAM").upper())
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: #27ae60; margin-bottom: 5px;")
         
-        subtitle = QLabel("Klinik Bekam Sunnah Pro")
+        subtitle = QLabel(custom.get("clinic_tagline", ""))
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet("font-size: 14px; color: #7f8c8d;")
         
@@ -110,7 +118,7 @@ class InvoiceDialog(QDialog):
         layout.addWidget(total_frame)
 
         # Footer
-        footer = QLabel("Terima kasih telah mempercayakan kesehatan Anda pada kami.\nSemoga menjadi wasilah kesembuhan yang berkah.")
+        footer = QLabel(custom.get("invoice_footer", ""))
         footer.setAlignment(Qt.AlignCenter)
         footer.setStyleSheet("font-size: 11px; color: #95a5a6; font-style: italic; margin-top: 20px;")
         layout.addWidget(footer)
@@ -134,9 +142,11 @@ class InvoiceDialog(QDialog):
         # Optional: still provide PDF if user wants to print
         from helpers.invoice_helper import InvoiceHelper
         helper = InvoiceHelper()
+        custom = self.settings.get_custom_invoice_settings() if self.settings else None
         path = helper.generate_invoice(
             self.patient_name, self.visit_date, 
-            self.points, self.price, self.therapist_name
+            self.points, self.price, self.therapist_name,
+            custom_settings=custom
         )
         import os
         from PySide6.QtGui import QDesktopServices

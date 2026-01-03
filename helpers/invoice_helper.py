@@ -10,10 +10,18 @@ class InvoiceHelper:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-    def generate_invoice(self, patient_name, date, points, price, therapist_name="--"):
+    def generate_invoice(self, patient_name, date, points, price, therapist_name="--", custom_settings=None):
         filename = f"Invoice_{patient_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         filepath = os.path.join(self.output_dir, filename)
         
+        if not custom_settings:
+            custom_settings = {
+                "clinic_name": "Klinik Bekam Sunnah Pro",
+                "clinic_tagline": "Professional Cupping Therapy",
+                "invoice_footer": "Semoga menjadi wasilah kesembuhan yang berkah.",
+                "admin_label": "Admin Klinik,"
+            }
+
         try:
             from reportlab.lib.pagesizes import A5
             from reportlab.pdfgen import canvas
@@ -29,16 +37,15 @@ class InvoiceHelper:
             c.rect(5*mm, 5*mm, width-10*mm, height-10*mm) # Border luar
             
             # --- Header ---
-            # Logo placeholder or Green Header Bar
             c.setFillColor(colors.hexColor("#27ae60"))
             c.rect(10*mm, height-35*mm, width-20*mm, 20*mm, fill=1, stroke=0)
             
             c.setFillColor(colors.white)
             c.setFont("Helvetica-Bold", 18)
-            c.drawCentredString(width/2, height-25*mm, "INVOICE LAYANAN BEKAM")
+            c.drawCentredString(width/2, height-25*mm, custom_settings.get("clinic_name", "INVOICE LAYANAN BEKAM").upper())
             
             c.setFont("Helvetica", 10)
-            c.drawCentredString(width/2, height-31*mm, "Klinik Bekam Sunnah Pro - Professional Cupping Therapy")
+            c.drawCentredString(width/2, height-31*mm, custom_settings.get("clinic_tagline", ""))
 
             # --- Info Section ---
             c.setFillColor(colors.black)
@@ -84,13 +91,13 @@ class InvoiceHelper:
             # --- Signature / Stamp Area ---
             c.setFillColor(colors.black)
             c.setFont("Helvetica", 9)
-            c.drawCentredString(width-40*mm, 35*mm, "Admin Klinik,")
+            c.drawCentredString(width-40*mm, 35*mm, custom_settings.get("admin_label", "Admin Klinik,"))
             c.line(width-60*mm, 15*mm, width-20*mm, 15*mm)
 
             # --- Footer / Doa ---
             c.setFont("Helvetica-Oblique", 9)
             c.setFillColor(colors.hexColor("#7f8c8d"))
-            footer_text = "Semoga menjadi wasilah kesembuhan yang berkah."
+            footer_text = custom_settings.get("invoice_footer", "")
             c.drawCentredString(width/2, 25*mm, footer_text)
             c.setFont("Helvetica", 8)
             c.drawCentredString(width/2, 20*mm, "Terima kasih atas kunjungan Anda.")

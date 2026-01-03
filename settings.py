@@ -61,6 +61,18 @@ class AppSettings:
         self.settings["min_visits_for_discount"] = min_visits
         self.save()
 
+    def get_custom_invoice_settings(self):
+        return {
+            "clinic_name": self.settings.get("clinic_name", "Klinik Bekam Sunnah Pro"),
+            "clinic_tagline": self.settings.get("clinic_tagline", "Professional Cupping Therapy"),
+            "invoice_footer": self.settings.get("invoice_footer", "Semoga menjadi wasilah kesembuhan yang berkah."),
+            "admin_label": self.settings.get("admin_label", "Admin Klinik,")
+        }
+
+    def save_custom_invoice_settings(self, data):
+        self.settings.update(data)
+        self.save()
+
     def get_all_settings(self):
         return self.settings.copy()
 
