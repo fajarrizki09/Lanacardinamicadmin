@@ -300,6 +300,18 @@ class Database:
                 medical_notes=medical_notes
             )
             session.add(new_visit)
+
+            # --- Pengurangan Stok Otomatis ---
+            # 1. Kurangi Jarum (1 per titik)
+            jarum = session.query(Inventory).filter(Inventory.item_name.like("%Jarum%")).first()
+            if jarum:
+                jarum.quantity = max(0, jarum.quantity - point_count)
+            
+            # 2. Kurangi Tisu (estimasi 2 per kunjungan)
+            tisu = session.query(Inventory).filter(Inventory.item_name.like("%Tisu%")).first()
+            if tisu:
+                tisu.quantity = max(0, tisu.quantity - 2)
+
             session.commit()
 
             return round(final_price, 2), discount_applied
