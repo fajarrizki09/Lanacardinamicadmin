@@ -14,6 +14,7 @@ from dialogs.edit_patient_dialog import EditPatientDialog
 from dialogs.analytics_dialog import AnalyticsDialog
 from dialogs.settings_dialog import SettingsDialog
 from dialogs.therapist_dialog import TherapistDialog
+from dialogs.invoice_dialog import InvoiceDialog
 
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
@@ -365,28 +366,17 @@ class MainWindow(QMainWindow):
         if therapist_id and therapist_id in self.therapists_dict:
             therapist_name = self.therapists_dict[therapist_id].name
 
-        # Generate Invoice
-        invoice_path = None
-        try:
-            invoice_path = self.invoice_helper.generate_invoice(
-                patient_name,
-                datetime.now().strftime("%d/%m/%Y %H:%M"),
-                point_count,
-                discounted_price,
-                therapist_name
-            )
-            msg_invoice = f"\n\nInvoice telah dibuat: {os.path.basename(invoice_path)}"
-            # Update the visit record with the invoice path in background
-            # For now, we just proceed to show the message
-        except Exception as e:
-            msg_invoice = f"\n\nGagal membuat invoice: {str(e)}"
-
-        msg = f"Kunjungan dicatat! {point_count} titik | Biaya: Rp {discounted_price:,}"
-        if discount_applied:
-            msg += f" (Diskon {discount_pct}%!)"
-        msg += msg_invoice
-        
-        QMessageBox.information(self, "✅ Berhasil", msg)
+        # Show Modern Invoice Dialog
+        visit_date_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+        invoice_dlg = InvoiceDialog(
+            patient_name,
+            visit_date_str,
+            point_count,
+            discounted_price,
+            therapist_name,
+            self
+        )
+        invoice_dlg.exec_()
 
         self.load_visits()
         self.refresh_patients()
