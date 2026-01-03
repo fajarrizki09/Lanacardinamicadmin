@@ -273,7 +273,9 @@ class Database:
 
             session.commit()
 
-    def add_visit(self, patient_id, price, point_count=0, therapist_id=None, discount_percentage=0, min_visits_for_discount=5, invoice_path=None):
+    def add_visit(self, patient_id, price, point_count=0, therapist_id=None, 
+                  discount_percentage=0, min_visits_for_discount=5, invoice_path=None,
+                  medical_notes=None):
         with self.Session() as session:
             patient = session.query(Patient).options(joinedload(Patient.visits)).get(patient_id)
             if not patient:
@@ -294,7 +296,8 @@ class Database:
                 price=round(final_price, 2),
                 discount_applied=discount_applied,
                 point_count=point_count,
-                invoice_path=invoice_path
+                invoice_path=invoice_path,
+                medical_notes=medical_notes
             )
             session.add(new_visit)
             session.commit()
@@ -312,6 +315,7 @@ class Database:
                 'point_count': v.point_count if hasattr(v, 'point_count') else 0,
                 'therapist_id': v.therapist_id if hasattr(v, 'therapist_id') else None,
                 'invoice_path': v.invoice_path if hasattr(v, 'invoice_path') else None,
+                'medical_notes': v.medical_notes if hasattr(v, 'medical_notes') else '-',
             } for v in visits]
 
     def get_all_visits(self):
@@ -326,6 +330,7 @@ class Database:
                 'patient_id': v.patient_id,
                 'therapist_id': v.therapist_id if hasattr(v, 'therapist_id') else None,
                 'invoice_path': v.invoice_path if hasattr(v, 'invoice_path') else None,
+                'medical_notes': v.medical_notes if hasattr(v, 'medical_notes') else '-',
             } for v in visits]
 
     def add_therapist(self, name, gender, specialization=''):

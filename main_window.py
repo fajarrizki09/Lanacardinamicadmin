@@ -377,17 +377,20 @@ class MainWindow(QMainWindow):
                 "Terapis belum dipilih. Lanjutkan tanpa terapis?",
                 QMessageBox.Yes | QMessageBox.No
             )
-            if confirm != QMessageBox.Yes:
+            if confirm == QMessageBox.No:
                 return
 
-        patient_id = selected_patient[0]
-        # In this version, we calculate price locally or let the VM handle it.
-        # But we need the invoice_path before the DB operation or after?
-        # Let's fix the logic so we generate invoice only when DB is ready, 
-        # or we just fix the variable scope.
+        medical_notes = self.visit_section.get_medical_notes()
+
+        self.visit_vm.add_visit(
+            patient_id=selected_patient[0],
+            point_count=point_count,
+            therapist_id=therapist_id,
+            medical_notes=medical_notes
+        )
         
-        # We'll stick to the original flow: add_visit first, then generate invoice in on_visit_done
-        self.visit_vm.add_visit(patient_id, point_count, therapist_id)
+        # Clear input setelah simpan
+        self.visit_section.medical_notes_input.clear()
 
     def on_visit_done(self, normal_price, discounted_price, discount_applied):
         discount_pct = self.settings.get_discount_percentage()
