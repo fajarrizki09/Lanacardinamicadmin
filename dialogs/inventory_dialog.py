@@ -72,7 +72,7 @@ class InventoryDialog(QDialog):
         
         # Seed default items if empty
         if not items:
-            self.db.add_inventory_item("Jarum Bekam (Lancet)", "pcs", 100, 500)
+            self.db.add_inventory_item("Pisau Bedah", "pcs", 10, 50)
             self.db.add_inventory_item("Kop Bekam (Cup)", "pcs", 20, 100)
             self.db.add_inventory_item("Minyak Zaitun", "botol", 5, 10)
             self.db.add_inventory_item("Tisu / Alcohol Swab", "box", 10, 50)

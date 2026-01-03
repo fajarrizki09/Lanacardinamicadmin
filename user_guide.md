@@ -15,6 +15,7 @@
 *   **Buka Dashboard Stok**: Klik tombol "Stok Alat" (Ungu).
 *   **Monitor Status**: Perhatikan warna status (Hijau = Aman, Oranye = Menipis, Merah = Habis).
 *   **Kelola Stok**: Pilih item, lalu gunakan tombol "Tambah Stok" saat barang baru datang atau "Gunakan Stok" setelah sesi bekam selesai.
+*   **Otomatisasi**: Stok **Pisau Bedah** otomatis berkurang 1 unit per pasien, dan **Tisu** berkurang 2 unit per kunjungan.
 
 ## 4. Analitik & Laporan
 *   **Lihat Laporan**: Klik tombol "Analitik" (Biru) untuk melihat statistik kunjungan, total pemasukan, dan grafik tren bulanan.
