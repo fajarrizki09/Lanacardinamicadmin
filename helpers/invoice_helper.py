@@ -18,47 +18,82 @@ class InvoiceHelper:
             from reportlab.lib.pagesizes import A5
             from reportlab.pdfgen import canvas
             from reportlab.lib import colors
+            from reportlab.lib.units import mm
             
             c = canvas.Canvas(filepath, pagesize=A5)
             width, height = A5
 
-            # Header
-            c.setFont("Helvetica-Bold", 16)
-            c.drawCentredString(width/2, height - 50, "INVOICE LAYANAN BEKAM")
+            # --- Background Decoration ---
+            c.setStrokeColor(colors.hexColor("#27ae60"))
+            c.setLineWidth(2)
+            c.rect(5*mm, 5*mm, width-10*mm, height-10*mm) # Border luar
+            
+            # --- Header ---
+            # Logo placeholder or Green Header Bar
+            c.setFillColor(colors.hexColor("#27ae60"))
+            c.rect(10*mm, height-35*mm, width-20*mm, 20*mm, fill=1, stroke=0)
+            
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 18)
+            c.drawCentredString(width/2, height-25*mm, "INVOICE LAYANAN BEKAM")
             
             c.setFont("Helvetica", 10)
-            c.drawCentredString(width/2, height - 70, "Klinik Bekam Sunnah Pro")
-            c.line(50, height - 80, width - 50, height - 80)
+            c.drawCentredString(width/2, height-31*mm, "Klinik Bekam Sunnah Pro - Professional Cupping Therapy")
 
-            # Info Pasien
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(50, height - 110, f"Kepada: {patient_name}")
+            # --- Info Section ---
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(15*mm, height-50*mm, "INFORMASI PASIEN")
+            c.setLineWidth(0.5)
+            c.line(15*mm, height-52*mm, 60*mm, height-52*mm)
+            
             c.setFont("Helvetica", 10)
-            c.drawString(50, height - 125, f"Tanggal: {date}")
+            c.drawString(15*mm, height-60*mm, f"Nama Pasien  : {patient_name}")
+            c.drawString(15*mm, height-66*mm, f"Tanggal       : {date}")
+            c.drawString(15*mm, height-72*mm, f"Terapis       : {therapist_name}")
 
-            # Detail Layanan
+            # --- Table Header ---
+            table_top = height - 85*mm
+            c.setFillColor(colors.hexColor("#f1f1f1"))
+            c.rect(15*mm, table_top, width-30*mm, 10*mm, fill=1, stroke=0)
+            
+            c.setFillColor(colors.black)
             c.setFont("Helvetica-Bold", 10)
-            c.drawString(50, height - 160, "Deskripsi")
-            c.drawString(width - 150, height - 160, "Jumlah")
-            c.line(50, height - 165, width - 50, height - 165)
+            c.drawString(20*mm, table_top + 3.5*mm, "DESKRIPSI LAYANAN")
+            c.drawRightString(width-20*mm, table_top + 3.5*mm, "SUBTOTAL")
 
+            # --- Table Content ---
             c.setFont("Helvetica", 10)
-            c.drawString(50, height - 185, "Layanan Bekam (Titik)")
-            c.drawString(width - 150, height - 185, f"{points} Titik")
+            row_y = table_top - 10*mm
+            c.drawString(20*mm, row_y, f"Terapi Bekam ({points} Titik)")
+            c.drawRightString(width-20*mm, row_y, f"Rp {price:,.0f}")
             
-            c.drawString(50, height - 205, "Terapis")
-            c.drawString(width - 150, height - 205, therapist_name)
+            # Garis pemisah table
+            c.setStrokeColor(colors.hexColor("#dddddd"))
+            c.line(15*mm, row_y - 5*mm, width-15*mm, row_y - 5*mm)
 
-            # Total
-            c.line(50, height - 225, width - 50, height - 225)
+            # --- Total Section ---
+            c.setFillColor(colors.hexColor("#27ae60"))
+            c.rect(width-70*mm, row_y - 25*mm, 55*mm, 12*mm, fill=1, stroke=0)
+            
+            c.setFillColor(colors.white)
             c.setFont("Helvetica-Bold", 12)
-            c.drawString(50, height - 245, "TOTAL PEMBAYARAN")
-            c.drawString(width - 150, height - 245, f"Rp {price:,.0f}")
+            c.drawString(width-65*mm, row_y - 18*mm, "TOTAL")
+            c.drawRightString(width-20*mm, row_y - 18*mm, f"Rp {price:,.0f}")
 
-            # Footer
-            c.setFont("Helvetica-Oblique", 8)
-            c.drawCentredString(width/2, 50, "Terima kasih telah mempercayakan kesehatan Anda pada kami.")
-            c.drawCentredString(width/2, 40, "Semoga menjadi wasilah kesembuhan yang berkah.")
+            # --- Signature / Stamp Area ---
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica", 9)
+            c.drawCentredString(width-40*mm, 35*mm, "Admin Klinik,")
+            c.line(width-60*mm, 15*mm, width-20*mm, 15*mm)
+
+            # --- Footer / Doa ---
+            c.setFont("Helvetica-Oblique", 9)
+            c.setFillColor(colors.hexColor("#7f8c8d"))
+            footer_text = "Semoga menjadi wasilah kesembuhan yang berkah."
+            c.drawCentredString(width/2, 25*mm, footer_text)
+            c.setFont("Helvetica", 8)
+            c.drawCentredString(width/2, 20*mm, "Terima kasih atas kunjungan Anda.")
 
             c.save()
             return filepath
