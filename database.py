@@ -62,6 +62,20 @@ class Visit(Base):
         return f"<Visit(id={self.id}, date={self.date}, price={self.price}, points={self.point_count})>"
 
 
+class Inventory(Base):
+    __tablename__ = 'inventory'
+
+    id = Column(Integer, primary_key=True)
+    item_name = Column(String, nullable=False, unique=True)
+    quantity = Column(Integer, default=0, nullable=False)
+    unit = Column(String, nullable=False)  # pcs, box, liter, dll
+    min_stock = Column(Integer, default=10, nullable=False)
+    last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<Inventory(item='{self.item_name}', qty={self.quantity} {self.unit})>"
+
+
 @dataclass
 class VisitData:
     id: Optional[int]
@@ -383,3 +397,41 @@ class Database:
                     is_active=therapist.is_active
                 )
             return None
+
+    # --- Inventory Methods ---
+    def get_all_inventory(self):
+        with self.Session() as session:
+            items = session.query(Inventory).all()
+            return [
+                {
+                    "id": item.id,
+                    "item_name": item.item_name,
+                    "quantity": item.quantity,
+                    "unit": item.unit,
+                    "min_stock": item.min_stock,
+                    "last_updated": item.last_updated
+                } for item in items
+            ]
+
+    def update_stock(self, item_id, quantity_change):
+        with self.Session() as session:
+            item = session.get(Inventory, item_id)
+            if item:
+                item.quantity += quantity_change
+                session.commit()
+                return True
+            return False
+
+    def add_inventory_item(self, name, unit, min_stock, initial_qty=0):
+        with self.Session() as session:
+            item = Inventory(item_name=name, unit=unit, min_stock=min_stock, quantity=initial_qty)
+            session.add(item)
+            session.commit()
+            return item.id
+
+    def delete_inventory_item(self, item_id):
+        with self.Session() as session:
+            item = session.get(Inventory, item_id)
+            if item:
+                session.delete(item)
+                session.commit()

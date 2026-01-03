@@ -16,6 +16,7 @@ from dialogs.settings_dialog import SettingsDialog
 from dialogs.therapist_dialog import TherapistDialog
 from dialogs.invoice_dialog import InvoiceDialog
 from dialogs.custom_invoice_dialog import CustomInvoiceDialog
+from dialogs.inventory_dialog import InventoryDialog
 
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
@@ -128,6 +129,7 @@ class MainWindow(QMainWindow):
         self.action_buttons.analytics_btn.clicked.connect(self.show_analytics)
         self.action_buttons.export_btn.clicked.connect(self.import_export.export_data)
         self.action_buttons.import_btn.clicked.connect(self.handle_import)
+        self.action_buttons.inventory_btn.clicked.connect(self.show_inventory_dialog)
 
         self.visit_vm.visit_added.connect(self.on_visit_done)
         self.visit_vm.visit_failed.connect(self.on_visit_failed)
@@ -433,6 +435,10 @@ class MainWindow(QMainWindow):
     def handle_import(self):
         if self.import_export.import_data():
             self.refresh_patients()
+
+    def show_inventory_dialog(self):
+        dlg = InventoryDialog(self.db, self)
+        dlg.exec_()
 
     def show_analytics(self):
         dlg = AnalyticsDialog(self.db, self)
