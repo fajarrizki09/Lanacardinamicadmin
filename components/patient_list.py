@@ -27,6 +27,24 @@ class PatientList(QGroupBox):
         # 📋 List pasien
         self.patient_list = QListWidget()
         self.patient_list.setMinimumHeight(300)
+        self.patient_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.patient_list.customContextMenuRequested.connect(self.show_context_menu)
+
+    def show_context_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        item = self.patient_list.itemAt(pos)
+        if not item:
+            return
+            
+        menu = QMenu(self)
+        edit_action = menu.addAction("✏️ Edit Pasien")
+        delete_action = menu.addAction("🗑️ Hapus Pasien")
+        
+        action = menu.exec_(self.patient_list.mapToGlobal(pos))
+        if action == edit_action:
+            self.update_btn.click()
+        elif action == delete_action:
+            self.delete_btn.click()
 
         # 🔘 Tombol
         button_layout = QHBoxLayout()

@@ -72,6 +72,35 @@ class VisitSection(QGroupBox):
         self.visit_table.setShowGrid(False)
         self.visit_table.setFocusPolicy(Qt.NoFocus)
         self.visit_table.setFrameShape(QTableWidget.NoFrame)
+        self.visit_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.visit_table.customContextMenuRequested.connect(self.show_context_menu)
+
+    def show_context_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        row = self.visit_table.rowAt(pos.y())
+        if row < 0:
+            return
+            
+        self.visit_table.selectRow(row)
+        menu = QMenu(self)
+        delete_action = menu.addAction("🗑️ Hapus Kunjungan")
+        
+        action = menu.exec_(self.visit_table.mapToGlobal(pos))
+        if action == delete_action:
+            self.delete_visit(row)
+
+    def delete_visit(self, row):
+        from PySide6.QtWidgets import QMessageBox
+        confirm = QMessageBox.question(
+            self, "Hapus Kunjungan",
+            "Yakin ingin menghapus data kunjungan ini?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if confirm == QMessageBox.Yes:
+            # Get visit ID from data stored in the row (if available) or inform parent
+            # For simplicity, we trigger a signal or call parent method
+            if hasattr(self.parent, "delete_visit_by_row"):
+                self.parent.delete_visit_by_row(row)
         
         # Modernized Table Styling
         self.visit_table.setStyleSheet("""

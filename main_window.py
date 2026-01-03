@@ -132,6 +132,40 @@ class MainWindow(QMainWindow):
         self.visit_vm.visit_added.connect(self.on_visit_done)
         self.visit_vm.visit_failed.connect(self.on_visit_failed)
 
+    def delete_visit_by_row(self, row):
+        selected_patient = self.patient_list.get_selected_patient()
+        if not selected_patient:
+            return
+
+        patient_id = selected_patient[0]
+        visits = self.visit_vm.get_visits_for_patient(patient_id)
+        visits.sort(key=lambda v: v.date, reverse=True)
+
+        if row < len(visits):
+            visit = visits[row]
+            visit_id = visit.id if hasattr(visit, 'id') else visit.get('id')
+            
+            try:
+                # Update DB: remove this visit
+                current_visits = self.db.get_visits(patient_id)
+                updated_visits = []
+                from database import VisitData
+                for v in current_visits:
+                    if v['id'] != visit_id:
+                        updated_visits.append(VisitData(
+                            id=v['id'], date=v['date'], price=v['price'],
+                            discount_applied=v['discount_applied'],
+                            point_count=v['point_count'], therapist_id=v['therapist_id']
+                        ))
+                
+                self.db.update_patient_visits(patient_id, updated_visits)
+                self.visit_vm.invalidate_cache(patient_id)
+                self.load_visits()
+                self.refresh_patients()
+                QMessageBox.information(self, "Berhasil", "Data kunjungan berhasil dihapus.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Gagal menghapus kunjungan: {str(e)}")
+
     def refresh_therapists(self, force=False):
         if not force and self._therapists_cache_valid and self.therapists_dict:
             return
