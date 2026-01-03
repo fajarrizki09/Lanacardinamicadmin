@@ -275,7 +275,7 @@ class Database:
 
     def add_visit(self, patient_id, price, point_count=0, therapist_id=None, 
                   discount_percentage=0, min_visits_for_discount=5, invoice_path=None,
-                  medical_notes=None):
+                  medical_notes=None, inventory_config=None):
         with self.Session() as session:
             patient = session.query(Patient).options(joinedload(Patient.visits)).get(patient_id)
             if not patient:
@@ -301,16 +301,20 @@ class Database:
             )
             session.add(new_visit)
 
-            # --- Pengurangan Stok Otomatis ---
-            # 1. Kurangi Pisau (1 per pasien)
-            pisau = session.query(Inventory).filter(Inventory.item_name.like("%Pisau%")).first()
-            if pisau:
-                pisau.quantity = max(0, pisau.quantity - 1)
-            
-            # 2. Kurangi Tisu (estimasi 2 per kunjungan)
-            tisu = session.query(Inventory).filter(Inventory.item_name.like("%Tisu%")).first()
-            if tisu:
-                tisu.quantity = max(0, tisu.quantity - 2)
+            # --- Pengurangan Stok Otomatis (Dinamis) ---
+            if inventory_config:
+                for item_name, qty_reduction in inventory_config.items():
+                    item = session.query(Inventory).filter(Inventory.item_name.like(f"%{item_name}%")).first()
+                    if item:
+                        item.quantity = max(0, item.quantity - qty_reduction)
+            else:
+                # Fallback ke default jika config tidak ada
+                pisau = session.query(Inventory).filter(Inventory.item_name.like("%Pisau%")).first()
+                if pisau:
+                    pisau.quantity = max(0, pisau.quantity - 1)
+                tisu = session.query(Inventory).filter(Inventory.item_name.like("%Tisu%")).first()
+                if tisu:
+                    tisu.quantity = max(0, tisu.quantity - 2)
 
             session.commit()
 

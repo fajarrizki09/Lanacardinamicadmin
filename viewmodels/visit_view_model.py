@@ -18,8 +18,10 @@ class VisitViewModel(QObject):
         if self._current_thread and self._current_thread.isRunning():
             self._current_thread.wait()
         
+        inventory_config = self.settings.get_inventory_config()
+        
         self._current_thread = VisitThread(
-            self.db, patient_id, point_count, therapist_id, self.settings, invoice_path, medical_notes
+            self.db, patient_id, point_count, therapist_id, self.settings, invoice_path, medical_notes, inventory_config
         )
         self._current_thread.patient_id = patient_id
         self._current_thread.visit_done.connect(self._on_visit_done)

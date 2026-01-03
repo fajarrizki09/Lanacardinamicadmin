@@ -76,6 +76,12 @@ class AppSettings:
     def get_all_settings(self):
         return self.settings.copy()
 
-    def update_settings(self, new_settings):
-        self.settings.update(new_settings)
+    def get_inventory_config(self):
+        return self.settings.get("inventory_auto_reduction", {
+            "Pisau Bedah": 1,
+            "Tisu": 2
+        })
+
+    def set_inventory_config(self, config):
+        self.settings["inventory_auto_reduction"] = config
         self.save()

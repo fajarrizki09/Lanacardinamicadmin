@@ -17,6 +17,7 @@ from dialogs.therapist_dialog import TherapistDialog
 from dialogs.invoice_dialog import InvoiceDialog
 from dialogs.custom_invoice_dialog import CustomInvoiceDialog
 from dialogs.inventory_dialog import InventoryDialog
+from dialogs.inventory_settings_dialog import InventorySettingsDialog
 
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
@@ -443,6 +444,10 @@ class MainWindow(QMainWindow):
         dlg = InventoryDialog(self.db, self)
         dlg.exec_()
 
+    def show_inventory_settings(self):
+        dlg = InventorySettingsDialog(self.settings, self)
+        dlg.exec_()
+
     def show_analytics(self):
         dlg = AnalyticsDialog(self.db, self)
         dlg.exec_()
@@ -461,9 +466,13 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         custom_action = menu.addAction("Kustomisasi Cetak Invoice")
+        inv_settings_action = menu.addAction("⚙️ Atur Stok Otomatis")
+        
         action = menu.exec_(self.action_buttons.settings_btn.mapToGlobal(pos))
         if action == custom_action:
             self.show_custom_invoice_dialog()
+        elif action == inv_settings_action:
+            self.show_inventory_settings()
 
     def show_custom_invoice_dialog(self):
         dlg = CustomInvoiceDialog(self.settings, self)
