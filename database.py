@@ -49,7 +49,8 @@ class Visit(Base):
     price = Column(Numeric(10, 2), nullable=False)
     discount_applied = Column(Boolean, default=False, nullable=False)
     point_count = Column(Integer, default=0, nullable=False)
-    invoice_path = Column(String, nullable=True)  # Path ke file PDF invoice
+    invoice_path = Column(String, nullable=True)
+    medical_notes = Column(Text, nullable=True)  # Catatan perkembangan medis
 
     patient = relationship("Patient", back_populates="visits")
     therapist = relationship("Therapist", back_populates="visits")
@@ -85,6 +86,7 @@ class VisitData:
     point_count: int = 0
     therapist_id: Optional[int] = None
     invoice_path: Optional[str] = None
+    medical_notes: Optional[str] = None
 
 
 @dataclass

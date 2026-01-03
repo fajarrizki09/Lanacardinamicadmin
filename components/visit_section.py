@@ -53,14 +53,25 @@ class VisitSection(QGroupBox):
         therapist_layout.addWidget(self.therapist_combo)
         therapist_layout.addStretch()
 
+        # ---- Catatan Medis ----
+        notes_layout = QVBoxLayout()
+        notes_label = QLabel("Catatan Perkembangan Medis:")
+        notes_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
+        self.medical_notes_input = QLineEdit()
+        self.medical_notes_input.setPlaceholderText("Contoh: Keluhan pusing berkurang, titik darah lancar...")
+        self.medical_notes_input.setStyleSheet("padding: 8px; border-radius: 5px;")
+        
+        notes_layout.addWidget(notes_label)
+        notes_layout.addWidget(self.medical_notes_input)
+
         # ---- Button ----
         self.visit_btn = QPushButton("Catat Kunjungan")
         self.visit_btn.setStyleSheet(STYLES.get("visit_button", ""))
 
         # ---- Tabel Kunjungan ----
-        self.visit_table = QTableWidget(0, 5)
+        self.visit_table = QTableWidget(0, 6)
         self.visit_table.setHorizontalHeaderLabels(
-            ["Tanggal", "Terapis", "Titik", "Harga", "Diskon"]
+            ["Tanggal", "Terapis", "Titik", "Harga", "Catatan Medis", "Diskon"]
         )
         self.visit_table.setMinimumHeight(350)
         self.visit_table.setAlternatingRowColors(True)
@@ -121,6 +132,8 @@ class VisitSection(QGroupBox):
         layout.addLayout(points_layout)
         layout.addLayout(price_layout)
         layout.addLayout(therapist_layout)
+        layout.addLayout(notes_layout)
+        layout.addSpacing(10)
         layout.addWidget(self.visit_btn)
         layout.addWidget(self.visit_table)
         layout.addWidget(self.total_info_label)
@@ -186,6 +199,9 @@ class VisitSection(QGroupBox):
     def get_selected_therapist_id(self):
         return self.therapist_combo.currentData()
 
+    def get_medical_notes(self):
+        return self.medical_notes_input.text().strip()
+
     def load_visits(self, visits, therapists_dict=None):
         self.visit_table.setRowCount(len(visits))
         total_price = 0
@@ -198,12 +214,14 @@ class VisitSection(QGroupBox):
                 v_discount = visit.get("discount_applied", False)
                 v_points = visit.get("point_count", 0)
                 v_therapist_id = visit.get("therapist_id")
+                v_notes = visit.get("medical_notes", "-")
             else:
                 v_date = visit.date
                 v_price = visit.price
                 v_discount = visit.discount_applied
                 v_points = getattr(visit, "point_count", 0)
                 v_therapist_id = getattr(visit, "therapist_id", None)
+                v_notes = getattr(visit, "medical_notes", "-")
 
             if isinstance(v_date, str):
                 v_date = datetime.fromisoformat(v_date)
@@ -213,7 +231,7 @@ class VisitSection(QGroupBox):
                 therapist_name = therapists_dict[v_therapist_id].name
 
             def create_centered_item(text, is_bold=False):
-                item = QTableWidgetItem(text)
+                item = QTableWidgetItem(str(text))
                 item.setTextAlignment(Qt.AlignCenter)
                 if is_bold:
                     font = item.font()
@@ -228,9 +246,11 @@ class VisitSection(QGroupBox):
             price_item = create_centered_item(f"Rp {v_price:,}", is_bold=True)
             price_item.setForeground(Qt.darkGreen)
             self.visit_table.setItem(row, 3, price_item)
+
+            self.visit_table.setItem(row, 4, create_centered_item(v_notes if v_notes else "-"))
             
             discount_text = "🎁" if v_discount else "-"
-            self.visit_table.setItem(row, 4, create_centered_item(discount_text))
+            self.visit_table.setItem(row, 5, create_centered_item(discount_text))
             self.visit_table.setRowHeight(row, 50)
 
             total_price += v_price

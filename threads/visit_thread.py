@@ -4,7 +4,7 @@ class VisitThread(QThread):
     visit_done = Signal(float, float, bool)
     visit_failed = Signal(str)
 
-    def __init__(self, db, patient_id, point_count, therapist_id=None, settings=None, invoice_path=None):
+    def __init__(self, db, patient_id, point_count, therapist_id=None, settings=None, invoice_path=None, medical_notes=None):
         super().__init__()
         self.db = db
         self.patient_id = patient_id
@@ -12,6 +12,7 @@ class VisitThread(QThread):
         self.therapist_id = therapist_id
         self.settings = settings
         self.invoice_path = invoice_path
+        self.medical_notes = medical_notes
 
     def run(self):
         try:
@@ -33,7 +34,8 @@ class VisitThread(QThread):
                 therapist_id=self.therapist_id,
                 discount_percentage=discount_percentage,
                 min_visits_for_discount=min_visits,
-                invoice_path=self.invoice_path
+                invoice_path=self.invoice_path,
+                medical_notes=self.medical_notes
             )
             
             self.visit_done.emit(normal_price, final_price, discount_applied)
