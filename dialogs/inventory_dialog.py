@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QHeaderView, QInputDialog, QMessageBox, QFrame, QSpinBox
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QBrush
 from utils.styles import STYLES
 
 class InventoryDialog(QDialog):
@@ -108,8 +109,8 @@ class InventoryDialog(QDialog):
                 
             status_item = QTableWidgetItem(status_text)
             status_item.setTextAlignment(Qt.AlignCenter)
-            status_item.setForeground(Qt.white)
-            status_item.setBackground(status_color)
+            status_item.setForeground(QBrush(QColor("white")))
+            status_item.setBackground(QBrush(QColor(status_color)))
             
             self.table.setItem(row, 0, name_item)
             self.table.setItem(row, 1, qty_item)
