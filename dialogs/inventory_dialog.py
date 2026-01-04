@@ -154,8 +154,7 @@ class InventoryDialog(QDialog):
         if dlg.exec_():
             data = dlg.get_data()
             if data["name"]:
-                # Default min_stock to 10 for new items from form
-                self.db.add_inventory_item(data["name"], data["unit"], data["stock"], 10)
+                self.db.add_inventory_item(data["name"], data["unit"], data["stock"], data["min_stock"])
                 self.refresh_data()
 
     def on_edit_item(self):
@@ -176,13 +175,14 @@ class InventoryDialog(QDialog):
             form_data = {
                 "name": current_data["item_name"],
                 "unit": current_data["unit"],
-                "stock": current_data["quantity"]
+                "stock": current_data["quantity"],
+                "min_stock": current_data["min_stock"]
             }
             dlg = InventoryFormDialog(self, form_data)
             if dlg.exec_():
                 data = dlg.get_data()
                 # Update item info and stock
-                self.db.update_inventory_item(item_id, data["name"], data["unit"], current_data["min_stock"])
+                self.db.update_inventory_item(item_id, data["name"], data["unit"], data["min_stock"])
                 # Calculate diff for stock update
                 diff = data["stock"] - current_data["quantity"]
                 if diff != 0:

@@ -22,15 +22,20 @@ class InventoryFormDialog(QDialog):
         
         self.stock_input = QSpinBox()
         self.stock_input.setRange(0, 9999)
+        
+        self.min_stock_input = QSpinBox()
+        self.min_stock_input.setRange(0, 9999)
 
         if self.data:
             self.name_input.setText(self.data.get('name', ''))
             self.unit_input.setText(self.data.get('unit', ''))
             self.stock_input.setValue(self.data.get('stock', 0))
+            self.min_stock_input.setValue(self.data.get('min_stock', 10))
 
         form.addRow("Nama Alat:", self.name_input)
         form.addRow("Satuan:", self.unit_input)
-        form.addRow("Stok Awal:", self.stock_input)
+        form.addRow("Stok Saat Ini:", self.stock_input)
+        form.addRow("Minimal Stok:", self.min_stock_input)
         
         layout.addLayout(form)
 
@@ -50,5 +55,6 @@ class InventoryFormDialog(QDialog):
         return {
             "name": self.name_input.text(),
             "unit": self.unit_input.text(),
-            "stock": self.stock_input.value()
+            "stock": self.stock_input.value(),
+            "min_stock": self.min_stock_input.value()
         }
