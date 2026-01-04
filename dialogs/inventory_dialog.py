@@ -61,7 +61,17 @@ class InventoryDialog(QDialog):
         use_stock_btn.setStyleSheet(STYLES["delete_button"])
         use_stock_btn.clicked.connect(self.on_use_stock)
         
+        edit_item_btn = QPushButton("📝 Edit")
+        edit_item_btn.setStyleSheet(STYLES["update_button"])
+        edit_item_btn.clicked.connect(self.on_edit_item)
+        
+        delete_item_btn = QPushButton("🗑️ Hapus")
+        delete_item_btn.setStyleSheet(STYLES["delete_button"])
+        delete_item_btn.clicked.connect(self.on_delete_item)
+        
         btn_layout.addWidget(add_item_btn)
+        btn_layout.addWidget(edit_item_btn)
+        btn_layout.addWidget(delete_item_btn)
         btn_layout.addStretch()
         btn_layout.addWidget(use_stock_btn)
         btn_layout.addWidget(add_stock_btn)
@@ -119,6 +129,44 @@ class InventoryDialog(QDialog):
             self.table.setItem(row, 4, status_item)
             
             self.table.setRowHeight(row, 45)
+
+    def on_edit_item(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item yang ingin diedit.")
+            return
+            
+        item_id = self.table.item(row, 0).data(Qt.UserRole)
+        current_name = self.table.item(row, 0).text()
+        current_unit = self.table.item(row, 2).text()
+        current_min = int(self.table.item(row, 3).text())
+        
+        name, ok = QInputDialog.getText(self, "Edit Item", "Nama Alat/Bahan:", text=current_name)
+        if ok and name:
+            unit, ok = QInputDialog.getText(self, "Edit Item", "Satuan:", text=current_unit)
+            if ok and unit:
+                min_s, ok = QInputDialog.getInt(self, "Edit Item", "Minimal Stok:", current_min, 1)
+                if ok:
+                    self.db.update_inventory_item(item_id, name, unit, min_s)
+                    self.refresh_data()
+
+    def on_delete_item(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item yang ingin dihapus.")
+            return
+            
+        item_id = self.table.item(row, 0).data(Qt.UserRole)
+        name = self.table.item(row, 0).text()
+        
+        confirm = QMessageBox.question(
+            self, "Hapus Item",
+            f"Yakin ingin menghapus '{name}' dari inventori?\nData stok akan hilang selamanya.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if confirm == QMessageBox.Yes:
+            self.db.delete_inventory_item(item_id)
+            self.refresh_data()
 
     def on_add_item(self):
         name, ok = QInputDialog.getText(self, "Tambah Item", "Nama Alat/Bahan:")

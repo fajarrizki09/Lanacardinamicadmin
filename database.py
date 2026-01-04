@@ -422,6 +422,26 @@ class Database:
             return None
 
     # --- Inventory Methods ---
+    def update_inventory_item(self, item_id, name, unit, min_stock):
+        with self.Session() as session:
+            item = session.get(Inventory, item_id)
+            if item:
+                item.item_name = name
+                item.unit = unit
+                item.min_stock = min_stock
+                session.commit()
+                return True
+            return False
+
+    def delete_inventory_item(self, item_id):
+        with self.Session() as session:
+            item = session.get(Inventory, item_id)
+            if item:
+                session.delete(item)
+                session.commit()
+                return True
+            return False
+
     def get_all_inventory(self):
         with self.Session() as session:
             items = session.query(Inventory).all()
