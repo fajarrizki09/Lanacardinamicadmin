@@ -74,25 +74,36 @@ class HerbalDialog(QDialog):
             self.table.setRowHeight(row, 45)
 
     def on_add(self):
-        name, ok = QInputDialog.getText(self, "Tambah Herbal", "Nama Herbal:")
-        if ok and name:
-            unit, ok = QInputDialog.getText(self, "Tambah Herbal", "Satuan (botol/box):")
-            if ok and unit:
-                price, ok = QInputDialog.getDouble(self, "Tambah Herbal", "Harga Jual:", 0, 0, 10000000)
-                if ok:
-                    self.db.add_herbal(name, unit, price)
-                    self.refresh_data()
+        from dialogs.herbal_form_dialog import HerbalFormDialog
+        dlg = HerbalFormDialog(self)
+        if dlg.exec_():
+            data = dlg.get_data()
+            if data["name"]:
+                self.db.add_herbal(data["name"], data["unit"], data["price"])
+                # Also set initial stock if provided
+                if data["stock"] > 0:
+                    items = self.db.get_all_herbals()
+                    new_id = max([i['id'] for i in items]) if items else None
+                    if new_id:
+                        self.db.update_herbal_stock(new_id, data["stock"])
+                self.refresh_data()
 
     def on_edit(self):
         row = self.table.currentRow()
         if row < 0: return
         item_id = self.table.item(row, 0).data(Qt.UserRole)
-        curr_name = self.table.item(row, 0).text()
         
-        name, ok = QInputDialog.getText(self, "Edit", "Nama:", text=curr_name)
-        if ok and name:
-            self.db.update_herbal(item_id, name, "botol", 0, 0) # simplified for fast mode
-            self.refresh_data()
+        # Get current data
+        items = self.db.get_all_herbals()
+        current_data = next((i for i in items if i['id'] == item_id), None)
+        
+        if current_data:
+            from dialogs.herbal_form_dialog import HerbalFormDialog
+            dlg = HerbalFormDialog(self, current_data)
+            if dlg.exec_():
+                data = dlg.get_data()
+                self.db.update_herbal(item_id, data["name"], data["unit"], data["price"], 0)
+                self.refresh_data()
 
     def on_delete(self):
         row = self.table.currentRow()
