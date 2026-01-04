@@ -532,6 +532,10 @@ class MainWindow(QMainWindow):
     def show_analytics(self):
         self.tabs.setCurrentIndex(4)
 
+    def show_inventory_settings(self):
+        dlg = InventorySettingsDialog(self.settings, self)
+        dlg.exec_()
+
     def show_settings_dialog(self):
         dlg = SettingsDialog(self.settings, self)
         if dlg.exec_():
@@ -560,6 +564,3 @@ class MainWindow(QMainWindow):
             data = dlg.get_data()
             self.settings.save_custom_invoice_settings(data)
             QMessageBox.information(self, "Sukses", "Kustomisasi invoice berhasil disimpan.")
-
-    def show_therapist_dialog(self):
-        self.tabs.setCurrentIndex(1)
