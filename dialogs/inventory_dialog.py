@@ -130,26 +130,6 @@ class InventoryDialog(QDialog):
             
             self.table.setRowHeight(row, 45)
 
-    def on_edit_item(self):
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item yang ingin diedit.")
-            return
-            
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        current_name = self.table.item(row, 0).text()
-        current_unit = self.table.item(row, 2).text()
-        current_min = int(self.table.item(row, 3).text())
-        
-        name, ok = QInputDialog.getText(self, "Edit Item", "Nama Alat/Bahan:", text=current_name)
-        if ok and name:
-            unit, ok = QInputDialog.getText(self, "Edit Item", "Satuan:", text=current_unit)
-            if ok and unit:
-                min_s, ok = QInputDialog.getInt(self, "Edit Item", "Minimal Stok:", current_min, 1)
-                if ok:
-                    self.db.update_inventory_item(item_id, name, unit, min_s)
-                    self.refresh_data()
-
     def on_delete_item(self):
         row = self.table.currentRow()
         if row < 0:
@@ -169,14 +149,45 @@ class InventoryDialog(QDialog):
             self.refresh_data()
 
     def on_add_item(self):
-        name, ok = QInputDialog.getText(self, "Tambah Item", "Nama Alat/Bahan:")
-        if ok and name:
-            unit, ok = QInputDialog.getText(self, "Tambah Item", "Satuan (pcs, box, dll):")
-            if ok and unit:
-                min_s, ok = QInputDialog.getInt(self, "Tambah Item", "Minimal Stok (Peringatan):", 10, 1)
-                if ok:
-                    self.db.add_inventory_item(name, unit, min_s)
-                    self.refresh_data()
+        from dialogs.inventory_form_dialog import InventoryFormDialog
+        dlg = InventoryFormDialog(self)
+        if dlg.exec_():
+            data = dlg.get_data()
+            if data["name"]:
+                # Default min_stock to 10 for new items from form
+                self.db.add_inventory_item(data["name"], data["unit"], data["stock"], 10)
+                self.refresh_data()
+
+    def on_edit_item(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item yang ingin diedit.")
+            return
+            
+        item_id = self.table.item(row, 0).data(Qt.UserRole)
+        
+        # Get current data
+        items = self.db.get_all_inventory()
+        current_data = next((i for i in items if i['id'] == item_id), None)
+        
+        if current_data:
+            from dialogs.inventory_form_dialog import InventoryFormDialog
+            # Map database keys to form keys
+            form_data = {
+                "name": current_data["item_name"],
+                "unit": current_data["unit"],
+                "stock": current_data["quantity"]
+            }
+            dlg = InventoryFormDialog(self, form_data)
+            if dlg.exec_():
+                data = dlg.get_data()
+                # Update item info and stock
+                self.db.update_inventory_item(item_id, data["name"], data["unit"], current_data["min_stock"])
+                # Calculate diff for stock update
+                diff = data["stock"] - current_data["quantity"]
+                if diff != 0:
+                    self.db.update_stock(item_id, diff)
+                self.refresh_data()
 
     def on_add_stock(self):
         row = self.table.currentRow()
