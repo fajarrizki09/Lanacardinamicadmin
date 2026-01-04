@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import (
-    create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, Numeric, Index, event, text
+    create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, Numeric, Index, event, text, Text
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, joinedload
 
