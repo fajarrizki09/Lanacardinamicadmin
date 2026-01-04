@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QLabel, QComboBox, QSpinBox, QMessageBox, QMenu
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QBrush
 from datetime import datetime
 from utils.styles import STYLES
 
@@ -113,11 +114,18 @@ class VisitSection(QGroupBox):
         
         header = self.visit_table.horizontalHeader()
         from PySide6.QtWidgets import QHeaderView
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.Interactive)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Interactive)
+        header.setSectionResizeMode(3, QHeaderView.Interactive)
+        header.setSectionResizeMode(4, QHeaderView.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.Interactive)
+        
+        self.visit_table.setColumnWidth(0, 150) # Tanggal
+        self.visit_table.setColumnWidth(2, 80)  # Titik
+        self.visit_table.setColumnWidth(3, 120) # Harga
+        self.visit_table.setColumnWidth(5, 80)  # Diskon
+        
         header.setDefaultAlignment(Qt.AlignCenter)
         header.setMinimumSectionSize(100)
 
@@ -230,27 +238,29 @@ class VisitSection(QGroupBox):
             if v_therapist_id and therapists_dict and v_therapist_id in therapists_dict:
                 therapist_name = therapists_dict[v_therapist_id].name
 
-            def create_centered_item(text, is_bold=False):
+            def create_centered_item(text, is_bold=False, color=None):
                 item = QTableWidgetItem(str(text))
                 item.setTextAlignment(Qt.AlignCenter)
                 if is_bold:
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
+                if color:
+                    item.setForeground(QBrush(QColor(color)))
                 return item
 
             self.visit_table.setItem(row, 0, create_centered_item(v_date.strftime("%d/%m/%y %H:%M") if v_date else "-"))
             self.visit_table.setItem(row, 1, create_centered_item(therapist_name))
             self.visit_table.setItem(row, 2, create_centered_item(f"{v_points} pt"))
             
-            price_item = create_centered_item(f"Rp {v_price:,}", is_bold=True)
-            price_item.setForeground(Qt.darkGreen)
-            self.visit_table.setItem(row, 3, price_item)
+            self.visit_table.setItem(row, 3, create_centered_item(f"Rp {v_price:,}", is_bold=True, color="#27ae60"))
 
-            self.visit_table.setItem(row, 4, create_centered_item(v_notes if v_notes else "-"))
+            notes_item = create_centered_item(v_notes if v_notes else "-")
+            notes_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.visit_table.setItem(row, 4, notes_item)
             
-            discount_text = "🎁" if v_discount else "-"
-            self.visit_table.setItem(row, 5, create_centered_item(discount_text))
+            discount_color = "#e67e22" if v_discount else "#95a5a6"
+            self.visit_table.setItem(row, 5, create_centered_item("🎁" if v_discount else "-", color=discount_color))
             self.visit_table.setRowHeight(row, 50)
 
             total_price += v_price
