@@ -12,6 +12,7 @@ class ActionButtons(QHBoxLayout):
         self.settings_btn = QPushButton("Pengaturan")
         self.analytics_btn = QPushButton("Analitik")
         self.inventory_btn = QPushButton("Stok Alat")
+        self.herbal_btn = QPushButton("Stok Herbal")
         self.export_btn = QPushButton("Export")
         self.import_btn = QPushButton("Import")
         
@@ -19,6 +20,7 @@ class ActionButtons(QHBoxLayout):
         self.settings_btn.setStyleSheet(STYLES["settings_button"])
         self.analytics_btn.setStyleSheet(STYLES["analytics_button"])
         self.inventory_btn.setStyleSheet(STYLES["analytics_button"])
+        self.herbal_btn.setStyleSheet(STYLES["update_button"])
         self.export_btn.setStyleSheet(STYLES["action_button"])
         self.import_btn.setStyleSheet(STYLES["action_button"])
         
@@ -26,5 +28,6 @@ class ActionButtons(QHBoxLayout):
         self.addWidget(self.settings_btn)
         self.addWidget(self.analytics_btn)
         self.addWidget(self.inventory_btn)
+        self.addWidget(self.herbal_btn)
         self.addWidget(self.export_btn)
         self.addWidget(self.import_btn)

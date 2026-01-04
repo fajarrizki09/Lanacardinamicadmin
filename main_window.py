@@ -18,6 +18,7 @@ from dialogs.invoice_dialog import InvoiceDialog
 from dialogs.custom_invoice_dialog import CustomInvoiceDialog
 from dialogs.inventory_dialog import InventoryDialog
 from dialogs.inventory_settings_dialog import InventorySettingsDialog
+from dialogs.herbal_dialog import HerbalDialog
 
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
@@ -128,9 +129,10 @@ class MainWindow(QMainWindow):
         self.action_buttons.settings_btn.setContextMenuPolicy(Qt.CustomContextMenu)
         self.action_buttons.settings_btn.customContextMenuRequested.connect(self.show_settings_context_menu)
         self.action_buttons.analytics_btn.clicked.connect(self.show_analytics)
+        self.action_buttons.inventory_btn.clicked.connect(self.show_inventory_dialog)
+        self.action_buttons.herbal_btn.clicked.connect(self.show_herbal_dialog)
         self.action_buttons.export_btn.clicked.connect(self.import_export.export_data)
         self.action_buttons.import_btn.clicked.connect(self.handle_import)
-        self.action_buttons.inventory_btn.clicked.connect(self.show_inventory_dialog)
 
         self.visit_vm.visit_added.connect(self.on_visit_done)
         self.visit_vm.visit_failed.connect(self.on_visit_failed)
@@ -446,6 +448,10 @@ class MainWindow(QMainWindow):
 
     def show_inventory_settings(self):
         dlg = InventorySettingsDialog(self.settings, self)
+        dlg.exec_()
+
+    def show_herbal_dialog(self):
+        dlg = HerbalDialog(self.db, self)
         dlg.exec_()
 
     def show_analytics(self):

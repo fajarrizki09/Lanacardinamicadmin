@@ -108,6 +108,20 @@ class TherapistData:
     is_active: bool
 
 
+class Herbal(Base):
+    __tablename__ = 'herbals'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    stock = Column(Integer, default=0, nullable=False)
+    price = Column(Numeric(10, 2), nullable=False)
+    unit = Column(String, nullable=False)  # botol, box, sachet
+    last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<Herbal(name='{self.name}', stock={self.stock})>"
+
+
 class Database:
     def __init__(self, db_url="sqlite:///data.db"):
         self.engine = create_engine(
@@ -421,7 +435,56 @@ class Database:
                 )
             return None
 
-    # --- Inventory Methods ---
+    # --- Herbal Methods ---
+    def get_all_herbals(self):
+        with self.Session() as session:
+            items = session.query(Herbal).all()
+            return [
+                {
+                    "id": item.id,
+                    "name": item.name,
+                    "stock": item.stock,
+                    "price": float(item.price),
+                    "unit": item.unit
+                } for item in items
+            ]
+
+    def add_herbal(self, name, unit, price, stock=0):
+        with self.Session() as session:
+            item = Herbal(name=name, unit=unit, price=price, stock=stock)
+            session.add(item)
+            session.commit()
+            return item.id
+
+    def update_herbal(self, herbal_id, name, unit, price, stock):
+        with self.Session() as session:
+            item = session.get(Herbal, herbal_id)
+            if item:
+                item.name = name
+                item.unit = unit
+                item.price = price
+                item.stock = stock
+                session.commit()
+                return True
+            return False
+
+    def delete_herbal(self, herbal_id):
+        with self.Session() as session:
+            item = session.get(Herbal, herbal_id)
+            if item:
+                session.delete(item)
+                session.commit()
+                return True
+            return False
+
+    def update_herbal_stock(self, herbal_id, change):
+        with self.Session() as session:
+            item = session.get(Herbal, herbal_id)
+            if item:
+                item.stock = max(0, item.stock + change)
+                session.commit()
+                return True
+            return False
     def update_inventory_item(self, item_id, name, unit, min_stock):
         with self.Session() as session:
             item = session.get(Inventory, item_id)
