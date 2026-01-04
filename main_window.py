@@ -1,6 +1,6 @@
 import os
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel, QTabWidget
 )
 from PySide6.QtCore import Qt, QTimer
 from datetime import datetime
@@ -61,14 +61,69 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         main_widget.setStyleSheet(STYLES.get("main_window", ""))
         self.setCentralWidget(main_widget)
+        
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(5, 5, 5, 5)
 
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane { border: 1px solid #dcdde1; background: white; border-radius: 5px; }
+            QTabBar::tab { 
+                background: #f1f2f6; 
+                padding: 12px 20px; 
+                margin-right: 2px; 
+                border-top-left-radius: 5px; 
+                border-top-right-radius: 5px; 
+            }
+            QTabBar::tab:selected { background: white; border-bottom-color: white; font-weight: bold; color: #3498db; }
+        """)
+        
+        # --- TAB 1: DASHBOARD & PASIEN ---
+        self.tab_dashboard = QWidget()
+        self.setup_dashboard_tab()
+        
+        # --- TAB 2: TERAPIS ---
+        self.tab_therapist = QWidget()
+        self.setup_therapist_tab()
+
+        # --- TAB 3: STOK ALAT ---
+        self.tab_inventory = QWidget()
+        self.setup_inventory_tab()
+
+        # --- TAB 4: STOK HERBAL ---
+        self.tab_herbal = QWidget()
+        self.setup_herbal_tab()
+
+        # --- TAB 5: ANALITIK ---
+        self.tab_analytics = QWidget()
+        self.setup_analytics_tab()
+
+        self.tabs.addTab(self.tab_dashboard, "🏠 Dashboard")
+        self.tabs.addTab(self.tab_therapist, "👨‍⚕️ Terapis")
+        self.tabs.addTab(self.tab_inventory, "⚙️ Stok Alat")
+        self.tabs.addTab(self.tab_herbal, "🌿 Stok Herbal")
+        self.tabs.addTab(self.tab_analytics, "📊 Analitik")
+
+        main_layout.addWidget(self.tabs)
+        self.connect_signals()
+
+    def setup_dashboard_tab(self):
+        layout = QVBoxLayout(self.tab_dashboard)
+        
         self.sunnah_calendar_label = QLabel()
         self.update_sunnah_info()
 
         self.patient_form = PatientForm(self)
         self.patient_list = PatientList(self)
         self.visit_section = VisitSection(self)
-        self.action_buttons = ActionButtons(self)
+        self.action_buttons = ActionButtons(self) # Keep for export/import/settings
+
+        # Mini Action Bar for Dashboard
+        dashboard_actions = QHBoxLayout()
+        dashboard_actions.addWidget(self.action_buttons.settings_btn)
+        dashboard_actions.addWidget(self.action_buttons.export_btn)
+        dashboard_actions.addWidget(self.action_buttons.import_btn)
+        dashboard_actions.addStretch()
 
         left_layout = QVBoxLayout()
         left_layout.setSpacing(15)
@@ -78,19 +133,42 @@ class MainWindow(QMainWindow):
 
         right_layout = QVBoxLayout()
         right_layout.setSpacing(15)
+        right_layout.addLayout(dashboard_actions)
         right_layout.addWidget(self.visit_section)
-        right_layout.addLayout(self.action_buttons)
 
         content_layout = QHBoxLayout()
         content_layout.addLayout(left_layout, 1)
         content_layout.addLayout(right_layout, 2)
+        
+        layout.addLayout(content_layout)
 
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.addLayout(content_layout)
-        main_widget.setLayout(main_layout)
+    def setup_therapist_tab(self):
+        layout = QVBoxLayout(self.tab_therapist)
+        from dialogs.therapist_dialog import TherapistDialog
+        self.therapist_mgr = TherapistDialog(self.db, self)
+        # Re-parent to use as a widget
+        self.therapist_mgr.setWindowFlags(Qt.Widget)
+        layout.addWidget(self.therapist_mgr)
 
-        self.connect_signals()
+    def setup_inventory_tab(self):
+        layout = QVBoxLayout(self.tab_inventory)
+        from dialogs.inventory_dialog import InventoryDialog
+        self.inventory_mgr = InventoryDialog(self.db, self)
+        self.inventory_mgr.setWindowFlags(Qt.Widget)
+        layout.addWidget(self.inventory_mgr)
+
+    def setup_herbal_tab(self):
+        layout = QVBoxLayout(self.tab_herbal)
+        from dialogs.herbal_dialog import HerbalDialog
+        self.herbal_mgr = HerbalDialog(self.db, self)
+        self.herbal_mgr.setWindowFlags(Qt.Widget)
+        layout.addWidget(self.herbal_mgr)
+
+    def setup_analytics_tab(self):
+        layout = QVBoxLayout(self.tab_analytics)
+        self.analytics_mgr = AnalyticsDialog(self.db, self)
+        self.analytics_mgr.setWindowFlags(Qt.Widget)
+        layout.addWidget(self.analytics_mgr)
 
     def update_sunnah_info(self):
         from datetime import datetime, date
@@ -442,21 +520,17 @@ class MainWindow(QMainWindow):
         if self.import_export.import_data():
             self.refresh_patients()
 
-    def show_inventory_dialog(self):
-        dlg = InventoryDialog(self.db, self)
-        dlg.exec_()
+    def show_therapist_dialog(self):
+        self.tabs.setCurrentIndex(1)
 
-    def show_inventory_settings(self):
-        dlg = InventorySettingsDialog(self.settings, self)
-        dlg.exec_()
+    def show_inventory_dialog(self):
+        self.tabs.setCurrentIndex(2)
 
     def show_herbal_dialog(self):
-        dlg = HerbalDialog(self.db, self)
-        dlg.exec_()
+        self.tabs.setCurrentIndex(3)
 
     def show_analytics(self):
-        dlg = AnalyticsDialog(self.db, self)
-        dlg.exec_()
+        self.tabs.setCurrentIndex(4)
 
     def show_settings_dialog(self):
         dlg = SettingsDialog(self.settings, self)
@@ -488,10 +562,4 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Sukses", "Kustomisasi invoice berhasil disimpan.")
 
     def show_therapist_dialog(self):
-        dlg = TherapistDialog(self.db, self)
-        if dlg.exec_():
-            self._therapists_cache_valid = False
-            self.refresh_therapists(force=True)
-            current_row = self.patient_list.patient_list.currentRow()
-            if current_row >= 0:
-                self.load_selected_patient_data(current_row)
+        self.tabs.setCurrentIndex(1)
