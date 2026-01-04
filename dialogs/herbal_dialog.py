@@ -117,7 +117,13 @@ class HerbalDialog(QDialog):
         row = self.table.currentRow()
         if row < 0: return
         item_id = self.table.item(row, 0).data(Qt.UserRole)
-        val, ok = QInputDialog.getInt(self, "Update Stok", "Tambah/Kurang Stok:", 0, -1000, 1000)
+        
+        # Get current data for dialog
+        items = self.db.get_all_herbals()
+        item = next((i for i in items if i['id'] == item_id), None)
+        if not item: return
+
+        val, ok = QInputDialog.getInt(self, "Update Stok", f"Tambah/Kurang Stok ({item['name']}):", 0, -1000, 1000)
         if ok:
             self.db.update_herbal_stock(item_id, val)
             self.refresh_data()
