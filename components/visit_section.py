@@ -60,7 +60,20 @@ class VisitSection(QGroupBox):
         notes_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
         self.medical_notes_input = QLineEdit()
         self.medical_notes_input.setPlaceholderText("Contoh: Keluhan pusing berkurang, titik darah lancar...")
-        self.medical_notes_input.setStyleSheet("padding: 8px; border-radius: 5px;")
+        self.medical_notes_input.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 2px solid #bdc3c7;
+                border-radius: 8px;
+                background-color: white;
+                color: #2c3e50;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+                background-color: #f7fbff;
+            }
+        """)
         
         notes_layout.addWidget(notes_label)
         notes_layout.addWidget(self.medical_notes_input)
