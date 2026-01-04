@@ -35,6 +35,9 @@ class PatientList(QGroupBox):
         self.update_btn = QPushButton("Edit")
         self.delete_btn = QPushButton("Hapus")
 
+        self.update_btn.setFixedWidth(100)
+        self.delete_btn.setFixedWidth(100)
+
         self.update_btn.setStyleSheet(STYLES["update_button"])
         self.delete_btn.setStyleSheet(STYLES["delete_button"])
 

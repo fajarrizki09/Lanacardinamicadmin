@@ -109,6 +109,7 @@ class MainWindow(QMainWindow):
 
     def setup_dashboard_tab(self):
         layout = QVBoxLayout(self.tab_dashboard)
+        layout.setContentsMargins(10, 10, 10, 10)
         
         self.sunnah_calendar_label = QLabel()
         self.update_sunnah_info()
@@ -116,29 +117,35 @@ class MainWindow(QMainWindow):
         self.patient_form = PatientForm(self)
         self.patient_list = PatientList(self)
         self.visit_section = VisitSection(self)
-        self.action_buttons = ActionButtons(self) # Keep for export/import/settings
+        self.action_buttons = ActionButtons(self)
 
-        # Mini Action Bar for Dashboard
-        dashboard_actions = QHBoxLayout()
-        dashboard_actions.addWidget(self.action_buttons.settings_btn)
-        dashboard_actions.addWidget(self.action_buttons.export_btn)
-        dashboard_actions.addWidget(self.action_buttons.import_btn)
-        dashboard_actions.addStretch()
-
-        left_layout = QVBoxLayout()
-        left_layout.setSpacing(15)
-        left_layout.addWidget(self.sunnah_calendar_label)
-        left_layout.addWidget(self.patient_form)
-        left_layout.addWidget(self.patient_list)
-
-        right_layout = QVBoxLayout()
-        right_layout.setSpacing(15)
-        right_layout.addLayout(dashboard_actions)
-        right_layout.addWidget(self.visit_section)
-
+        # Dashboard layout with two columns
         content_layout = QHBoxLayout()
-        content_layout.addLayout(left_layout, 1)
-        content_layout.addLayout(right_layout, 2)
+        
+        # LEFT COLUMN: Sunnah info, Patient registration, Patient list
+        left_column = QVBoxLayout()
+        left_column.setSpacing(10)
+        left_column.addWidget(self.sunnah_calendar_label)
+        left_column.addWidget(self.patient_form)
+        left_column.addWidget(self.patient_list, 1) # Give priority to patient list height
+        
+        # RIGHT COLUMN: Visit section & Action buttons at the bottom
+        right_column = QVBoxLayout()
+        right_column.setSpacing(10)
+        
+        right_column.addWidget(self.visit_section, 1)
+        
+        # Action Bar at the bottom of right column
+        action_bar = QHBoxLayout()
+        action_bar.addStretch()
+        action_bar.addWidget(self.action_buttons.settings_btn)
+        action_bar.addWidget(self.action_buttons.export_btn)
+        action_bar.addWidget(self.action_buttons.import_btn)
+        
+        right_column.addLayout(action_bar)
+        
+        content_layout.addLayout(left_column, 2)
+        content_layout.addLayout(right_column, 3)
         
         layout.addLayout(content_layout)
 
