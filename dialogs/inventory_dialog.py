@@ -8,14 +8,28 @@ from PySide6.QtGui import QColor, QBrush
 from utils.styles import STYLES
 from components.inventory_transaction_form import InventoryTransactionForm
 
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QTableView, QHeaderView, 
+    QMessageBox, QFrame, QLineEdit, QPushButton
+)
+from viewmodels.inventory_store import InventoryTableModel
+
 class InventoryDialog(QDialog):
-    def __init__(self, db, parent=None):
+    def __init__(self, db, store, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("📊 Manajemen Stok Alat (Inventory)")
-        self.setMinimumSize(1100, 600)
         self.db = db
+        self.store = store
         self.init_ui()
-        self.refresh_data()
+        self.store.data_changed.connect(self.refresh_ui)
+        self.refresh_ui()
+
+    def init_ui(self):
+        # ... setup layout ...
+        self.table_view = QTableView()
+        self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Min Stok"])
+        self.table_view.setModel(self.model)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # ...
 
     def init_ui(self):
         # Main Horizontal Layout for Split View

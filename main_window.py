@@ -27,12 +27,15 @@ from threads.search_thread import SearchThread
 from viewmodels.visit_view_model import VisitViewModel
 
 
+from viewmodels.inventory_store import InventoryStore
+
 class MainWindow(QMainWindow):
     def __init__(self, db, settings):
         super().__init__()
-        self.setWindowTitle("🏥 Aplikasi Pasien Bekam - Versi Optimasi Pro")
-        self.resize(1200, 700)
+        # ... existing init ...
         self.db = db
+        self.inventory_store = InventoryStore(db)
+        # ...
         self.settings = settings
         self.import_export = ImportExportHelper(self, db)
 
