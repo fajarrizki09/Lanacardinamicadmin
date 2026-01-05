@@ -25,11 +25,22 @@ class InventoryStore(QObject):
         return self._herbal_cache
 
     def update_stock(self, item_id, qty, is_herbal=False):
+        # Logic layer validation
+        current_data = self.get_herbals() if is_herbal else self.get_inventory()
+        item = next((i for i in current_data if i['id'] == item_id), None)
+        
+        if item:
+            current_qty = item.get('stock') if is_herbal else item.get('quantity')
+            if current_qty is not None and current_qty + qty < 0:
+                print(f"Validation Error: Stock cannot be negative for {item.get('name', item.get('item_name'))}")
+                return False
+
         if is_herbal:
             self.db.update_herbal_stock(item_id, qty)
         else:
             self.db.update_stock(item_id, qty)
         self.refresh_cache()
+        return True
 
 class InventoryTableModel(QAbstractTableModel):
     def __init__(self, data=None, headers=None):

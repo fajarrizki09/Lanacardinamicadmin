@@ -456,9 +456,12 @@ class Database:
             return None
 
     # --- Herbal Methods ---
-    def get_all_herbals(self):
+    def get_all_herbals(self, active_only=True):
         with self.Session() as session:
-            items = session.query(Herbal).all()
+            query = session.query(Herbal)
+            if active_only:
+                query = query.filter(Herbal.is_active == True)
+            items = query.all()
             return [
                 {
                     "id": item.id,
@@ -492,7 +495,7 @@ class Database:
         with self.Session() as session:
             item = session.get(Herbal, herbal_id)
             if item:
-                session.delete(item)
+                item.is_active = False
                 session.commit()
                 return True
             return False
@@ -520,14 +523,17 @@ class Database:
         with self.Session() as session:
             item = session.get(Inventory, item_id)
             if item:
-                session.delete(item)
+                item.is_active = False
                 session.commit()
                 return True
             return False
 
-    def get_all_inventory(self):
+    def get_all_inventory(self, active_only=True):
         with self.Session() as session:
-            items = session.query(Inventory).all()
+            query = session.query(Inventory)
+            if active_only:
+                query = query.filter(Inventory.is_active == True)
+            items = query.all()
             return [
                 {
                     "id": item.id,
