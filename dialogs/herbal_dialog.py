@@ -92,9 +92,10 @@ class HerbalDialog(QDialog):
             price_item = QTableWidgetItem(f"Rp {item['price']:,}")
             price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             
+            # Use specific threshold for herbals if needed, or consistent with inventory
             status_text = "✅ Aman"
             status_color = "#27ae60"
-            if item["stock"] <= 5: # Default threshold
+            if item["stock"] <= 10: # Increased threshold for herbal safety
                 status_text = "⚠️ Menipis"
                 status_color = "#e67e22"
             if item["stock"] <= 0:
