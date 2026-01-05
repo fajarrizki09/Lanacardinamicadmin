@@ -1,120 +1,108 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QHeaderView, QInputDialog, QMessageBox, QFrame, QSpinBox
+    QPushButton, QLabel, QHeaderView, QInputDialog, QMessageBox, QFrame, QSpinBox,
+    QLineEdit
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QBrush
 from utils.styles import STYLES
+from components.inventory_transaction_form import InventoryTransactionForm
 
 class InventoryDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.setWindowTitle("📊 Manajemen Stok Alat (Inventory)")
-        self.setMinimumSize(700, 500)
+        self.setMinimumSize(1100, 600)
         self.db = db
         self.init_ui()
         self.refresh_data()
 
     def init_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
+        # Main Horizontal Layout for Split View
+        main_layout = QHBoxLayout(self)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Header Info
-        header_lbl = QLabel("Monitoring Stok Bahan & Alat Bekam")
+        # --- SISI KIRI (AKSI / TRANSAKSI) ---
+        left_panel = QFrame()
+        left_panel.setFixedWidth(400)
+        left_panel.setStyleSheet("background-color: #ffffff; border-right: 1px solid #dcdde1;")
+        left_layout = QVBoxLayout(left_panel)
+        
+        self.transaction_form = InventoryTransactionForm()
+        self.transaction_form.submit_btn.clicked.connect(self.process_transaction)
+        
+        # Add basic CRUD at the bottom of left panel
+        crud_layout = QHBoxLayout()
+        self.add_item_btn = QPushButton("➕ Item Baru")
+        self.edit_item_btn = QPushButton("📝 Edit")
+        self.del_item_btn = QPushButton("🗑️ Hapus")
+        
+        for btn in [self.add_item_btn, self.edit_item_btn, self.del_item_btn]:
+            btn.setStyleSheet("padding: 5px; font-size: 11px;")
+            crud_layout.addWidget(btn)
+            
+        self.add_item_btn.clicked.connect(self.on_add_item)
+        self.edit_item_btn.clicked.connect(self.on_edit_item)
+        self.del_item_btn.clicked.connect(self.on_delete_item)
+
+        left_layout.addWidget(self.transaction_form)
+        left_layout.addLayout(crud_layout)
+        
+        # --- SISI KANAN (INFORMASI / MONITORING) ---
+        right_panel = QFrame()
+        right_panel.setStyleSheet("background-color: #f8f9fa;")
+        right_layout = QVBoxLayout(right_panel)
+        
+        header_lbl = QLabel("Monitoring Stok Real-time")
         header_lbl.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
-        layout.addWidget(header_lbl)
-
-        # Table
+        
+        # Search Box
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Cari alat...")
+        self.search_input.textChanged.connect(self.filter_table)
+        
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Nama Item", "Stok Saat Ini", "Satuan", "Min. Stok", "Status"])
+        self.table.setHorizontalHeaderLabels(["Nama Item", "Stok", "Satuan", "Min", "Status"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                border: 1px solid #e1e8ed;
-                border-radius: 8px;
-                gridline-color: #f5f8fa;
-            }
-            QHeaderView::section {
-                background-color: #f8f9fa;
-                padding: 10px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 2px solid #3498db;
-            }
-        """)
-        layout.addWidget(self.table)
-
-        # Buttons
-        btn_layout = QHBoxLayout()
+        self.table.itemClicked.connect(self.on_item_selected)
         
-        add_item_btn = QPushButton("➕ Tambah Item Baru")
-        add_item_btn.setStyleSheet(STYLES["add_button"])
-        add_item_btn.clicked.connect(self.on_add_item)
+        right_layout.addWidget(header_lbl)
+        right_layout.addWidget(self.search_input)
+        right_layout.addWidget(self.table)
         
-        add_stock_btn = QPushButton("📦 Tambah Stok")
-        add_stock_btn.setStyleSheet(STYLES["update_button"])
-        add_stock_btn.clicked.connect(self.on_add_stock)
-        
-        use_stock_btn = QPushButton("📉 Gunakan Stok")
-        use_stock_btn.setStyleSheet(STYLES["delete_button"])
-        use_stock_btn.clicked.connect(self.on_use_stock)
-        
-        edit_item_btn = QPushButton("📝 Edit")
-        edit_item_btn.setStyleSheet(STYLES["update_button"])
-        edit_item_btn.clicked.connect(self.on_edit_item)
-        
-        delete_item_btn = QPushButton("🗑️ Hapus")
-        delete_item_btn.setStyleSheet(STYLES["delete_button"])
-        delete_item_btn.clicked.connect(self.on_delete_item)
-        
-        btn_layout.addWidget(add_item_btn)
-        btn_layout.addWidget(edit_item_btn)
-        btn_layout.addWidget(delete_item_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(use_stock_btn)
-        btn_layout.addWidget(add_stock_btn)
-        
-        layout.addLayout(btn_layout)
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel)
 
     def refresh_data(self):
         items = self.db.get_all_inventory()
-        
-        # Seed default items if empty
-        if not items:
-            self.db.add_inventory_item("Pisau Bedah", "pcs", 10, 50)
-            self.db.add_inventory_item("Kop Bekam (Cup)", "pcs", 20, 100)
-            self.db.add_inventory_item("Minyak Zaitun", "botol", 5, 10)
-            self.db.add_inventory_item("Tisu / Alcohol Swab", "box", 10, 50)
-            items = self.db.get_all_inventory()
+        self.all_items = items # For filtering
+        self.update_table(items)
 
+    def update_table(self, items):
         self.table.setRowCount(len(items))
         for row, item in enumerate(items):
-            # Item Name
             name_item = QTableWidgetItem(item["item_name"])
             name_item.setData(Qt.UserRole, item["id"])
             
-            # Quantity
             qty_item = QTableWidgetItem(str(item["quantity"]))
             qty_item.setTextAlignment(Qt.AlignCenter)
             
-            # Unit
             unit_item = QTableWidgetItem(item["unit"])
             unit_item.setTextAlignment(Qt.AlignCenter)
             
-            # Min Stock
             min_item = QTableWidgetItem(str(item["min_stock"]))
             min_item.setTextAlignment(Qt.AlignCenter)
             
-            # Status
             status_text = "✅ Aman"
             status_color = "#27ae60"
             if item["quantity"] <= item["min_stock"]:
-                status_text = "⚠️ Stok Menipis!"
+                status_text = "⚠️ Menipis"
                 status_color = "#e67e22"
             if item["quantity"] <= 0:
-                status_text = "🚨 Habis!"
+                status_text = "🚨 Habis"
                 status_color = "#e74c3c"
                 
             status_item = QTableWidgetItem(status_text)
@@ -127,93 +115,65 @@ class InventoryDialog(QDialog):
             self.table.setItem(row, 2, unit_item)
             self.table.setItem(row, 3, min_item)
             self.table.setItem(row, 4, status_item)
-            
-            self.table.setRowHeight(row, 45)
+            self.table.setRowHeight(row, 40)
 
-    def on_delete_item(self):
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item yang ingin dihapus.")
-            return
-            
+    def on_item_selected(self, item):
+        row = item.row()
         item_id = self.table.item(row, 0).data(Qt.UserRole)
         name = self.table.item(row, 0).text()
+        self.transaction_form.set_item(item_id, name)
+
+    def filter_table(self, text):
+        filtered = [i for i in self.all_items if text.lower() in i["item_name"].lower()]
+        self.update_table(filtered)
+
+    def process_transaction(self):
+        data = self.transaction_form.get_data()
+        if not data["item_id"]:
+            QMessageBox.warning(self, "Peringatan", "Pilih item dari daftar di kanan terlebih dahulu.")
+            return
+            
+        qty = data["qty"] if data["type"] == "IN" else -data["qty"]
         
-        confirm = QMessageBox.question(
-            self, "Hapus Item",
-            f"Yakin ingin menghapus '{name}' dari inventori?\nData stok akan hilang selamanya.",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if confirm == QMessageBox.Yes:
-            self.db.delete_inventory_item(item_id)
-            self.refresh_data()
+        # Update DB
+        self.db.update_stock(data["item_id"], qty)
+        
+        # UI Refresh
+        self.refresh_data()
+        QMessageBox.information(self, "Sukses", f"Transaksi berhasil. Stok diperbarui.")
+        self.transaction_form.item_name_display.clear()
+        self.transaction_form.selected_item_id = None
 
     def on_add_item(self):
         from dialogs.inventory_form_dialog import InventoryFormDialog
         dlg = InventoryFormDialog(self)
         if dlg.exec_():
-            data = dlg.get_data()
-            if data["name"]:
-                self.db.add_inventory_item(data["name"], data["unit"], data["stock"], data["min_stock"])
+            d = dlg.get_data()
+            if d["name"]:
+                self.db.add_inventory_item(d["name"], d["unit"], d["stock"], d["min_stock"])
                 self.refresh_data()
 
     def on_edit_item(self):
         row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item yang ingin diedit.")
-            return
-            
+        if row < 0: return
         item_id = self.table.item(row, 0).data(Qt.UserRole)
-        
-        # Get current data
         items = self.db.get_all_inventory()
-        current_data = next((i for i in items if i['id'] == item_id), None)
-        
-        if current_data:
+        curr = next((i for i in items if i['id'] == item_id), None)
+        if curr:
             from dialogs.inventory_form_dialog import InventoryFormDialog
-            # Map database keys to form keys
-            form_data = {
-                "name": current_data["item_name"],
-                "unit": current_data["unit"],
-                "stock": current_data["quantity"],
-                "min_stock": current_data["min_stock"]
-            }
-            dlg = InventoryFormDialog(self, form_data)
+            dlg = InventoryFormDialog(self, {"name": curr["item_name"], "unit": curr["unit"], "stock": curr["quantity"], "min_stock": curr["min_stock"]})
             if dlg.exec_():
-                data = dlg.get_data()
-                # Update item info and stock
-                self.db.update_inventory_item(item_id, data["name"], data["unit"], data["min_stock"])
-                # Calculate diff for stock update
-                diff = data["stock"] - current_data["quantity"]
-                if diff != 0:
-                    self.db.update_stock(item_id, diff)
+                d = dlg.get_data()
+                self.db.update_inventory_item(item_id, d["name"], d["unit"], d["min_stock"])
+                diff = d["stock"] - curr["quantity"]
+                if diff != 0: self.db.update_stock(item_id, diff)
                 self.refresh_data()
 
-    def on_add_stock(self):
+    def on_delete_item(self):
         row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item di tabel terlebih dahulu.")
-            return
-        
+        if row < 0: return
         item_id = self.table.item(row, 0).data(Qt.UserRole)
         name = self.table.item(row, 0).text()
-        
-        qty, ok = QInputDialog.getInt(self, "Tambah Stok", f"Jumlah penambahan {name}:", 1, 1, 10000)
-        if ok:
-            self.db.update_stock(item_id, qty)
-            self.refresh_data()
-
-    def on_use_stock(self):
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Pilih Item", "Silakan pilih item di tabel terlebih dahulu.")
-            return
-        
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        name = self.table.item(row, 0).text()
-        current_qty = int(self.table.item(row, 1).text())
-        
-        qty, ok = QInputDialog.getInt(self, "Gunakan Stok", f"Jumlah penggunaan {name}:", 1, 1, current_qty)
-        if ok:
-            self.db.update_stock(item_id, -qty)
+        if QMessageBox.question(self, "Hapus", f"Hapus '{name}'?") == QMessageBox.Yes:
+            self.db.delete_inventory_item(item_id)
             self.refresh_data()
