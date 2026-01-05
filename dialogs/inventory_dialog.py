@@ -19,17 +19,18 @@ class InventoryDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.store = store
+        self.setWindowTitle("📊 Manajemen Stok Alat (Inventory)")
+        self.setMinimumSize(1100, 600)
         self.init_ui()
         self.store.data_changed.connect(self.refresh_ui)
         self.refresh_ui()
 
-    def init_ui(self):
-        # ... setup layout ...
-        self.table_view = QTableView()
-        self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Min Stok"])
-        self.table_view.setModel(self.model)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        # ...
+    def refresh_ui(self):
+        items = self.store.get_inventory()
+        self.all_items = items
+        self.model.update_data(items)
+        # Fallback for search
+        self.filter_table(self.search_input.text())
 
     def init_ui(self):
         # Main Horizontal Layout for Split View
@@ -76,70 +77,29 @@ class InventoryDialog(QDialog):
         self.search_input.setPlaceholderText("🔍 Cari alat...")
         self.search_input.textChanged.connect(self.filter_table)
         
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Nama Item", "Stok", "Satuan", "Min", "Status"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-        self.table.itemClicked.connect(self.on_item_selected)
+        self.table_view = QTableView()
+        self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Min Stok"])
+        self.table_view.setModel(self.model)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_view.setSelectionBehavior(QTableView.SelectRows)
+        self.table_view.clicked.connect(self.on_item_selected_view)
         
         right_layout.addWidget(header_lbl)
         right_layout.addWidget(self.search_input)
-        right_layout.addWidget(self.table)
+        right_layout.addWidget(self.table_view)
         
         main_layout.addWidget(left_panel)
         main_layout.addWidget(right_panel)
 
-    def refresh_data(self):
-        items = self.db.get_all_inventory()
-        self.all_items = items # For filtering
-        self.update_table(items)
-
-    def update_table(self, items):
-        self.table.setRowCount(len(items))
-        for row, item in enumerate(items):
-            name_item = QTableWidgetItem(item["item_name"])
-            name_item.setData(Qt.UserRole, item["id"])
-            
-            qty_item = QTableWidgetItem(str(item["quantity"]))
-            qty_item.setTextAlignment(Qt.AlignCenter)
-            
-            unit_item = QTableWidgetItem(item["unit"])
-            unit_item.setTextAlignment(Qt.AlignCenter)
-            
-            min_item = QTableWidgetItem(str(item["min_stock"]))
-            min_item.setTextAlignment(Qt.AlignCenter)
-            
-            status_text = "✅ Aman"
-            status_color = "#27ae60"
-            if item["quantity"] <= item["min_stock"]:
-                status_text = "⚠️ Menipis"
-                status_color = "#e67e22"
-            if item["quantity"] <= 0:
-                status_text = "🚨 Habis"
-                status_color = "#e74c3c"
-                
-            status_item = QTableWidgetItem(status_text)
-            status_item.setTextAlignment(Qt.AlignCenter)
-            status_item.setForeground(QBrush(QColor("white")))
-            status_item.setBackground(QBrush(QColor(status_color)))
-            
-            self.table.setItem(row, 0, name_item)
-            self.table.setItem(row, 1, qty_item)
-            self.table.setItem(row, 2, unit_item)
-            self.table.setItem(row, 3, min_item)
-            self.table.setItem(row, 4, status_item)
-            self.table.setRowHeight(row, 40)
-
-    def on_item_selected(self, item):
-        row = item.row()
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        name = self.table.item(row, 0).text()
-        self.transaction_form.set_item(item_id, name)
+    def on_item_selected_view(self, index):
+        if not index.isValid(): return
+        item = self.model._data[index.row()]
+        self.transaction_form.set_item(item["id"], item["item_name"])
 
     def filter_table(self, text):
+        if not hasattr(self, 'all_items'): return
         filtered = [i for i in self.all_items if text.lower() in i["item_name"].lower()]
-        self.update_table(filtered)
+        self.model.update_data(filtered)
 
     def process_transaction(self):
         data = self.transaction_form.get_data()
@@ -148,15 +108,9 @@ class InventoryDialog(QDialog):
             return
             
         qty = data["qty"] if data["type"] == "IN" else -data["qty"]
-        
-        # Update DB
-        self.db.update_stock(data["item_id"], qty)
-        
-        # UI Refresh
-        self.refresh_data()
+        self.store.update_stock(data["item_id"], qty)
         QMessageBox.information(self, "Sukses", f"Transaksi berhasil. Stok diperbarui.")
         self.transaction_form.item_name_display.clear()
-        self.transaction_form.selected_item_id = None
 
     def on_add_item(self):
         from dialogs.inventory_form_dialog import InventoryFormDialog
@@ -165,29 +119,25 @@ class InventoryDialog(QDialog):
             d = dlg.get_data()
             if d["name"]:
                 self.db.add_inventory_item(d["name"], d["unit"], d["stock"], d["min_stock"])
-                self.refresh_data()
+                self.store.refresh_cache()
 
     def on_edit_item(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        items = self.db.get_all_inventory()
-        curr = next((i for i in items if i['id'] == item_id), None)
-        if curr:
-            from dialogs.inventory_form_dialog import InventoryFormDialog
-            dlg = InventoryFormDialog(self, {"name": curr["item_name"], "unit": curr["unit"], "stock": curr["quantity"], "min_stock": curr["min_stock"]})
-            if dlg.exec_():
-                d = dlg.get_data()
-                self.db.update_inventory_item(item_id, d["name"], d["unit"], d["min_stock"])
-                diff = d["stock"] - curr["quantity"]
-                if diff != 0: self.db.update_stock(item_id, diff)
-                self.refresh_data()
+        index = self.table_view.currentIndex()
+        if not index.isValid(): return
+        item = self.model._data[index.row()]
+        from dialogs.inventory_form_dialog import InventoryFormDialog
+        dlg = InventoryFormDialog(self, {"name": item["item_name"], "unit": item["unit"], "stock": item["quantity"], "min_stock": item["min_stock"]})
+        if dlg.exec_():
+            d = dlg.get_data()
+            self.db.update_inventory_item(item["id"], d["name"], d["unit"], d["min_stock"])
+            diff = d["stock"] - item["quantity"]
+            if diff != 0: self.db.update_stock(item["id"], diff)
+            self.store.refresh_cache()
 
     def on_delete_item(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        name = self.table.item(row, 0).text()
-        if QMessageBox.question(self, "Hapus", f"Hapus '{name}'?") == QMessageBox.Yes:
-            self.db.delete_inventory_item(item_id)
-            self.refresh_data()
+        index = self.table_view.currentIndex()
+        if not index.isValid(): return
+        item = self.model._data[index.row()]
+        if QMessageBox.question(self, "Hapus", f"Hapus '{item['item_name']}'?") == QMessageBox.Yes:
+            self.db.delete_inventory_item(item["id"])
+            self.store.refresh_cache()

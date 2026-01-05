@@ -8,14 +8,28 @@ from PySide6.QtGui import QColor, QBrush
 from utils.styles import STYLES
 from components.inventory_transaction_form import InventoryTransactionForm
 
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QTableView, QHeaderView, 
+    QMessageBox, QFrame, QLineEdit, QPushButton
+)
+from viewmodels.inventory_store import InventoryTableModel
+
 class HerbalDialog(QDialog):
-    def __init__(self, db, parent=None):
+    def __init__(self, db, store, parent=None):
         super().__init__(parent)
+        self.db = db
+        self.store = store
         self.setWindowTitle("🌿 Manajemen Obat Herbal")
         self.setMinimumSize(1100, 600)
-        self.db = db
         self.init_ui()
-        self.refresh_data()
+        self.store.data_changed.connect(self.refresh_ui)
+        self.refresh_ui()
+
+    def refresh_ui(self):
+        items = self.store.get_herbals()
+        self.all_items = items
+        self.model.update_data(items)
+        self.filter_table(self.search_input.text())
 
     def init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -49,7 +63,7 @@ class HerbalDialog(QDialog):
 
         # --- SISI KANAN (MONITORING) ---
         right_panel = QFrame()
-        right_panel.setStyleSheet("background-color: #f0fff4;") # Light herbal green
+        right_panel.setStyleSheet("background-color: #f0fff4;") 
         right_layout = QVBoxLayout(right_panel)
         
         header_lbl = QLabel("Monitoring Stok Herbal & Madu")
@@ -59,70 +73,29 @@ class HerbalDialog(QDialog):
         self.search_input.setPlaceholderText("🔍 Cari herbal...")
         self.search_input.textChanged.connect(self.filter_table)
         
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Nama Herbal", "Stok", "Satuan", "Harga", "Status"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.verticalHeader().setVisible(False)
-        self.table.itemClicked.connect(self.on_item_selected)
+        self.table_view = QTableView()
+        self.model = InventoryTableModel(headers=["ID", "Nama Herbal", "Stok", "Satuan", "Harga"])
+        self.table_view.setModel(self.model)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_view.setSelectionBehavior(QTableView.SelectRows)
+        self.table_view.clicked.connect(self.on_item_selected_view)
         
         right_layout.addWidget(header_lbl)
         right_layout.addWidget(self.search_input)
-        right_layout.addWidget(self.table)
+        right_layout.addWidget(self.table_view)
         
         main_layout.addWidget(left_panel)
         main_layout.addWidget(right_panel)
 
-    def refresh_data(self):
-        items = self.db.get_all_herbals()
-        self.all_items = items
-        self.update_table(items)
-
-    def update_table(self, items):
-        self.table.setRowCount(len(items))
-        for row, item in enumerate(items):
-            name_item = QTableWidgetItem(item["name"])
-            name_item.setData(Qt.UserRole, item["id"])
-            
-            stock_item = QTableWidgetItem(str(item["stock"]))
-            stock_item.setTextAlignment(Qt.AlignCenter)
-            
-            unit_item = QTableWidgetItem(item["unit"])
-            unit_item.setTextAlignment(Qt.AlignCenter)
-            
-            price_item = QTableWidgetItem(f"Rp {item['price']:,}")
-            price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            
-            # Use specific threshold for herbals if needed, or consistent with inventory
-            status_text = "✅ Aman"
-            status_color = "#27ae60"
-            if item["stock"] <= 10: # Increased threshold for herbal safety
-                status_text = "⚠️ Menipis"
-                status_color = "#e67e22"
-            if item["stock"] <= 0:
-                status_text = "🚨 Habis"
-                status_color = "#e74c3c"
-                
-            status_item = QTableWidgetItem(status_text)
-            status_item.setTextAlignment(Qt.AlignCenter)
-            status_item.setForeground(QBrush(QColor("white")))
-            status_item.setBackground(QBrush(QColor(status_color)))
-            
-            self.table.setItem(row, 0, name_item)
-            self.table.setItem(row, 1, stock_item)
-            self.table.setItem(row, 2, unit_item)
-            self.table.setItem(row, 3, price_item)
-            self.table.setItem(row, 4, status_item)
-            self.table.setRowHeight(row, 40)
-
-    def on_item_selected(self, item):
-        row = item.row()
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        name = self.table.item(row, 0).text()
-        self.transaction_form.set_item(item_id, name)
+    def on_item_selected_view(self, index):
+        if not index.isValid(): return
+        item = self.model._data[index.row()]
+        self.transaction_form.set_item(item["id"], item["name"])
 
     def filter_table(self, text):
+        if not hasattr(self, 'all_items'): return
         filtered = [i for i in self.all_items if text.lower() in i["name"].lower()]
-        self.update_table(filtered)
+        self.model.update_data(filtered)
 
     def process_transaction(self):
         data = self.transaction_form.get_data()
@@ -131,8 +104,7 @@ class HerbalDialog(QDialog):
             return
             
         qty = data["qty"] if data["type"] == "IN" else -data["qty"]
-        self.db.update_herbal_stock(data["item_id"], qty)
-        self.refresh_data()
+        self.store.update_stock(data["item_id"], qty, is_herbal=True)
         QMessageBox.information(self, "Sukses", "Stok herbal berhasil diperbarui.")
         self.transaction_form.item_name_display.clear()
 
@@ -147,28 +119,25 @@ class HerbalDialog(QDialog):
                     items = self.db.get_all_herbals()
                     new_id = max([i['id'] for i in items]) if items else None
                     if new_id: self.db.update_herbal_stock(new_id, d["stock"])
-                self.refresh_data()
+                self.store.refresh_cache()
 
     def on_edit(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        items = self.db.get_all_herbals()
-        curr = next((i for i in items if i['id'] == item_id), None)
-        if curr:
-            from dialogs.herbal_form_dialog import HerbalFormDialog
-            dlg = HerbalFormDialog(self, curr)
-            if dlg.exec_():
-                d = dlg.get_data()
-                self.db.update_herbal(item_id, d["name"], d["unit"], d["price"], 0)
-                diff = d["stock"] - curr["stock"]
-                if diff != 0: self.db.update_herbal_stock(item_id, diff)
-                self.refresh_data()
+        index = self.table_view.currentIndex()
+        if not index.isValid(): return
+        item = self.model._data[index.row()]
+        from dialogs.herbal_form_dialog import HerbalFormDialog
+        dlg = HerbalFormDialog(self, item)
+        if dlg.exec_():
+            d = dlg.get_data()
+            self.db.update_herbal(item["id"], d["name"], d["unit"], d["price"], 0)
+            diff = d["stock"] - item["stock"]
+            if diff != 0: self.db.update_herbal_stock(item["id"], diff)
+            self.store.refresh_cache()
 
     def on_delete(self):
-        row = self.table.currentRow()
-        if row < 0: return
-        item_id = self.table.item(row, 0).data(Qt.UserRole)
-        if QMessageBox.question(self, "Hapus", "Hapus herbal?") == QMessageBox.Yes:
-            self.db.delete_herbal(item_id)
-            self.refresh_data()
+        index = self.table_view.currentIndex()
+        if not index.isValid(): return
+        item = self.model._data[index.row()]
+        if QMessageBox.question(self, "Hapus", f"Hapus '{item['name']}'?") == QMessageBox.Yes:
+            self.db.delete_herbal(item["id"])
+            self.store.refresh_cache()

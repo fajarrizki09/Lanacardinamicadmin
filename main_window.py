@@ -163,14 +163,14 @@ class MainWindow(QMainWindow):
     def setup_inventory_tab(self):
         layout = QVBoxLayout(self.tab_inventory)
         from dialogs.inventory_dialog import InventoryDialog
-        self.inventory_mgr = InventoryDialog(self.db, self)
+        self.inventory_mgr = InventoryDialog(self.db, self.inventory_store, self)
         self.inventory_mgr.setWindowFlags(Qt.Widget)
         layout.addWidget(self.inventory_mgr)
 
     def setup_herbal_tab(self):
         layout = QVBoxLayout(self.tab_herbal)
         from dialogs.herbal_dialog import HerbalDialog
-        self.herbal_mgr = HerbalDialog(self.db, self)
+        self.herbal_mgr = HerbalDialog(self.db, self.inventory_store, self)
         self.herbal_mgr.setWindowFlags(Qt.Widget)
         layout.addWidget(self.herbal_mgr)
 
