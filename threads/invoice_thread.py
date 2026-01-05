@@ -1,5 +1,12 @@
 from PySide6.QtCore import QThread, Signal
-from helpers.invoice_helper import InvoiceHelper
+# Fixed import - assuming helper is in root or relative to app
+try:
+    from helpers.invoice_helper import InvoiceHelper
+except ImportError:
+    import sys
+    import os
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from helpers.invoice_helper import InvoiceHelper
 
 class InvoiceThread(QThread):
     finished = Signal(bool, str)
