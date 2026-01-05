@@ -23,7 +23,8 @@ from dialogs.herbal_dialog import HerbalDialog
 from helpers.invoice_helper import InvoiceHelper
 from helpers.import_export import ImportExportHelper
 from helpers.backup_helper import BackupHelper
-from threads.search_thread import SearchThread
+from threads.backup_thread import BackupThread
+from threads.invoice_thread import InvoiceThread
 from viewmodels.visit_view_model import VisitViewModel
 
 
@@ -41,11 +42,9 @@ class MainWindow(QMainWindow):
 
         self.visit_vm = VisitViewModel(db, settings)
         self.invoice_helper = InvoiceHelper()
-        self.backup_helper = BackupHelper()
+        self.backup_thread = None
+        self.run_backup()
         
-        # Auto-backup on startup
-        self.backup_helper.create_backup()
-
         self.search_thread = None
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
@@ -59,6 +58,17 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.refresh_patients()
         self.refresh_therapists()
+
+    def run_backup(self):
+        self.backup_thread = BackupThread("data.db", "backups")
+        self.backup_thread.finished.connect(self._on_backup_finished)
+        self.backup_thread.start()
+
+    def _on_backup_finished(self, success, message):
+        if not success:
+            print(f"Backup failed: {message}")
+        else:
+            print(f"Backup successful: {message}")
 
     def init_ui(self):
         main_widget = QWidget()
