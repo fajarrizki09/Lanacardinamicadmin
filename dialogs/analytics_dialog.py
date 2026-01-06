@@ -129,11 +129,13 @@ class AnalyticsDialog(QDialog):
         self.card_visits, self.val_visits, self.foot_visits = create_stat_card("Total Kunjungan", "#2980b9", "🩺")
         self.card_income, self.val_income, self.foot_income = create_stat_card("Total Pemasukan", "#27ae60", "💰")
         self.card_avg, self.val_avg, self.foot_avg = create_stat_card("Rata-rata/Visit", "#8e44ad", "📈")
+        self.card_stock_alert, self.val_stock_alert, self.foot_stock_alert = create_stat_card("Stok Menipis", "#e67e22", "⚠️")
 
         stats_layout.addWidget(self.card_patients)
         stats_layout.addWidget(self.card_visits)
         stats_layout.addWidget(self.card_income)
         stats_layout.addWidget(self.card_avg)
+        stats_layout.addWidget(self.card_stock_alert)
         layout.addLayout(stats_layout)
 
         # ---- CHARTS CONTAINER ----
@@ -184,6 +186,25 @@ class AnalyticsDialog(QDialog):
 
         layout.addLayout(charts_container)
         
+        # --- INVENTORY CHART ---
+        inv_box = QGroupBox("📦 Status Stok Inventori")
+        inv_box.setMinimumHeight(400)
+        inv_box.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                background-color: white;
+                border: 1px solid #dcdde1;
+                border-radius: 12px;
+                margin-top: 10px;
+                padding-top: 15px;
+            }
+        """)
+        inv_layout = QVBoxLayout(inv_box)
+        self.canvas_inventory = FigureCanvas(Figure(figsize=(10, 4), dpi=100))
+        inv_layout.addWidget(self.canvas_inventory)
+        self.ax_inventory = self.canvas_inventory.figure.add_subplot(111)
+        layout.addWidget(inv_box)
+
         scroll.setWidget(content_widget)
         main_layout.addWidget(scroll)
 
@@ -217,6 +238,21 @@ class AnalyticsDialog(QDialog):
         avg_income = total_income / len(filtered_visits) if filtered_visits else 0
         self.val_avg.setText(self.format_rupiah(avg_income))
 
+        # Inventory & Herbal Data
+        inventory = self.db.get_all_inventory()
+        herbals = self.db.get_all_herbals()
+        
+        low_stock_count = 0
+        for item in inventory:
+            if item["quantity"] <= item["min_stock"]:
+                low_stock_count += 1
+        for h in herbals:
+            if h["stock"] <= 5: # Default threshold for herbals
+                low_stock_count += 1
+        
+        self.val_stock_alert.setText(str(low_stock_count))
+        self.foot_stock_alert.setText("Alat & Herbal")
+
         visits_per_month = defaultdict(int)
         income_per_month = defaultdict(int)
 
@@ -227,6 +263,35 @@ class AnalyticsDialog(QDialog):
 
         self.plot_visits(visits_per_month)
         self.plot_income(income_per_month)
+        self.plot_inventory(inventory)
+
+    def plot_inventory(self, data):
+        ax = self.ax_inventory
+        ax.clear()
+        if not data:
+            self.canvas_inventory.draw()
+            return
+            
+        # Show top 10 items or items with low stock
+        items = sorted(data, key=lambda x: x["quantity"])[:10]
+        names = [i["item_name"][:15] for i in items]
+        qtys = [i["quantity"] for i in items]
+        mins = [i["min_stock"] for i in items]
+        
+        x = range(len(names))
+        ax.bar(x, qtys, width=0.4, label="Stok Saat Ini", color="#3498db", alpha=0.7)
+        ax.bar([i + 0.4 for i in x], mins, width=0.4, label="Batas Minimum", color="#e74c3c", alpha=0.7)
+        
+        ax.set_xticks([i + 0.2 for i in x])
+        ax.set_xticklabels(names, rotation=15, fontsize=9)
+        ax.set_title("Perbandingan Stok vs Minimum (Top 10 Item Terendah)", fontsize=11, fontweight='bold', pad=15)
+        ax.legend()
+        ax.grid(axis='y', linestyle='--', alpha=0.3)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        self.canvas_inventory.figure.tight_layout()
+        self.canvas_inventory.draw()
 
     def plot_visits(self, data):
         ax = self.ax_visits
