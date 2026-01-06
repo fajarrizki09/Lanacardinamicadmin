@@ -19,6 +19,8 @@ class InventoryTransactionForm(QWidget):
         layout.addWidget(title)
 
         form = QFormLayout()
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignRight)
         
         self.item_name_display = QLineEdit()
         self.item_name_display.setReadOnly(True)

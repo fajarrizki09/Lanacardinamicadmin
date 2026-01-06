@@ -26,12 +26,13 @@ class PatientList(QGroupBox):
 
         # 📋 List pasien
         self.patient_list = QListWidget()
-        self.patient_list.setMinimumHeight(300)
+        self.patient_list.setMinimumHeight(400)
         self.patient_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.patient_list.customContextMenuRequested.connect(self.show_context_menu)
 
         # 🔘 Tombol
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(5, 5, 5, 5)
         self.update_btn = QPushButton("Edit")
         self.delete_btn = QPushButton("Hapus")
 

@@ -36,8 +36,9 @@ class PatientItemWidget(QWidget):
         self.setStyleSheet("""
             PatientItemWidget {
                 border: 1px solid #ddd;
-                border-radius: 6px;
-                margin: 2px;
+                border-radius: 8px;
+                margin: 4px;
+                padding: 4px;
                 background: #f9f9f9;
             }
             PatientItemWidget:hover {
