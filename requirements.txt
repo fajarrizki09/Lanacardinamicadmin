@@ -7,3 +7,5 @@ SQLAlchemy
 reportlab
 openpyxl
 pandas
+fastapi
+uvicorn[standard]

@@ -18,6 +18,10 @@ author = "agent"
 task = "workflow.run"
 args = "Test Imports"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "FastAPI Server Header"
+
 [[workflows.workflow]]
 name = "Test Imports"
 author = "agent"
@@ -28,3 +32,19 @@ args = "python test_imports.py"
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "FastAPI Server Header"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "uvicorn api.main:app --host 0.0.0.0 --port 5000"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
