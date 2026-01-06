@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QDateEdit, QMessageBox, QGridLayout, QSizePolicy, QGroupBox, QScrollArea, QWidget
+    QDateEdit, QMessageBox, QGridLayout, QSizePolicy, QGroupBox, QScrollArea, QWidget, QFrame
 )
 from PySide6.QtCore import Qt, QDate
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -94,38 +94,46 @@ class AnalyticsDialog(QDialog):
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(20)
 
-        def create_stat_card(title, color):
-            card = QGroupBox()
-            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            card.setMinimumHeight(110)
+        def create_stat_card(title, color, icon=""):
+            card = QFrame()
+            card.setMinimumHeight(130)
             card.setStyleSheet(f"""
-                QGroupBox {{
-                    background-color: {color};
-                    border-radius: 15px;
-                    border: none;
-                }}
-                QLabel {{
-                    background: transparent;
+                QFrame {{
+                    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {color}, stop:1 {color}CC);
+                    border-radius: 12px;
+                    border-bottom: 4px solid rgba(0,0,0,0.1);
                 }}
             """)
             c_layout = QVBoxLayout(card)
             c_layout.setContentsMargins(20, 15, 20, 15)
-            t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("color: rgba(255,255,255,0.9); font-size: 13px; font-weight: bold; text-transform: uppercase; background: transparent;")
+            
+            header = QHBoxLayout()
+            t_lbl = QLabel(f"{icon} {title}")
+            t_lbl.setStyleSheet("color: rgba(255,255,255,0.9); font-size: 13px; font-weight: bold; text-transform: uppercase;")
+            header.addWidget(t_lbl)
+            header.addStretch()
+            
             v_lbl = QLabel("0")
-            v_lbl.setStyleSheet("color: white; font-size: 28px; font-weight: bold; background: transparent;")
-            c_layout.addWidget(t_lbl)
+            v_lbl.setStyleSheet("color: white; font-size: 32px; font-weight: bold; margin-top: 5px;")
+            
+            footer_lbl = QLabel("vs bulan lalu")
+            footer_lbl.setStyleSheet("color: rgba(255,255,255,0.7); font-size: 11px;")
+            
+            c_layout.addLayout(header)
             c_layout.addWidget(v_lbl)
+            c_layout.addWidget(footer_lbl)
             c_layout.addStretch()
-            return card, v_lbl
+            return card, v_lbl, footer_lbl
 
-        self.card_patients, self.val_patients = create_stat_card("Total Pasien", "#2c3e50")
-        self.card_visits, self.val_visits = create_stat_card("Total Kunjungan", "#2980b9")
-        self.card_income, self.val_income = create_stat_card("Total Pemasukan", "#27ae60")
+        self.card_patients, self.val_patients, self.foot_patients = create_stat_card("Total Pasien", "#2c3e50", "👥")
+        self.card_visits, self.val_visits, self.foot_visits = create_stat_card("Total Kunjungan", "#2980b9", "🩺")
+        self.card_income, self.val_income, self.foot_income = create_stat_card("Total Pemasukan", "#27ae60", "💰")
+        self.card_avg, self.val_avg, self.foot_avg = create_stat_card("Rata-rata/Visit", "#8e44ad", "📈")
 
         stats_layout.addWidget(self.card_patients)
         stats_layout.addWidget(self.card_visits)
         stats_layout.addWidget(self.card_income)
+        stats_layout.addWidget(self.card_avg)
         layout.addLayout(stats_layout)
 
         # ---- CHARTS CONTAINER ----
@@ -203,7 +211,11 @@ class AnalyticsDialog(QDialog):
 
         self.val_patients.setText(str(len(patients)))
         self.val_visits.setText(str(len(filtered_visits)))
-        self.val_income.setText(self.format_rupiah(sum(v["price"] for v in filtered_visits)))
+        total_income = sum(v["price"] for v in filtered_visits)
+        self.val_income.setText(self.format_rupiah(total_income))
+        
+        avg_income = total_income / len(filtered_visits) if filtered_visits else 0
+        self.val_avg.setText(self.format_rupiah(avg_income))
 
         visits_per_month = defaultdict(int)
         income_per_month = defaultdict(int)
@@ -227,17 +239,20 @@ class AnalyticsDialog(QDialog):
         values = [data[m] for m in months]
         labels = [datetime.strptime(m, "%Y-%m").strftime("%b %y") for m in months]
 
-        bars = ax.bar(labels, values, color="#3498db", alpha=0.8, width=0.6)
-        ax.set_title("Jumlah Kunjungan per Bulan", fontsize=11, fontweight='bold', pad=15)
-        ax.grid(axis='y', linestyle='--', alpha=0.3)
+        bars = ax.bar(labels, values, color="#3498db", alpha=0.7, width=0.6, edgecolor="#2980b9", linewidth=1)
+        ax.set_title("Volume Kunjungan Pasien", fontsize=12, fontweight='bold', pad=20, color="#34495e")
+        ax.grid(axis='y', linestyle=':', alpha=0.5)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='x', rotation=30)
+        ax.spines['left'].set_color('#bdc3c7')
+        ax.spines['bottom'].set_color('#bdc3c7')
+        ax.tick_params(axis='x', rotation=0, labelsize=9, colors="#7f8c8d")
+        ax.tick_params(axis='y', labelsize=9, colors="#7f8c8d")
         
         for bar in bars:
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.1, f'{int(height)}', 
-                    ha='center', va='bottom', fontsize=9, fontweight='bold', color="#2c3e50")
+                    ha='center', va='bottom', fontsize=9, fontweight='bold', color="#2980b9")
             
         self.canvas_visits.figure.tight_layout()
         self.canvas_visits.draw()
@@ -253,17 +268,23 @@ class AnalyticsDialog(QDialog):
         values = [data[m] for m in months]
         labels = [datetime.strptime(m, "%Y-%m").strftime("%b %y") for m in months]
 
-        ax.plot(labels, values, marker='o', color="#27ae60", linewidth=3, markersize=8, markerfacecolor='white', markeredgewidth=2)
-        ax.fill_between(labels, values, color="#27ae60", alpha=0.15)
-        ax.set_title("Tren Pemasukan Bulanan", fontsize=11, fontweight='bold', pad=15)
-        ax.grid(axis='y', linestyle='--', alpha=0.3)
+        ax.plot(labels, values, marker='o', color="#27ae60", linewidth=3, markersize=10, 
+                markerfacecolor='white', markeredgewidth=3, markeredgecolor="#27ae60",
+                label="Pemasukan")
+        ax.fill_between(labels, values, color="#2ecc71", alpha=0.1)
+        
+        ax.set_title("Performa Pendapatan", fontsize=12, fontweight='bold', pad=20, color="#34495e")
+        ax.grid(axis='y', linestyle=':', alpha=0.5)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='x', rotation=30)
+        ax.spines['left'].set_color('#bdc3c7')
+        ax.spines['bottom'].set_color('#bdc3c7')
+        ax.tick_params(axis='x', rotation=0, labelsize=9, colors="#7f8c8d")
+        ax.tick_params(axis='y', labelsize=9, colors="#7f8c8d")
 
         def format_k(x, pos):
-            if x >= 1_000_000: return f'{x/1_000_000:.1f}jt'
-            if x >= 1_000: return f'{x/1_000:.0f}rb'
+            if x >= 1_000_000: return f'{x/1_000_000:.1f}M'
+            if x >= 1_000: return f'{x/1_000:.0f}K'
             return str(x)
             
         from matplotlib.ticker import FuncFormatter
