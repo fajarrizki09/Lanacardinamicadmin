@@ -14,32 +14,99 @@ def read_root():
     return """
     <html>
         <head>
-            <title>Lancar Dinamic API</title>
+            <title>Lancar Dinamic - Web Dashboard</title>
             <style>
-                body { font-family: sans-serif; padding: 40px; line-height: 1.6; }
-                .container { max-width: 800px; margin: 0 auto; background: #f4f7f6; padding: 30px; border-radius: 10px; }
-                h1 { color: #2c3e50; }
-                .endpoints { background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; }
-                code { background: #eee; padding: 2px 5px; border-radius: 4px; }
-                .btn { display: inline-block; background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f5f6fa; }
+                .header { background: #2c3e50; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+                .tab-bar { background: #34495e; display: flex; padding: 0 20px; }
+                .tab { padding: 15px 25px; cursor: pointer; color: #bdc3c7; border-bottom: 3px solid transparent; transition: 0.3s; }
+                .tab:hover { color: white; background: rgba(255,255,255,0.1); }
+                .tab.active { color: white; border-bottom-color: #3498db; font-weight: bold; background: rgba(255,255,255,0.05); }
+                .content { flex: 1; padding: 30px; overflow-y: auto; }
+                .card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; }
+                th { background: #f8f9fa; color: #7f8c8d; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+                .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+                .status-low { background: #fff5f5; color: #e53e3e; }
+                .status-ok { background: #f0fff4; color: #38a169; }
+                .loading { display: none; text-align: center; padding: 50px; color: #7f8c8d; }
             </style>
         </head>
         <body>
-            <div class="container">
-                <h1>🚀 Lancar Dinamic API is Running</h1>
-                <p>Logika inti aplikasi Anda sekarang dapat diakses melalui web.</p>
-                <div class="endpoints">
-                    <h3>📌 Endpoint Tersedia:</h3>
-                    <ul>
-                        <li><a href="/patients"><code>/patients</code></a> - Data Pasien</li>
-                        <li><a href="/inventory"><code>/inventory</code></a> - Stok Alat</li>
-                        <li><a href="/herbals"><code>/herbals</code></a> - Stok Herbal</li>
-                        <li><a href="/docs"><code>/docs</code></a> - Dokumentasi API Interaktif</li>
-                    </ul>
-                </div>
-                <p>Database path: <code>""" + db_path + """</code></p>
-                <a href="/docs" class="btn">Buka Dokumentasi API</a>
+            <div class="header">
+                <div style="font-size: 20px; font-weight: bold;">🏥 Lancar Dinamic Dashboard</div>
+                <div style="font-size: 14px; opacity: 0.8;">Live Database API</div>
             </div>
+            <div class="tab-bar">
+                <div class="tab active" onclick="showTab('patients')">👥 Pasien</div>
+                <div class="tab" onclick="showTab('inventory')">📦 Inventori</div>
+                <div class="tab" onclick="showTab('herbals')">🌿 Herbal</div>
+                <div class="tab" onclick="window.open('/docs', '_blank')">⚙️ API Docs</div>
+            </div>
+            
+            <div id="content" class="content">
+                <div id="loading" class="loading">Memuat data...</div>
+                <div id="display-area"></div>
+            </div>
+
+            <script>
+                async function showTab(tabName) {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    event.target.classList.add('active');
+                    
+                    const displayArea = document.getElementById('display-area');
+                    const loading = document.getElementById('loading');
+                    
+                    displayArea.innerHTML = '';
+                    loading.style.display = 'block';
+                    
+                    try {
+                        const response = await fetch('/' + tabName);
+                        const data = await response.json();
+                        loading.style.display = 'none';
+                        
+                        if (tabName === 'patients') renderPatients(data);
+                        else if (tabName === 'inventory') renderInventory(data);
+                        else if (tabName === 'herbals') renderHerbals(data);
+                    } catch (e) {
+                        displayArea.innerHTML = '<div class="card" style="color:red">Gagal memuat data: ' + e.message + '</div>';
+                        loading.style.display = 'none';
+                    }
+                }
+
+                function renderPatients(data) {
+                    let html = '<div class="card"><h2>Daftar Pasien Terdaftar</h2><table><tr><th>Nama</th><th>Telepon</th><th>Alamat</th><th>Gender</th></tr>';
+                    data.forEach(p => {
+                        html += `<tr><td><b>${p.name}</b></td><td>${p.phone}</td><td>${p.address || '-'}</td><td>${p.gender}</td></tr>`;
+                    });
+                    html += '</table></div>';
+                    document.getElementById('display-area').innerHTML = html;
+                }
+
+                function renderInventory(data) {
+                    let html = '<div class="card"><h2>Stok Alat & Bahan</h2><table><tr><th>Nama Alat</th><th>Stok</th><th>Min</th><th>Status</th></tr>';
+                    data.forEach(i => {
+                        const isLow = i.quantity <= i.min_stock;
+                        html += `<tr><td>${i.item_name}</td><td>${i.quantity} ${i.unit}</td><td>${i.min_stock}</td>
+                                 <td><span class="status-badge ${isLow ? 'status-low' : 'status-ok'}">${isLow ? 'STOK RENDAH' : 'AMAN'}</span></td></tr>`;
+                    });
+                    html += '</table></div>';
+                    document.getElementById('display-area').innerHTML = html;
+                }
+
+                function renderHerbals(data) {
+                    let html = '<div class="card"><h2>Stok Obat Herbal</h2><table><tr><th>Nama Herbal</th><th>Stok</th><th>Harga</th><th>Satuan</th></tr>';
+                    data.forEach(h => {
+                        html += `<tr><td><b>${h.name}</b></td><td>${h.stock}</td><td>Rp ${h.price.toLocaleString()}</td><td>${h.unit}</td></tr>`;
+                    });
+                    html += '</table></div>';
+                    document.getElementById('display-area').innerHTML = html;
+                }
+
+                // Initial load
+                window.onload = () => showTab('patients');
+            </script>
         </body>
     </html>
     """
