@@ -72,6 +72,7 @@ class Inventory(Base):
     unit = Column(String, nullable=False)  # pcs, box, liter, dll
     min_stock = Column(Integer, default=10, nullable=False)
     last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
 
     def __repr__(self):
         return f"<Inventory(item='{self.item_name}', qty={self.quantity} {self.unit})>"
@@ -117,6 +118,7 @@ class Herbal(Base):
     price = Column(Numeric(10, 2), nullable=False)
     unit = Column(String, nullable=False)  # botol, box, sachet
     last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
 
     def __repr__(self):
         return f"<Herbal(name='{self.name}', stock={self.stock})>"
@@ -508,25 +510,6 @@ class Database:
                 session.commit()
                 return True
             return False
-    def update_inventory_item(self, item_id, name, unit, min_stock):
-        with self.Session() as session:
-            item = session.get(Inventory, item_id)
-            if item:
-                item.item_name = name
-                item.unit = unit
-                item.min_stock = min_stock
-                session.commit()
-                return True
-            return False
-
-    def delete_inventory_item(self, item_id):
-        with self.Session() as session:
-            item = session.get(Inventory, item_id)
-            if item:
-                item.is_active = False
-                session.commit()
-                return True
-            return False
 
     def get_all_inventory(self, active_only=True):
         with self.Session() as session:
@@ -561,9 +544,22 @@ class Database:
             session.commit()
             return item.id
 
+    def update_inventory_item(self, item_id, name, unit, min_stock):
+        with self.Session() as session:
+            item = session.get(Inventory, item_id)
+            if item:
+                item.item_name = name
+                item.unit = unit
+                item.min_stock = min_stock
+                session.commit()
+                return True
+            return False
+
     def delete_inventory_item(self, item_id):
         with self.Session() as session:
             item = session.get(Inventory, item_id)
             if item:
-                session.delete(item)
+                item.is_active = False
                 session.commit()
+                return True
+            return False
