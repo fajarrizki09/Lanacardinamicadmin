@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, 
     QLineEdit, QSpinBox, QPushButton, QLabel, QComboBox, QDateEdit
 )
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from utils.styles import STYLES
 
 class InventoryTransactionForm(QWidget):
