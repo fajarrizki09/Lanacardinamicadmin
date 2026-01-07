@@ -95,8 +95,18 @@ class HerbalDialog(QDialog):
         self.table_view = QTableView()
         self.table_view.setStyleSheet("""
             QTableView { border: none; background-color: transparent; gridline-color: #dcfce7; }
-            QHeaderView::section { background: #f0fff4; padding: 8px; border: none; border-bottom: 1px solid #bbf7d0; font-weight: bold; }
+            QHeaderView::section { 
+                background: #f0fff4; 
+                padding: 12px; 
+                border: none; 
+                border-bottom: 2px solid #bbf7d0; 
+                font-weight: bold;
+                font-size: 13px;
+                min-height: 45px;
+            }
+            QTableView::item { padding: 10px; }
         """)
+        self.table_view.verticalHeader().setDefaultSectionSize(45)
         self.model = InventoryTableModel(headers=["ID", "Nama Herbal", "Stok", "Satuan", "Harga"])
         self.table_view.setModel(self.model)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)

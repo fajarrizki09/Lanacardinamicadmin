@@ -99,8 +99,18 @@ class InventoryDialog(QDialog):
         self.table_view = QTableView()
         self.table_view.setStyleSheet("""
             QTableView { border: none; gridline-color: #f0f3f6; }
-            QHeaderView::section { background: #f8fafc; padding: 8px; border: none; border-bottom: 1px solid #eee; font-weight: bold; }
+            QHeaderView::section { 
+                background: #f8fafc; 
+                padding: 12px; 
+                border: none; 
+                border-bottom: 2px solid #eee; 
+                font-weight: bold;
+                font-size: 13px;
+                min-height: 45px;
+            }
+            QTableView::item { padding: 10px; }
         """)
+        self.table_view.verticalHeader().setDefaultSectionSize(45)
         self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Min Stok"])
         self.table_view.setModel(self.model)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
