@@ -234,6 +234,7 @@ class Database:
                             point_count=visit.point_count if hasattr(visit, 'point_count') else 0,
                             therapist_id=visit.therapist_id if hasattr(visit, 'therapist_id') else None,
                             invoice_path=visit.invoice_path if hasattr(visit, 'invoice_path') else None,
+                            medical_notes=visit.medical_notes if hasattr(visit, 'medical_notes') else None,
                         )
                         for visit in sorted(patient.visits, key=lambda v: v.date)
                     ]
