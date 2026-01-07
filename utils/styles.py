@@ -78,5 +78,18 @@ STYLES = {
         border: 1px solid #c3e6cb;
         border-radius: 6px;
         font-weight: bold;
-    """
+    """,
+    "card": """
+        background-color: #ffffff;
+        border: 1px solid #e1e8ed;
+        border-radius: 12px;
+    """,
+    "inventory_header": "font-size: 20px; font-weight: bold; color: #2c3e50; padding: 10px;",
+    "search_input": """
+        padding: 8px 12px;
+        border: 1px solid #ccd6dd;
+        border-radius: 8px;
+        background: white;
+    """,
+    "transaction_label": "font-weight: bold; color: #34495e; margin-bottom: 5px;"
 }

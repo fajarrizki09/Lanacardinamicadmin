@@ -35,57 +35,79 @@ class InventoryDialog(QDialog):
     def init_ui(self):
         # Main Horizontal Layout for Split View
         main_layout = QHBoxLayout(self)
-        main_layout.setSpacing(0)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(15, 15, 15, 15)
 
         # --- SISI KIRI (AKSI / TRANSAKSI) ---
         left_panel = QFrame()
-        left_panel.setFixedWidth(400)
-        left_panel.setStyleSheet("background-color: #ffffff; border-right: 1px solid #dcdde1;")
+        left_panel.setFixedWidth(380)
+        left_panel.setStyleSheet(STYLES.get("card", "") + "padding: 10px;")
         left_layout = QVBoxLayout(left_panel)
+        
+        tx_title = QLabel("📦 Transaksi Stok")
+        tx_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;")
+        left_layout.addWidget(tx_title)
         
         self.transaction_form = InventoryTransactionForm()
         self.transaction_form.submit_btn.clicked.connect(self.process_transaction)
         
+        left_layout.addWidget(self.transaction_form)
+        left_layout.addStretch()
+        
         # Add basic CRUD at the bottom of left panel
-        crud_layout = QHBoxLayout()
+        crud_group = QFrame()
+        crud_group.setStyleSheet("border-top: 1px solid #eee; padding-top: 15px;")
+        crud_layout = QHBoxLayout(crud_group)
         self.add_item_btn = QPushButton("➕ Item Baru")
         self.edit_item_btn = QPushButton("📝 Edit")
         self.del_item_btn = QPushButton("🗑️ Hapus")
         
         for btn in [self.add_item_btn, self.edit_item_btn, self.del_item_btn]:
-            btn.setStyleSheet("padding: 5px; font-size: 11px;")
+            btn.setCursor(Qt.PointingHandCursor)
+            if btn == self.del_item_btn:
+                btn.setStyleSheet(STYLES.get("delete_button", "") + "font-size: 11px; padding: 8px;")
+            else:
+                btn.setStyleSheet(STYLES.get("update_button", "") + "font-size: 11px; padding: 8px;")
             crud_layout.addWidget(btn)
             
         self.add_item_btn.clicked.connect(self.on_add_item)
         self.edit_item_btn.clicked.connect(self.on_edit_item)
         self.del_item_btn.clicked.connect(self.on_delete_item)
 
-        left_layout.addWidget(self.transaction_form)
-        left_layout.addLayout(crud_layout)
+        left_layout.addWidget(crud_group)
         
         # --- SISI KANAN (INFORMASI / MONITORING) ---
         right_panel = QFrame()
-        right_panel.setStyleSheet("background-color: #f8f9fa;")
+        right_panel.setStyleSheet(STYLES.get("card", "") + "padding: 10px;")
         right_layout = QVBoxLayout(right_panel)
         
-        header_lbl = QLabel("Monitoring Stok Real-time")
-        header_lbl.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        header_row = QHBoxLayout()
+        header_lbl = QLabel("Monitoring Stok Alat")
+        header_lbl.setStyleSheet(STYLES.get("inventory_header", ""))
         
         # Search Box
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Cari alat...")
+        self.search_input.setStyleSheet(STYLES.get("search_input", ""))
+        self.search_input.setFixedWidth(250)
         self.search_input.textChanged.connect(self.filter_table)
         
+        header_row.addWidget(header_lbl)
+        header_row.addStretch()
+        header_row.addWidget(self.search_input)
+        
         self.table_view = QTableView()
+        self.table_view.setStyleSheet("""
+            QTableView { border: none; gridline-color: #f0f3f6; }
+            QHeaderView::section { background: #f8fafc; padding: 8px; border: none; border-bottom: 1px solid #eee; font-weight: bold; }
+        """)
         self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Min Stok"])
         self.table_view.setModel(self.model)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
         self.table_view.clicked.connect(self.on_item_selected_view)
         
-        right_layout.addWidget(header_lbl)
-        right_layout.addWidget(self.search_input)
+        right_layout.addLayout(header_row)
         right_layout.addWidget(self.table_view)
         
         main_layout.addWidget(left_panel)

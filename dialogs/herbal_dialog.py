@@ -33,55 +33,77 @@ class HerbalDialog(QDialog):
 
     def init_ui(self):
         main_layout = QHBoxLayout(self)
-        main_layout.setSpacing(0)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(15, 15, 15, 15)
 
         # --- SISI KIRI (TRANSAKSI) ---
         left_panel = QFrame()
-        left_panel.setFixedWidth(400)
-        left_panel.setStyleSheet("background-color: #ffffff; border-right: 1px solid #dcdde1;")
+        left_panel.setFixedWidth(380)
+        left_panel.setStyleSheet(STYLES.get("card", "") + "padding: 10px;")
         left_layout = QVBoxLayout(left_panel)
+        
+        tx_title = QLabel("🌿 Transaksi Herbal")
+        tx_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #27ae60; margin-bottom: 10px;")
+        left_layout.addWidget(tx_title)
         
         self.transaction_form = InventoryTransactionForm()
         self.transaction_form.submit_btn.clicked.connect(self.process_transaction)
         
-        crud_layout = QHBoxLayout()
+        left_layout.addWidget(self.transaction_form)
+        left_layout.addStretch()
+        
+        crud_group = QFrame()
+        crud_group.setStyleSheet("border-top: 1px solid #eee; padding-top: 15px;")
+        crud_layout = QHBoxLayout(crud_group)
         self.add_item_btn = QPushButton("➕ Herbal Baru")
         self.edit_item_btn = QPushButton("📝 Edit")
         self.del_item_btn = QPushButton("🗑️ Hapus")
         
         for btn in [self.add_item_btn, self.edit_item_btn, self.del_item_btn]:
-            btn.setStyleSheet("padding: 5px; font-size: 11px;")
+            btn.setCursor(Qt.PointingHandCursor)
+            if btn == self.del_item_btn:
+                btn.setStyleSheet(STYLES.get("delete_button", "") + "font-size: 11px; padding: 8px;")
+            else:
+                btn.setStyleSheet(STYLES.get("add_button", "") + "font-size: 11px; padding: 8px;")
             crud_layout.addWidget(btn)
             
         self.add_item_btn.clicked.connect(self.on_add)
         self.edit_item_btn.clicked.connect(self.on_edit)
         self.del_item_btn.clicked.connect(self.on_delete)
 
-        left_layout.addWidget(self.transaction_form)
-        left_layout.addLayout(crud_layout)
+        left_layout.addWidget(crud_group)
 
         # --- SISI KANAN (MONITORING) ---
         right_panel = QFrame()
-        right_panel.setStyleSheet("background-color: #f0fff4;") 
+        right_panel.setStyleSheet(STYLES.get("card", "") + "background-color: #f0fff4; padding: 10px;") 
         right_layout = QVBoxLayout(right_panel)
         
-        header_lbl = QLabel("Monitoring Stok Herbal & Madu")
-        header_lbl.setStyleSheet("font-size: 18px; font-weight: bold; color: #27ae60;")
+        header_row = QHBoxLayout()
+        header_lbl = QLabel("Stok Herbal & Madu")
+        header_lbl.setStyleSheet(STYLES.get("inventory_header", "") + "color: #27ae60;")
         
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Cari herbal...")
+        self.search_input.setStyleSheet(STYLES.get("search_input", ""))
+        self.search_input.setFixedWidth(250)
         self.search_input.textChanged.connect(self.filter_table)
         
+        header_row.addWidget(header_lbl)
+        header_row.addStretch()
+        header_row.addWidget(self.search_input)
+        
         self.table_view = QTableView()
+        self.table_view.setStyleSheet("""
+            QTableView { border: none; background-color: transparent; gridline-color: #dcfce7; }
+            QHeaderView::section { background: #f0fff4; padding: 8px; border: none; border-bottom: 1px solid #bbf7d0; font-weight: bold; }
+        """)
         self.model = InventoryTableModel(headers=["ID", "Nama Herbal", "Stok", "Satuan", "Harga"])
         self.table_view.setModel(self.model)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
         self.table_view.clicked.connect(self.on_item_selected_view)
         
-        right_layout.addWidget(header_lbl)
-        right_layout.addWidget(self.search_input)
+        right_layout.addLayout(header_row)
         right_layout.addWidget(self.table_view)
         
         main_layout.addWidget(left_panel)
