@@ -181,10 +181,10 @@ class Database:
 
             # Migration for is_active in Herbals
             try:
-                session.execute(text("SELECT is_active FROM herbals LIMIT 1"))
+                session.execute(text("SELECT medical_notes FROM visits LIMIT 1"))
             except Exception:
                 try:
-                    session.execute(text("ALTER TABLE herbals ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+                    session.execute(text("ALTER TABLE visits ADD COLUMN medical_notes TEXT"))
                     session.commit()
                 except Exception:
                     pass
