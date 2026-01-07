@@ -179,7 +179,7 @@ class Database:
                 except Exception:
                     pass
 
-            # Migration for is_active in Herbals
+            # Migration for medical_notes
             try:
                 session.execute(text("SELECT medical_notes FROM visits LIMIT 1"))
             except Exception:
@@ -368,7 +368,7 @@ class Database:
                 'point_count': v.point_count if hasattr(v, 'point_count') else 0,
                 'therapist_id': v.therapist_id if hasattr(v, 'therapist_id') else None,
                 'invoice_path': v.invoice_path if hasattr(v, 'invoice_path') else None,
-                'medical_notes': v.medical_notes if hasattr(v, 'medical_notes') else '-',
+                'medical_notes': v.medical_notes if v.medical_notes else '-',
             } for v in visits]
 
     def get_all_visits(self):
@@ -383,7 +383,7 @@ class Database:
                 'patient_id': v.patient_id,
                 'therapist_id': v.therapist_id if hasattr(v, 'therapist_id') else None,
                 'invoice_path': v.invoice_path if hasattr(v, 'invoice_path') else None,
-                'medical_notes': v.medical_notes if hasattr(v, 'medical_notes') else '-',
+                'medical_notes': v.medical_notes if v.medical_notes else '-',
             } for v in visits]
 
     def add_therapist(self, name, gender, specialization=''):
