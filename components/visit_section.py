@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (
     QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QTableWidget, QTableWidgetItem, QLabel, QComboBox, QSpinBox, QMessageBox, QMenu
+    QTableWidget, QTableWidgetItem, QLabel, QComboBox, QSpinBox,
+    QMessageBox, QMenu, QHeaderView
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QBrush
@@ -10,13 +11,29 @@ from utils.styles import STYLES
 
 class VisitSection(QGroupBox):
     def __init__(self, parent=None):
-        super().__init__("Kunjungan Pasien")
+        super().__init__()
         self.parent = parent
         self.current_patient_gender = None
         self.init_ui()
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        # ---- CARD STYLE ----
+        self.setTitle("")
+        self.setStyleSheet("""
+        QGroupBox {
+            background: #ffffff;
+            border: 1px solid #e5eaf0;
+            border-radius: 14px;
+            margin-top: 10px;
+        }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+
+        # ================= TOP FORM ROW =================
+        top_row = QHBoxLayout()
+        top_row.setSpacing(20)
 
         # ---- Jumlah Titik ----
         points_layout = QHBoxLayout()
@@ -27,67 +44,80 @@ class VisitSection(QGroupBox):
         self.points_input.setFixedWidth(120)
         self.points_input.valueChanged.connect(self.update_price_from_points)
 
-        points_layout.addWidget(QLabel("Jumlah Titik:"))
+        points_layout.addWidget(QLabel("Jumlah Titik"))
         points_layout.addWidget(self.points_input)
-        points_layout.addStretch()
 
         # ---- Harga ----
         price_layout = QHBoxLayout()
-        self.price_input = QLineEdit()
-        self.price_input.setPlaceholderText("Harga kunjungan (Rp)")
-        self.price_input.setText("0")
+        self.price_input = QLineEdit("0")
         self.price_input.setReadOnly(True)
         self.price_input.setFixedWidth(150)
-        self.price_input.setStyleSheet("background-color: #f0f0f0;")
+        self.price_input.setStyleSheet("""
+            QLineEdit {
+                background: #f4f6f8;
+                border: 1px solid #d0d7de;
+                border-radius: 6px;
+                padding: 6px;
+            }
+        """)
 
-        price_layout.addWidget(QLabel("Harga Total:"))
+        price_layout.addWidget(QLabel("Harga Total"))
         price_layout.addWidget(self.price_input)
-        price_layout.addWidget(QLabel("(otomatis)"))
-        price_layout.addStretch()
 
         # ---- Terapis ----
         therapist_layout = QHBoxLayout()
         self.therapist_combo = QComboBox()
-        self.therapist_combo.setMinimumWidth(200)
+        self.therapist_combo.setMinimumWidth(220)
 
-        therapist_layout.addWidget(QLabel("Terapis:"))
+        therapist_layout.addWidget(QLabel("Terapis"))
         therapist_layout.addWidget(self.therapist_combo)
-        therapist_layout.addStretch()
 
-        # ---- Catatan Medis ----
+        top_row.addLayout(points_layout)
+        top_row.addLayout(price_layout)
+        top_row.addLayout(therapist_layout)
+        top_row.addStretch()
+
+        # ================= NOTES =================
         notes_layout = QVBoxLayout()
-        notes_label = QLabel("Catatan Perkembangan Medis:")
-        notes_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
+        notes_label = QLabel("Catatan Perkembangan Medis")
+        notes_label.setStyleSheet("font-weight: 600; color: #34495e;")
+
         self.medical_notes_input = QLineEdit()
-        self.medical_notes_input.setPlaceholderText("Contoh: Keluhan pusing berkurang, titik darah lancar...")
+        self.medical_notes_input.setPlaceholderText(
+            "Contoh: Keluhan pusing berkurang, titik darah lancar..."
+        )
         self.medical_notes_input.setStyleSheet("""
             QLineEdit {
                 padding: 10px;
-                border: 2px solid #bdc3c7;
+                border: 1px solid #ccd6dd;
                 border-radius: 8px;
-                background-color: white;
-                color: #2c3e50;
                 font-size: 13px;
             }
             QLineEdit:focus {
-                border: 2px solid #3498db;
-                background-color: #f7fbff;
+                border: 1px solid #3498db;
+                background: #f7fbff;
             }
         """)
-        
+
         notes_layout.addWidget(notes_label)
         notes_layout.addWidget(self.medical_notes_input)
 
-        # ---- Button ----
-        self.visit_btn = QPushButton("Catat Kunjungan")
+        # ================= BUTTON =================
+        self.visit_btn = QPushButton("➕ Catat Kunjungan")
+        self.visit_btn.setFixedHeight(42)
         self.visit_btn.setStyleSheet(STYLES.get("visit_button", ""))
 
-        # ---- Tabel Kunjungan ----
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.visit_btn)
+        btn_layout.addStretch()
+
+        # ================= TABLE =================
         self.visit_table = QTableWidget(0, 6)
         self.visit_table.setHorizontalHeaderLabels(
             ["Tanggal", "Terapis", "Titik", "Harga", "Catatan Medis", "Diskon"]
         )
-        self.visit_table.setMinimumHeight(350)
+        self.visit_table.setMinimumHeight(360)
         self.visit_table.setAlternatingRowColors(True)
         self.visit_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.visit_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -96,99 +126,92 @@ class VisitSection(QGroupBox):
         self.visit_table.setFrameShape(QTableWidget.NoFrame)
         self.visit_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.visit_table.customContextMenuRequested.connect(self.show_context_menu)
-        
+        self.visit_table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
+        self.visit_table.verticalScrollBar().setSingleStep(20)
+
         self.visit_table.setStyleSheet("""
             QTableWidget {
-                background-color: white;
+                background: #ffffff;
                 border: 1px solid #e1e8ed;
                 border-radius: 10px;
-                selection-background-color: #f0f7ff;
-                selection-color: #2c3e50;
-                outline: none;
             }
             QTableWidget::item {
-                padding: 12px;
-                border-bottom: 1px solid #f5f8fa;
+                padding: 10px;
+                border-bottom: 1px solid #f0f3f6;
             }
             QTableWidget::item:selected {
-                background-color: #eaf2f8;
+                background: #eef5ff;
                 border-left: 3px solid #3498db;
             }
             QHeaderView::section {
-                background-color: #fdfdfd;
-                padding: 12px;
+                background: #f8fafc;
+                padding: 10px;
                 border: none;
-                border-bottom: 2px solid #3498db;
-                font-weight: bold;
-                color: #2c3e50;
-                font-size: 13px;
+                border-bottom: 1px solid #d0d7de;
+                font-weight: 600;
+                font-size: 12px;
+                color: #34495e;
             }
         """)
-        
+
         header = self.visit_table.horizontalHeader()
-        from PySide6.QtWidgets import QHeaderView
         header.setSectionResizeMode(0, QHeaderView.Interactive)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.Interactive)
-        header.setSectionResizeMode(3, QHeaderView.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.Interactive)
-        
-        self.visit_table.setColumnWidth(0, 150) # Tanggal
-        self.visit_table.setColumnWidth(2, 80)  # Titik
-        self.visit_table.setColumnWidth(3, 120) # Harga
-        self.visit_table.setColumnWidth(5, 80)  # Diskon
-        
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         header.setDefaultAlignment(Qt.AlignCenter)
-        header.setMinimumSectionSize(100)
 
-        # ---- Info Total ----
+        # ================= FOOTER =================
         self.total_info_label = QLabel(
             "Total kunjungan: 0 | Total titik: 0 | Total pemasukan: Rp 0"
         )
         self.total_info_label.setAlignment(Qt.AlignRight)
-        self.total_info_label.setStyleSheet("font-weight: bold;")
+        self.total_info_label.setStyleSheet("""
+            QLabel {
+                color: #2c3e50;
+                font-size: 12px;
+                padding-top: 6px;
+                font-weight: 600;
+            }
+        """)
 
-        # ---- Layout Assemble ----
-        layout.addLayout(points_layout)
-        layout.addLayout(price_layout)
-        layout.addLayout(therapist_layout)
+        # ================= ASSEMBLE =================
+        layout.addLayout(top_row)
         layout.addLayout(notes_layout)
-        layout.addSpacing(10)
-        layout.addWidget(self.visit_btn)
+        layout.addLayout(btn_layout)
         layout.addWidget(self.visit_table)
         layout.addWidget(self.total_info_label)
-        self.setLayout(layout)
 
         self.update_price_from_points()
+
+    # ================= LOGIC (UNCHANGED) =================
 
     def show_context_menu(self, pos):
         row = self.visit_table.rowAt(pos.y())
         if row < 0:
             return
-            
         self.visit_table.selectRow(row)
         menu = QMenu(self)
         delete_action = menu.addAction("🗑️ Hapus Kunjungan")
-        
-        action = menu.exec_(self.visit_table.mapToGlobal(pos))
-        if action == delete_action:
+        if menu.exec_(self.visit_table.mapToGlobal(pos)) == delete_action:
             self.delete_visit(row)
 
     def delete_visit(self, row):
-        confirm = QMessageBox.question(
+        if QMessageBox.question(
             self, "Hapus Kunjungan",
             "Yakin ingin menghapus data kunjungan ini?",
             QMessageBox.Yes | QMessageBox.No
-        )
-        if confirm == QMessageBox.Yes:
+        ) == QMessageBox.Yes:
             if self.parent and hasattr(self.parent, "delete_visit_by_row"):
                 self.parent.delete_visit_by_row(row)
 
     def update_price_from_points(self):
         if self.parent and hasattr(self.parent, "settings"):
-            point_count = self.points_input.value()
-            price = self.parent.settings.calculate_price_from_points(point_count)
+            price = self.parent.settings.calculate_price_from_points(
+                self.points_input.value()
+            )
             self.price_input.setText(str(price))
 
     def get_point_count(self):
@@ -209,13 +232,12 @@ class VisitSection(QGroupBox):
     def load_therapists(self, therapists):
         self.therapist_combo.clear()
         self.therapist_combo.addItem("-- Pilih Terapis --", None)
-
-        for therapist in therapists:
-            gender_icon = "👨" if therapist.gender == "Laki-laki" else "👩"
-            display_name = f"{gender_icon} {therapist.name}"
-            if therapist.specialization:
-                display_name += f" ({therapist.specialization})"
-            self.therapist_combo.addItem(display_name, therapist.id)
+        for t in therapists:
+            icon = "👨" if t.gender == "Laki-laki" else "👩"
+            name = f"{icon} {t.name}"
+            if t.specialization:
+                name += f" ({t.specialization})"
+            self.therapist_combo.addItem(name, t.id)
 
     def get_selected_therapist_id(self):
         return self.therapist_combo.currentData()
@@ -225,59 +247,52 @@ class VisitSection(QGroupBox):
 
     def load_visits(self, visits, therapists_dict=None):
         self.visit_table.setRowCount(len(visits))
-        total_price = 0
-        total_points = 0
+        total_price = total_points = 0
 
-        for row, visit in enumerate(visits):
-            if isinstance(visit, dict):
-                v_date = visit.get("date")
-                v_price = visit.get("price", 0)
-                v_discount = visit.get("discount_applied", False)
-                v_points = visit.get("point_count", 0)
-                v_therapist_id = visit.get("therapist_id")
-                v_notes = visit.get("medical_notes", "-")
+        for row, v in enumerate(visits):
+            if isinstance(v, dict):
+                date = v.get("date")
+                price = v.get("price", 0)
+                discount = v.get("discount_applied", False)
+                points = v.get("point_count", 0)
+                tid = v.get("therapist_id")
+                notes = v.get("medical_notes", "-")
             else:
-                v_date = visit.date
-                v_price = visit.price
-                v_discount = visit.discount_applied
-                v_points = getattr(visit, "point_count", 0)
-                v_therapist_id = getattr(visit, "therapist_id", None)
-                v_notes = getattr(visit, "medical_notes", "-")
+                date = v.date
+                price = v.price
+                discount = v.discount_applied
+                points = getattr(v, "point_count", 0)
+                tid = getattr(v, "therapist_id", None)
+                notes = getattr(v, "medical_notes", "-")
 
-            if isinstance(v_date, str):
-                v_date = datetime.fromisoformat(v_date)
+            if isinstance(date, str):
+                date = datetime.fromisoformat(date)
 
-            therapist_name = "-"
-            if v_therapist_id and therapists_dict and v_therapist_id in therapists_dict:
-                therapist_name = therapists_dict[v_therapist_id].name
+            therapist = "-"
+            if tid and therapists_dict and tid in therapists_dict:
+                therapist = therapists_dict[tid].name
 
-            def create_centered_item(text, is_bold=False, color=None):
-                item = QTableWidgetItem(str(text))
-                item.setTextAlignment(Qt.AlignCenter)
-                if is_bold:
-                    font = item.font()
-                    font.setBold(True)
-                    item.setFont(font)
+            def cell(text, align=Qt.AlignCenter, bold=False, color=None):
+                i = QTableWidgetItem(str(text))
+                i.setTextAlignment(align)
+                if bold:
+                    f = i.font()
+                    f.setBold(True)
+                    i.setFont(f)
                 if color:
-                    item.setForeground(QBrush(QColor(color)))
-                return item
+                    i.setForeground(QBrush(QColor(color)))
+                return i
 
-            self.visit_table.setItem(row, 0, create_centered_item(v_date.strftime("%d/%m/%y %H:%M") if v_date else "-"))
-            self.visit_table.setItem(row, 1, create_centered_item(therapist_name))
-            self.visit_table.setItem(row, 2, create_centered_item(f"{v_points} pt"))
-            
-            self.visit_table.setItem(row, 3, create_centered_item(f"Rp {v_price:,}", is_bold=True, color="#27ae60"))
+            self.visit_table.setItem(row, 0, cell(date.strftime("%d/%m/%y %H:%M")))
+            self.visit_table.setItem(row, 1, cell(therapist))
+            self.visit_table.setItem(row, 2, cell(f"{points} pt"))
+            self.visit_table.setItem(row, 3, cell(f"Rp {price:,}", bold=True, color="#27ae60"))
+            self.visit_table.setItem(row, 4, cell(notes, Qt.AlignLeft | Qt.AlignVCenter))
+            self.visit_table.setItem(row, 5, cell("🎁" if discount else "-", color="#e67e22" if discount else "#95a5a6"))
+            self.visit_table.setRowHeight(row, 42)
 
-            notes_item = create_centered_item(v_notes if v_notes else "-")
-            notes_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.visit_table.setItem(row, 4, notes_item)
-            
-            discount_color = "#e67e22" if v_discount else "#95a5a6"
-            self.visit_table.setItem(row, 5, create_centered_item("🎁" if v_discount else "-", color=discount_color))
-            self.visit_table.setRowHeight(row, 50)
-
-            total_price += v_price
-            total_points += v_points
+            total_price += price
+            total_points += points
 
         self.total_info_label.setText(
             f"Total kunjungan: {len(visits)} | "
