@@ -12,12 +12,8 @@ class InventoryTransactionForm(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setContentsMargins(5, 5, 5, 5)
         
-        title = QLabel("📦 Transaksi Stok")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(title)
-
         form = QFormLayout()
         form.setSpacing(10)
         form.setLabelAlignment(Qt.AlignRight)

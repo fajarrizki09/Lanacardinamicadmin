@@ -42,10 +42,6 @@ class HerbalDialog(QDialog):
         left_panel.setStyleSheet(STYLES.get("card", "") + "padding: 10px;")
         left_layout = QVBoxLayout(left_panel)
         
-        tx_title = QLabel("🌿 Transaksi Herbal")
-        tx_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #27ae60; margin-bottom: 10px;")
-        left_layout.addWidget(tx_title)
-        
         self.transaction_form = InventoryTransactionForm()
         self.transaction_form.submit_btn.clicked.connect(self.process_transaction)
         
