@@ -488,12 +488,16 @@ class MainWindow(QMainWindow):
                 return
 
         medical_notes = self.visit_section.get_medical_notes()
+        manual_price = None
+        if self.visit_section.is_manual_price():
+            manual_price = self.visit_section.get_current_price()
 
         self.visit_vm.add_visit(
             patient_id=selected_patient[0],
             point_count=point_count,
             therapist_id=therapist_id,
-            medical_notes=medical_notes
+            medical_notes=medical_notes,
+            manual_price=manual_price
         )
 
         # Clear input setelah simpan

@@ -14,14 +14,14 @@ class VisitViewModel(QObject):
         self._visit_cache = {}
         self._current_thread = None
 
-    def add_visit(self, patient_id, point_count, therapist_id=None, invoice_path=None, medical_notes=None):
+    def add_visit(self, patient_id, point_count, therapist_id=None, invoice_path=None, medical_notes=None, manual_price=None):
         if self._current_thread and self._current_thread.isRunning():
             self._current_thread.wait()
 
         inventory_config = self.settings.get_inventory_config()
 
         self._current_thread = VisitThread(
-            self.db, patient_id, point_count, therapist_id, self.settings, invoice_path, medical_notes, inventory_config
+            self.db, patient_id, point_count, therapist_id, self.settings, invoice_path, medical_notes, inventory_config, manual_price
         )
         self._current_thread.patient_id = patient_id
         self._current_thread.visit_done.connect(self._on_visit_done)

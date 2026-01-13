@@ -57,11 +57,27 @@ class VisitSection(QGroupBox):
         self.points_input.setFixedSize(140, field_h)
         self.points_input.valueChanged.connect(self.update_price_from_points)
 
+        price_layout = QHBoxLayout()
+        price_layout.setSpacing(5)
+        
         self.price_input = QLineEdit("0")
         self.price_input.setReadOnly(True)
-        self.price_input.setFixedSize(200, field_h)
+        self.price_input.setFixedSize(160, field_h)
         self.price_input.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.price_input.setStyleSheet(STYLES["search_input"])
+
+        self.edit_price_btn = QPushButton("✏️")
+        self.edit_price_btn.setFixedSize(34, field_h)
+        self.edit_price_btn.setCheckable(True)
+        self.edit_price_btn.setToolTip("Edit Harga Manual")
+        self.edit_price_btn.setStyleSheet("""
+            QPushButton { background: #f1f2f6; border: 1px solid #dcdde1; border-radius: 4px; }
+            QPushButton:checked { background: #3498db; color: white; border-color: #2980b9; }
+        """)
+        self.edit_price_btn.toggled.connect(self.toggle_manual_price)
+
+        price_layout.addWidget(self.price_input)
+        price_layout.addWidget(self.edit_price_btn)
 
         self.therapist_combo = QComboBox()
         self.therapist_combo.setFixedSize(220, field_h)
@@ -71,7 +87,7 @@ class VisitSection(QGroupBox):
         grid.addWidget(make_label("Harga Total"), 0, 1)
         grid.addWidget(make_label("Terapis"), 0, 2)
         grid.addWidget(self.points_input, 1, 0)
-        grid.addWidget(self.price_input, 1, 1)
+        grid.addLayout(price_layout, 1, 1)
         grid.addWidget(self.therapist_combo, 1, 2)
         grid.setColumnStretch(3, 1)
 
@@ -199,12 +215,28 @@ class VisitSection(QGroupBox):
             if self.parent and hasattr(self.parent, "delete_visit_by_row"):
                 self.parent.delete_visit_by_row(row)
 
+    def toggle_manual_price(self, checked):
+        self.price_input.setReadOnly(not checked)
+        if checked:
+            self.price_input.setStyleSheet(STYLES["search_input"] + "border: 1px solid #3498db; background: #fff;")
+            self.price_input.setFocus()
+            self.price_input.selectAll()
+        else:
+            self.price_input.setStyleSheet(STYLES["search_input"])
+            self.update_price_from_points()
+
     def update_price_from_points(self):
+        if self.edit_price_btn.isChecked():
+            return
+            
         if self.parent and hasattr(self.parent, "settings"):
             price = self.parent.settings.calculate_price_from_points(
                 self.points_input.value()
             )
             self.price_input.setText(f"{price:,}")
+
+    def is_manual_price(self):
+        return self.edit_price_btn.isChecked()
 
     def get_point_count(self):
         return self.points_input.value()
