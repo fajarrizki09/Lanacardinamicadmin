@@ -32,13 +32,14 @@ from viewmodels.therapist_view_model import TherapistViewModel
 
 from viewmodels.inventory_store import InventoryStore
 
+from components.invoice_list import InvoiceList
+
 class MainWindow(QMainWindow):
     def __init__(self, db, settings):
         super().__init__()
-        # ... existing init ...
+        # ...
         self.db = db
         self.inventory_store = InventoryStore(db)
-        # ...
         self.settings = settings
         self.import_export = ImportExportHelper(self, db)
 
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         self.therapist_vm = TherapistViewModel(self.db)
         self.therapist_vm.data_changed.connect(self.on_therapists_changed)
         self.invoice_helper = InvoiceHelper()
+        self.invoice_list_view = None
         self.backup_thread = None
         self.run_backup()
 
@@ -115,11 +117,16 @@ class MainWindow(QMainWindow):
         self.tab_analytics = QWidget()
         self.setup_analytics_tab()
 
+        # --- TAB 6: INVOICE ---
+        self.tab_invoice = QWidget()
+        self.setup_invoice_tab()
+
         self.tabs.addTab(self.tab_dashboard, "🏠 Dashboard")
         self.tabs.addTab(self.tab_therapist, "👨‍⚕️ Terapis")
         self.tabs.addTab(self.tab_inventory, "⚙️ Stok Alat")
         self.tabs.addTab(self.tab_herbal, "🌿 Stok Herbal")
         self.tabs.addTab(self.tab_analytics, "📊 Analitik")
+        self.tabs.addTab(self.tab_invoice, "📑 Invoice")
 
         main_layout.addWidget(self.tabs)
         self.connect_signals()
@@ -192,6 +199,11 @@ class MainWindow(QMainWindow):
         self.analytics_mgr = AnalyticsDialog(self.db, self)
         self.analytics_mgr.setWindowFlags(Qt.Widget)
         layout.addWidget(self.analytics_mgr)
+
+    def setup_invoice_tab(self):
+        layout = QVBoxLayout(self.tab_invoice)
+        self.invoice_list_view = InvoiceList(self.db, self)
+        layout.addWidget(self.invoice_list_view)
 
     def update_sunnah_info(self):
         from datetime import datetime, date
@@ -502,6 +514,9 @@ class MainWindow(QMainWindow):
 
         # Clear input setelah simpan
         self.visit_section.medical_notes_input.clear()
+        
+        if self.invoice_list_view:
+            self.invoice_list_view.refresh_list()
 
     def on_visit_done(self, normal_price, discounted_price, discount_applied):
         discount_pct = self.settings.get_discount_percentage()
