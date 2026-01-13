@@ -10,16 +10,32 @@ class ImportExportHelper:
         self.db = db
 
     def export_data(self):
-        options = ["Excel (XLSX)", "JSON"]
+        options = ["Excel (XLSX) - Semua Data", "Excel (XLSX) - Per Bulan", "JSON (Semua Data)"]
         format_choice, ok = QInputDialog.getItem(
             self.parent, "Export Data", "Pilih format ekspor:", options, 0, False
         )
         if not ok:
             return
 
-        if format_choice == "Excel (XLSX)":
+        target_month = None
+        if "Per Bulan" in format_choice:
+            now = datetime.now()
+            month_options = []
+            for i in range(12):
+                m = (now.month - i - 1) % 12 + 1
+                y = now.year if now.month - i > 0 else now.year - 1
+                month_options.append(f"{y}-{m:02d}")
+            
+            month_str, ok = QInputDialog.getItem(
+                self.parent, "Pilih Bulan", "Pilih bulan untuk diekspor:", month_options, 0, False
+            )
+            if not ok: return
+            target_month = month_str
+
+        if "Excel" in format_choice:
+            default_name = f"data_pasien_{target_month}.xlsx" if target_month else "data_pasien_lengkap.xlsx"
             file_path, _ = QFileDialog.getSaveFileName(
-                self.parent, "Simpan file Excel", "", "Excel Files (*.xlsx)"
+                self.parent, "Simpan file Excel", default_name, "Excel Files (*.xlsx)"
             )
             if file_path:
                 if not file_path.endswith(".xlsx"):
@@ -31,7 +47,26 @@ class ImportExportHelper:
                     
                     data = []
                     for p in patients:
-                        for v in p.visits:
+                        filtered_visits = p.visits
+                        if target_month:
+                            filtered_visits = [v for v in p.visits if v.date.strftime("%Y-%m") == target_month]
+                        
+                        if not filtered_visits:
+                            if not target_month:
+                                data.append({
+                                    "Nama Pasien": p.name,
+                                    "Telepon": p.phone,
+                                    "Alamat": p.address,
+                                    "Gender": p.gender,
+                                    "Tanggal Kunjungan": "-",
+                                    "Terapis": "-",
+                                    "Jumlah Titik": 0,
+                                    "Harga": 0,
+                                    "Diskon": "-"
+                                })
+                            continue
+
+                        for v in filtered_visits:
                             data.append({
                                 "Nama Pasien": p.name,
                                 "Telepon": p.phone,
@@ -44,27 +79,17 @@ class ImportExportHelper:
                                 "Diskon": "Ya" if v.discount_applied else "Tidak"
                             })
                     
-                    if not data: # Handle case with no visits
-                        for p in patients:
-                            data.append({
-                                "Nama Pasien": p.name,
-                                "Telepon": p.phone,
-                                "Alamat": p.address,
-                                "Gender": p.gender,
-                                "Tanggal Kunjungan": "-",
-                                "Terapis": "-",
-                                "Jumlah Titik": 0,
-                                "Harga": 0,
-                                "Diskon": "-"
-                            })
+                    if not data:
+                        QMessageBox.warning(self.parent, "Peringatan", "Tidak ada data untuk periode tersebut.")
+                        return
 
                     df = pd.DataFrame(data)
                     df.to_excel(file_path, index=False)
-                    QMessageBox.information(self.parent, "Sukses", f"Data detail kunjungan berhasil diekspor ke {file_path}")
+                    QMessageBox.information(self.parent, "Sukses", f"Data berhasil diekspor ke {file_path}")
                 except Exception as e:
                     QMessageBox.critical(self.parent, "Error", f"Gagal ekspor data:\n{e}")
 
-        elif format_choice == "JSON":
+        elif format_choice == "JSON (Semua Data)":
             file_path, _ = QFileDialog.getSaveFileName(
                 self.parent, "Simpan file JSON", "", "JSON Files (*.json)"
             )
