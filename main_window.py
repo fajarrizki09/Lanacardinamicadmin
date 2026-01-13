@@ -26,6 +26,8 @@ from helpers.backup_helper import BackupHelper
 from threads.backup_thread import BackupThread
 from threads.invoice_thread import InvoiceThread
 from viewmodels.visit_view_model import VisitViewModel
+from viewmodels.therapist_view_model import TherapistViewModel
+
 
 
 from viewmodels.inventory_store import InventoryStore
@@ -41,15 +43,17 @@ class MainWindow(QMainWindow):
         self.import_export = ImportExportHelper(self, db)
 
         self.visit_vm = VisitViewModel(db, settings)
+        self.therapist_vm = TherapistViewModel(self.db)
+        self.therapist_vm.data_changed.connect(self.on_therapists_changed)
         self.invoice_helper = InvoiceHelper()
         self.backup_thread = None
         self.run_backup()
-        
+
         self.search_thread = None
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self._perform_search)
-        
+
         self.all_patients = []
         self.filtered_patients = []
         self.therapists_dict = {}
@@ -74,7 +78,7 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         main_widget.setStyleSheet(STYLES.get("main_window", ""))
         self.setCentralWidget(main_widget)
-        
+
         main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(5, 5, 5, 5)
 
@@ -90,11 +94,11 @@ class MainWindow(QMainWindow):
             }
             QTabBar::tab:selected { background: white; border-bottom-color: white; font-weight: bold; color: #3498db; }
         """)
-        
+
         # --- TAB 1: DASHBOARD & PASIEN ---
         self.tab_dashboard = QWidget()
         self.setup_dashboard_tab()
-        
+
         # --- TAB 2: TERAPIS ---
         self.tab_therapist = QWidget()
         self.setup_therapist_tab()
@@ -123,7 +127,7 @@ class MainWindow(QMainWindow):
     def setup_dashboard_tab(self):
         layout = QVBoxLayout(self.tab_dashboard)
         layout.setContentsMargins(10, 10, 10, 10)
-        
+
         self.sunnah_calendar_label = QLabel()
         self.update_sunnah_info()
 
@@ -134,41 +138,40 @@ class MainWindow(QMainWindow):
 
         # Dashboard layout with two columns
         content_layout = QHBoxLayout()
-        
+
         # LEFT COLUMN: Sunnah info, Patient registration, Patient list
         left_column = QVBoxLayout()
         left_column.setSpacing(10)
         left_column.addWidget(self.sunnah_calendar_label)
         left_column.addWidget(self.patient_form)
         left_column.addWidget(self.patient_list, 1) # Give priority to patient list height
-        
+
         # RIGHT COLUMN: Visit section & Action buttons at the bottom
         right_column = QVBoxLayout()
         right_column.setSpacing(10)
-        
+
         right_column.addWidget(self.visit_section, 1)
-        
+
         # Action Bar at the bottom of right column
         action_bar = QHBoxLayout()
         action_bar.addStretch()
         action_bar.addWidget(self.action_buttons.settings_btn)
         action_bar.addWidget(self.action_buttons.export_btn)
         action_bar.addWidget(self.action_buttons.import_btn)
-        
+
         right_column.addLayout(action_bar)
-        
+
         content_layout.addLayout(left_column, 2)
         content_layout.addLayout(right_column, 3)
-        
+
         layout.addLayout(content_layout)
 
     def setup_therapist_tab(self):
         layout = QVBoxLayout(self.tab_therapist)
-        from dialogs.therapist_dialog import TherapistDialog
-        self.therapist_mgr = TherapistDialog(self.db, self)
-        # Re-parent to use as a widget
+        self.therapist_mgr = TherapistDialog(self.therapist_vm, self)
         self.therapist_mgr.setWindowFlags(Qt.Widget)
         layout.addWidget(self.therapist_mgr)
+
 
     def setup_inventory_tab(self):
         layout = QVBoxLayout(self.tab_inventory)
@@ -199,7 +202,7 @@ class MainWindow(QMainWindow):
             date(2026, 1, 8), date(2026, 1, 10), date(2026, 1, 12),
             date(2026, 2, 7), date(2026, 2, 9), date(2026, 2, 11)
         ]
-        
+
         if today in sunnah_dates:
             self.sunnah_calendar_label.setText("🌟 HARI INI: Waktu Sunnah Bekam (17, 19, atau 21 Hijriah)")
             self.sunnah_calendar_label.setStyleSheet(STYLES["sunnah_label_active"])
@@ -247,7 +250,7 @@ class MainWindow(QMainWindow):
         if row < len(visits):
             visit = visits[row]
             visit_id = visit.id if hasattr(visit, 'id') else visit.get('id')
-            
+
             try:
                 # Update DB: remove this visit
                 current_visits = self.db.get_visits(patient_id)
@@ -260,7 +263,7 @@ class MainWindow(QMainWindow):
                             discount_applied=v['discount_applied'],
                             point_count=v['point_count'], therapist_id=v['therapist_id']
                         ))
-                
+
                 self.db.update_patient_visits(patient_id, updated_visits)
                 self.visit_vm.invalidate_cache(patient_id)
                 self.load_visits()
@@ -269,13 +272,16 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Gagal menghapus kunjungan: {str(e)}")
 
-    def refresh_therapists(self, force=False):
-        if not force and self._therapists_cache_valid and self.therapists_dict:
-            return
-        
-        therapists = self.db.get_all_therapists(active_only=True)
+    def refresh_therapists(self):
+        therapists = self.therapist_vm.get_all_therapists(active_only=True)
         self.therapists_dict = {t.id: t for t in therapists}
-        self._therapists_cache_valid = True
+    def on_therapists_changed(self):
+        self.refresh_therapists()
+        self.load_selected_patient_data(
+            self.patient_list.patient_list.currentRow()
+        )
+
+
 
     def add_patient(self):
         name, phone, address, gender = self.patient_form.get_inputs()
@@ -283,7 +289,7 @@ class MainWindow(QMainWindow):
         if not name:
             QMessageBox.warning(self, "Error", "Nama tidak boleh kosong")
             return
-            
+
         # Jika nomor HP kosong, generate nomor sementara
         if not phone:
             from datetime import datetime
@@ -331,7 +337,7 @@ class MainWindow(QMainWindow):
 
             try:
                 self.db.update_patient(patient_id, new_name, new_phone, new_address, new_gender)
-                
+
                 from database import VisitData
                 visit_data_list = [
                     VisitData(
@@ -398,7 +404,7 @@ class MainWindow(QMainWindow):
     def search_patients(self, text):
         self.search_timer.stop()
         self._current_search_text = text.strip().lower()
-        
+
         if not self._current_search_text:
             if self.search_thread and self.search_thread.isRunning():
                 self.search_thread.cancel()
@@ -406,12 +412,12 @@ class MainWindow(QMainWindow):
             self.filtered_patients = self.all_patients
             self.patient_list.update_list(self.filtered_patients)
             return
-        
+
         self.search_timer.start(300)
-    
+
     def _perform_search(self):
         text = self._current_search_text
-        
+
         if self.search_thread and self.search_thread.isRunning():
             self.search_thread.cancel()
             self.search_thread.wait()
@@ -431,19 +437,19 @@ class MainWindow(QMainWindow):
             self.visit_section.therapist_combo.clear()
             self.visit_section.therapist_combo.addItem("-- Pilih Pasien Dulu --", None)
             return
-        
+
         selected_patient = self.patient_list.get_selected_patient()
         if selected_patient and len(selected_patient) >= 4:
             patient_gender = selected_patient[3]
             self.visit_section.set_patient_gender(patient_gender)
-            
+
             self.refresh_therapists()
             filtered_therapists = [
                 t for t in self.therapists_dict.values() 
                 if t.gender == patient_gender
             ]
             self.visit_section.load_therapists(filtered_therapists)
-        
+
         self.load_visits()
 
     def load_visits(self):
@@ -465,7 +471,7 @@ class MainWindow(QMainWindow):
         if not selected_patient:
             QMessageBox.warning(self, "Pilih Pasien", "Silakan pilih pasien dahulu")
             return
-        
+
         point_count = self.visit_section.get_point_count()
         if point_count <= 0:
             QMessageBox.warning(self, "Error", "Jumlah titik harus lebih dari 0")
@@ -489,7 +495,7 @@ class MainWindow(QMainWindow):
             therapist_id=therapist_id,
             medical_notes=medical_notes
         )
-        
+
         # Clear input setelah simpan
         self.visit_section.medical_notes_input.clear()
 
@@ -497,13 +503,13 @@ class MainWindow(QMainWindow):
         discount_pct = self.settings.get_discount_percentage()
         point_count = self.visit_section.get_point_count()
         selected_patient = self.patient_list.get_selected_patient()
-        
+
         if not selected_patient:
             return
-            
+
         patient_id = selected_patient[0]
         patient_name = selected_patient[1]
-        
+
         therapist_id = self.visit_section.get_selected_therapist_id()
         therapist_name = "--"
         if therapist_id and therapist_id in self.therapists_dict:
@@ -524,7 +530,7 @@ class MainWindow(QMainWindow):
 
         self.load_visits()
         self.refresh_patients()
-        
+
         # Reset selection to maintain the current patient view
         for i in range(self.patient_list.patient_list.count()):
             item = self.patient_list.patient_list.item(i)
@@ -571,7 +577,7 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         custom_action = menu.addAction("Kustomisasi Cetak Invoice")
         inv_settings_action = menu.addAction("⚙️ Atur Stok Otomatis")
-        
+
         action = menu.exec_(self.action_buttons.settings_btn.mapToGlobal(pos))
         if action == custom_action:
             self.show_custom_invoice_dialog()

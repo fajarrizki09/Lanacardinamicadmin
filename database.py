@@ -334,7 +334,7 @@ class Database:
                 discount_applied=discount_applied,
                 point_count=point_count,
                 invoice_path=invoice_path,
-                medical_notes=medical_notes
+                medical_notes=str(medical_notes) if medical_notes else '-'
             )
             session.add(new_visit)
 
