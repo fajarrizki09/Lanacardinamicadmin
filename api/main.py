@@ -66,6 +66,8 @@ def read_root():
                     const displayArea = document.getElementById('display-area');
                     const loading = document.getElementById('loading');
                     
+                    if (!displayArea || !loading) return;
+                    
                     displayArea.innerHTML = '';
                     loading.style.display = 'block';
                     
