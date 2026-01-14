@@ -208,15 +208,21 @@ class ImportExportHelper:
                                 if total_price == 0:
                                     total_price = int(v_price_base)
 
-                                # Skip data that is purely sales (no name/phone/visit indicators)
-                                # Heuristic: If there is no therapy price and it's not a known visit code
-                                if not any(keyword in v_notes_raw.lower() for keyword in ['pl 13', 'pl dhuafa', 'pb konsul', 'titik']):
-                                    if v_price_therapy == 0 and v_price_herbal > 0:
-                                        # This looks like a standalone herbal sale
-                                        continue 
-                                if total_price == 0:
-                                    total_price = int(v_price_base)
-                                
+                                # Check if it's a standalone herbal sale
+                                is_visit = any(keyword in v_notes_raw.lower() for keyword in ['pl 13', 'pl dhuafa', 'pb konsul', 'titik'])
+                                if not is_visit and v_price_therapy == 0 and v_price_herbal > 0:
+                                    # Standalone herbal sale: Record to herbal stock if exists
+                                    herbal_name = v_notes_raw.strip()
+                                    if herbal_name:
+                                        # Try to find matching herbal in DB and reduce stock
+                                        herbals = self.db.get_all_herbals(active_only=True)
+                                        for h in herbals:
+                                            if h['name'].lower() in herbal_name.lower() or herbal_name.lower() in h['name'].lower():
+                                                self.db.update_herbal_stock(h['id'], -1) # Reduce 1 unit per sale row
+                                                break
+                                    continue # Skip adding this as a visit record
+
+                                # If it's a visit, continue with visit logic
                                 v_points_raw = row.get('v_points', 0)
                                 
                                 # Smart point extraction
