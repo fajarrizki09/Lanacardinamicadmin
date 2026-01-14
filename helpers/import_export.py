@@ -220,10 +220,33 @@ class ImportExportHelper:
                                 
                                 v_notes_raw = str(row.get('v_notes', '')) if not pd.isna(row.get('v_notes')) else ""
                                 
-                                # If points are not in point column, try to find in notes
+                                # Smart point extraction and note processing
+                                v_points = 0
+                                # Check for specific codes in notes first
+                                notes_lower = v_notes_raw.lower()
+                                if 'pl 13' in notes_lower:
+                                    v_points = 13
+                                elif 'pl dhuafa' in notes_lower:
+                                    # Assuming a default for Dhuafa, or just keep notes
+                                    pass
+                                elif 'pb konsul' in notes_lower:
+                                    # Consultation usually 0 points unless specified
+                                    v_points = 0
+                                
+                                # Try extracting points from v_points column if still 0
+                                if v_points == 0:
+                                    if isinstance(v_points_raw, (int, float)):
+                                        v_points = int(v_points_raw)
+                                    elif isinstance(v_points_raw, str):
+                                        import re
+                                        match = re.search(r'(\d+)', v_points_raw)
+                                        if match:
+                                            v_points = int(match.group(1))
+                                
+                                # If points still 0, try finding "XX titik" in notes
                                 if v_points == 0 and v_notes_raw:
                                     import re
-                                    match = re.search(r'(\d+)\s*titik', v_notes_raw.lower())
+                                    match = re.search(r'(\d+)\s*titik', notes_lower)
                                     if match:
                                         v_points = int(match.group(1))
                                 
