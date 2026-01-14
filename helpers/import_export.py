@@ -169,6 +169,8 @@ class ImportExportHelper:
                     'tanggal kunjungan': 'v_date', 'tanggal': 'v_date',
                     'terapis': 'v_therapist',
                     'jumlah titik': 'v_points', 'titik': 'v_points',
+                    'harga terapi': 'v_price_therapy',
+                    'harga herbal': 'v_price_herbal',
                     'harga': 'v_price',
                     'diskon': 'v_discount',
                     'keterangan': 'v_notes'
@@ -194,10 +196,19 @@ class ImportExportHelper:
                             
                             try:
                                 v_date = pd.to_datetime(v_date_raw).to_pydatetime()
-                                v_price = row.get('v_price', 0)
+                                
+                                # Combined price logic (Therapy + Herbal)
+                                v_price_therapy = row.get('v_price_therapy', 0) if not pd.isna(row.get('v_price_therapy')) else 0
+                                v_price_herbal = row.get('v_price_herbal', 0) if not pd.isna(row.get('v_price_herbal')) else 0
+                                v_price_base = row.get('v_price', 0) if not pd.isna(row.get('v_price')) else 0
+                                
+                                total_price = int(v_price_therapy) + int(v_price_herbal)
+                                if total_price == 0:
+                                    total_price = int(v_price_base)
+                                
                                 v_points_raw = row.get('v_points', 0)
                                 
-                                # Smart point extraction from string (e.g. "13 titik" -> 13)
+                                # Smart point extraction
                                 v_points = 0
                                 if isinstance(v_points_raw, (int, float)):
                                     v_points = int(v_points_raw)
@@ -207,15 +218,23 @@ class ImportExportHelper:
                                     if match:
                                         v_points = int(match.group(1))
                                 
+                                v_notes_raw = str(row.get('v_notes', '')) if not pd.isna(row.get('v_notes')) else ""
+                                
+                                # If points are not in point column, try to find in notes
+                                if v_points == 0 and v_notes_raw:
+                                    import re
+                                    match = re.search(r'(\d+)\s*titik', v_notes_raw.lower())
+                                    if match:
+                                        v_points = int(match.group(1))
+                                
                                 v_discount = str(row.get('v_discount', '')).lower() in ['ya', 'yes', 'true', '1']
                                 t_name = str(row.get('v_therapist', '')).lower()
                                 t_id = t_name_map.get(t_name)
-                                v_notes = str(row.get('v_notes', '')) if not pd.isna(row.get('v_notes')) else None
                                 
                                 visits.append(VisitData(
-                                    id=None, date=v_date, price=int(v_price),
+                                    id=None, date=v_date, price=total_price,
                                     discount_applied=v_discount, point_count=v_points,
-                                    therapist_id=t_id, medical_notes=v_notes
+                                    therapist_id=t_id, medical_notes=v_notes_raw if v_notes_raw else None
                                 ))
                             except: continue
 
