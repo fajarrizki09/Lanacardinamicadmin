@@ -32,7 +32,7 @@ class InvoiceList(QWidget):
 
         refresh_btn = QPushButton("🔄 Refresh")
         refresh_btn.setFixedSize(100, 36)
-        refresh_btn.setStyleSheet(STYLES["secondary_button"])
+        refresh_btn.setStyleSheet(STYLES["update_button"])
         refresh_btn.clicked.connect(self.refresh_list)
 
         header_layout.addWidget(title)
