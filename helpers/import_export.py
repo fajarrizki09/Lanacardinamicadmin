@@ -170,7 +170,8 @@ class ImportExportHelper:
                     'terapis': 'v_therapist',
                     'jumlah titik': 'v_points', 'titik': 'v_points',
                     'harga': 'v_price',
-                    'diskon': 'v_discount'
+                    'diskon': 'v_discount',
+                    'keterangan': 'v_notes'
                 }
                 df.columns = [column_mapping.get(c.lower(), c) for c in df.columns]
                 
@@ -198,11 +199,12 @@ class ImportExportHelper:
                                 v_discount = str(row.get('v_discount', '')).lower() in ['ya', 'yes', 'true', '1']
                                 t_name = str(row.get('v_therapist', '')).lower()
                                 t_id = t_name_map.get(t_name)
+                                v_notes = str(row.get('v_notes', '')) if not pd.isna(row.get('v_notes')) else None
                                 
                                 visits.append(VisitData(
                                     id=None, date=v_date, price=int(v_price),
                                     discount_applied=v_discount, point_count=int(v_points),
-                                    therapist_id=t_id
+                                    therapist_id=t_id, medical_notes=v_notes
                                 ))
                             except: continue
 
