@@ -195,7 +195,18 @@ class ImportExportHelper:
                             try:
                                 v_date = pd.to_datetime(v_date_raw).to_pydatetime()
                                 v_price = row.get('v_price', 0)
-                                v_points = row.get('v_points', 0)
+                                v_points_raw = row.get('v_points', 0)
+                                
+                                # Smart point extraction from string (e.g. "13 titik" -> 13)
+                                v_points = 0
+                                if isinstance(v_points_raw, (int, float)):
+                                    v_points = int(v_points_raw)
+                                elif isinstance(v_points_raw, str):
+                                    import re
+                                    match = re.search(r'(\d+)', v_points_raw)
+                                    if match:
+                                        v_points = int(match.group(1))
+                                
                                 v_discount = str(row.get('v_discount', '')).lower() in ['ya', 'yes', 'true', '1']
                                 t_name = str(row.get('v_therapist', '')).lower()
                                 t_id = t_name_map.get(t_name)
@@ -203,7 +214,7 @@ class ImportExportHelper:
                                 
                                 visits.append(VisitData(
                                     id=None, date=v_date, price=int(v_price),
-                                    discount_applied=v_discount, point_count=int(v_points),
+                                    discount_applied=v_discount, point_count=v_points,
                                     therapist_id=t_id, medical_notes=v_notes
                                 ))
                             except: continue
