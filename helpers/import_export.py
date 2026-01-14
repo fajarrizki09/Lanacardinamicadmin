@@ -199,22 +199,21 @@ class ImportExportHelper:
                                 
                                 v_notes_raw = str(row.get('v_notes', '')) if not pd.isna(row.get('v_notes')) else ""
                                 
-                                # Skip data that is purely sales (no name/phone/visit indicators)
-                                # If name is empty or it looks like a standalone herbal sale
-                                if not name or (not v_notes_raw and not row.get('v_points') and total_price > 0):
-                                    # Very basic heuristic: if it has herbal name but no visit codes, 
-                                    # and we are in a row that might be standalone
-                                    if any(keyword in v_notes_raw.lower() for keyword in ['pl 13', 'pl dhuafa', 'pb konsul', 'titik']):
-                                        pass # Keep it
-                                    elif total_price > 0 and not row.get('v_price_therapy'):
-                                        continue # Skip standalone herbal sales
-
                                 # Combined price logic (Therapy + Herbal)
                                 v_price_therapy = row.get('v_price_therapy', 0) if not pd.isna(row.get('v_price_therapy')) else 0
                                 v_price_herbal = row.get('v_price_herbal', 0) if not pd.isna(row.get('v_price_herbal')) else 0
                                 v_price_base = row.get('v_price', 0) if not pd.isna(row.get('v_price')) else 0
                                 
                                 total_price = int(v_price_therapy) + int(v_price_herbal)
+                                if total_price == 0:
+                                    total_price = int(v_price_base)
+
+                                # Skip data that is purely sales (no name/phone/visit indicators)
+                                # Heuristic: If there is no therapy price and it's not a known visit code
+                                if not any(keyword in v_notes_raw.lower() for keyword in ['pl 13', 'pl dhuafa', 'pb konsul', 'titik']):
+                                    if v_price_therapy == 0 and v_price_herbal > 0:
+                                        # This looks like a standalone herbal sale
+                                        continue 
                                 if total_price == 0:
                                     total_price = int(v_price_base)
                                 
