@@ -5,9 +5,10 @@
 
 ---
 
-## Patch 1 — Prevent Negative final_price
+## Fase 1: Patch Keamanan Kritis Tambahan (P0)
 
-**Kenapa penting:** Kasir bisa menyimpan kunjungan dengan harga negatif jika diskon melebihi harga asli. Ini menyebabkan laporan pendapatan salah.  
+### 1. [DONE] Prevent Negative `final_price`
+**Tujuan:** Mencegah kasir atau malicious input menyimpan kunjungan dengan harga/total akhir negatif (merusak laporan pendapatan & cash flow). Ini menyebabkan laporan pendapatan salah.  
 **Aman dilakukan sekarang:** Ya — tambahan validasi, tidak mengubah schema atau logic lain.
 
 **File yang perlu dicek:**

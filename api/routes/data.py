@@ -127,6 +127,8 @@ def _import_json_data(data):
             tid = t_name_map.get(therapist_name)
             is_free_visit = _parse_bool(v.get("is_free_visit"))
             price = 0 if is_free_visit else _parse_float(v.get("price"))
+            if price < 0:
+                raise ValueError(f"{row_label}: harga kunjungan tidak boleh negatif.")
             point_count = _parse_positive_quantity(v.get("quantity", v.get("point_count")), row_label)
             free_visit_reason = _clean_text(v.get("free_visit_reason"), None)
             if is_free_visit and not free_visit_reason:
@@ -257,9 +259,14 @@ def _import_xlsx_data(content: bytes):
         free_visit_reason = _clean_text(row.get("free_visit_reason"), None)
         if is_free_visit and not free_visit_reason:
             raise ValueError(f"Baris Excel {row_number}: alasan kunjungan gratis wajib diisi.")
+        
+        price = 0 if is_free_visit else _parse_float(row.get("price"))
+        if price < 0:
+            raise ValueError(f"Baris Excel {row_number}: harga kunjungan tidak boleh negatif.")
+
         patient["visits"].append({
             "date": vdate,
-            "price": 0 if is_free_visit else _parse_float(row.get("price")),
+            "price": price,
             "discount_override": _parse_optional_bool(row.get("discount")),
             "point_count": point_count,
             "therapist_id": therapist_id,
