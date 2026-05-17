@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 *.so
 .Python
@@ -22,18 +23,43 @@ MANIFEST
 
 .env
 .venv
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+node_modules/
+.pytest_cache/
+tmp/
+temp/
+*.tmp
+*.temp
 
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
+*smoke*.db*
 settings.json
 data.db
+.local/
+.codex/
+invoices/
+backups/
+logs/
+exports/
+*.log
+exe_out*.txt
+*.zip
+*_Smoke.pdf
+*PAGECHECK*.pdf
+*VISUALCHECK*.pdf
+*SIGNCHECK*.pdf
+invoice_*check*.png
+dummy_invoice.pdf
+laporan_manual.pdf
+laporan_manual.xlsx
 
 .idea/
 .vscode/

@@ -1,0 +1,13 @@
+{
+  "name": "lancar-dynamic-admin",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build:ts": "tsc -p tsconfig.static.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:services": "tsc -p tsconfig.json --noEmit --pretty false"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  }
+}
