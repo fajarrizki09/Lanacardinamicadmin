@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lancar Dynamic Admin - Admin Dashboard</title>
+    <!-- Font (Offline) -->
+    <link rel="stylesheet" href="/static/vendor/css/inter.css">
+    <!-- FontAwesome Icons (Offline) -->
+    <link rel="stylesheet" href="/static/vendor/css/all.min.css">
+    <!-- DataTables CSS (Offline) -->
+    <link rel="stylesheet" href="/static/vendor/css/jquery.dataTables.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css?v={{ cache_buster }}&activity_layout=20260515_modal_v4">
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <i class="fas fa-clinic-medical"></i>
+            <h2 id="sidebar-clinic-name">Lancar Dynamic Admin</h2>
+        </div>
+        <ul class="nav-links">
+            <li class="active" data-tab="dashboard">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </li>
+            <li data-tab="patients">
+                <i class="fas fa-users"></i>
+                <span>Pasien</span>
+            </li>
+            <li data-tab="visits">
+                <i class="fas fa-notes-medical"></i>
+                <span>Kunjungan</span>
+            </li>
+            <li data-tab="therapists">
+                <i class="fas fa-user-md"></i>
+                <span>Terapis</span>
+            </li>
+            <li data-tab="services">
+                <i class="fas fa-spa"></i>
+                <span>Layanan</span>
+            </li>
+            <li data-tab="inventory">
+                <i class="fas fa-box-open"></i>
+                <span>Inventori Alat</span>
+            </li>
+            <li data-tab="herbals">
+                <i class="fas fa-leaf"></i>
+                <span>Produk / Herbal</span>
+            </li>
+            <li data-tab="analytics">
+                <i class="fas fa-chart-bar"></i>
+                <span>Analitik</span>
+            </li>
+            <li data-tab="owner-report">
+                <i class="fas fa-briefcase"></i>
+                <span>Laporan Owner</span>
+            </li>
+            <li data-tab="audit">
+                <i class="fas fa-history"></i>
+                <span>Aktivitas</span>
+            </li>
+            <li data-tab="crm">
+                <i class="fas fa-user-check"></i>
+                <span>Follow-up Pasien</span>
+            </li>
+            <li data-tab="invoices">
+                <i class="fas fa-file-invoice"></i>
+                <span>Invoice</span>
+            </li>
+            <li data-tab="vouchers">
+                <i class="fas fa-ticket-alt"></i>
+                <span>Voucher</span>
+            </li>
+            <li data-tab="settings">
+                <i class="fas fa-cog"></i>
+                <span>Pengaturan</span>
+            </li>
+            <li data-tab="help">
+                <i class="fas fa-circle-question"></i>
+                <span>Bantuan</span>
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <div class="header-title">
+                <h1 id="page-title">Dashboard Utama</h1>
+                <p>Ringkasan Sistem & Statistik</p>
+            </div>
+            <div class="header-actions">
+                <div id="license-indicator" class="license-indicator loading">
+                    <i class="fas fa-key"></i>
+                    <span>Memuat lisensi</span>
+                </div>
+            </div>
+        </header>
+
+        <main id="app-container">
+            <!-- Loading Indicator -->
+            <div id="loader" class="loader-container">
+                <div class="spinner"></div>
+                <p>Memuat data dari database...</p>
+            </div>
+
+            <!-- Dynamic Content Area -->
+            <div id="display-area" style="display: none;"></div>
+        </main>
+    </div>
+
+    <!-- jQuery + DataTables JS (Offline) -->
+    <script id="app-config" type="application/json">{{ {"appToken": app_token} | tojson }}</script>
+    <script>
+        (function () {
+            const config = JSON.parse(document.getElementById('app-config').textContent);
+            window._appToken = config.appToken;
+        })();
+    </script>
+    <script src="/static/vendor/js/jquery.min.js"></script>
+    <script src="/static/vendor/js/jquery.dataTables.min.js"></script>
+    <!-- Modules (load in order: utils first, then features, then entry point) -->
+    <script src="/static/modules/utils.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/api.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/formatters.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/dom.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/validators.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/dashboard.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/patients.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/therapists.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/services.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/inventory.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/herbals.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/analytics.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/owner_report.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/audit.js?v={{ cache_buster }}&activity_layout=20260515_modal_v4"></script>
+    <script src="/static/modules/crm.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/invoices.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/settings.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/help.js?v={{ cache_buster }}"></script>
+    <script src="/static/modules/modal.js?v={{ cache_buster }}"></script>
+    <script src="/static/app.js?v={{ cache_buster }}"></script>
+</body>
+
+</html>
