@@ -17,7 +17,8 @@ from viewmodels.inventory_store import InventoryTableModel
 class HerbalDialog(QDialog):
     def __init__(self, db, store, parent=None):
         super().__init__(parent)
-        self.db = db
+        # Parameter db dipertahankan untuk kompatibilitas constructor lama.
+        # Akses data herbal diarahkan lewat InventoryStore.
         self.store = store
         self.setWindowTitle("🌿 Manajemen Obat Herbal")
         self.setMinimumSize(1100, 600)
@@ -103,7 +104,7 @@ class HerbalDialog(QDialog):
             QTableView::item { padding: 10px; }
         """)
         self.table_view.verticalHeader().setDefaultSectionSize(45)
-        self.model = InventoryTableModel(headers=["ID", "Nama Herbal", "Stok", "Satuan", "Harga"])
+        self.model = InventoryTableModel(headers=["ID", "Nama Herbal", "Stok", "Satuan", "Kemasan", "Modal", "Harga", "Margin"])
         self.table_view.setModel(self.model)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
@@ -118,7 +119,13 @@ class HerbalDialog(QDialog):
     def on_item_selected_view(self, index):
         if not index.isValid(): return
         item = self.model._data[index.row()]
-        self.transaction_form.set_item(item["id"], item["name"])
+        self.transaction_form.set_item(
+            item["id"],
+            item["name"],
+            item.get("unit"),
+            item.get("package_unit"),
+            item.get("package_size", 1),
+        )
 
     def filter_table(self, text):
         if not hasattr(self, 'all_items'): return
@@ -131,9 +138,20 @@ class HerbalDialog(QDialog):
             QMessageBox.warning(self, "Peringatan", "Pilih herbal dari daftar di kanan.")
             return
             
-        qty = data["qty"] if data["type"] == "IN" else -data["qty"]
-        self.store.update_stock(data["item_id"], qty, is_herbal=True)
-        QMessageBox.information(self, "Sukses", "Stok herbal berhasil diperbarui.")
+        converted_qty = int(data["qty"] * data.get("unit_multiplier", 1))
+        qty = converted_qty if data["type"] == "IN" else -converted_qty
+        note = data.get("notes") or f"{data['qty']} {data.get('unit_label', data.get('base_unit', 'unit'))}"
+        success, message = self.store.update_stock(
+            data["item_id"],
+            qty,
+            is_herbal=True,
+            transaction_type=("stock_in" if data["type"] == "IN" else "sale"),
+            note=note,
+        )
+        if not success:
+            QMessageBox.warning(self, "Stok Tidak Cukup", message)
+            return
+        QMessageBox.information(self, "Sukses", message)
         self.transaction_form.item_name_display.clear()
 
     def on_add(self):
@@ -142,12 +160,10 @@ class HerbalDialog(QDialog):
         if dlg.exec_():
             d = dlg.get_data()
             if d["name"]:
-                self.db.add_herbal(d["name"], d["unit"], d["price"])
-                if d["stock"] > 0:
-                    items = self.db.get_all_herbals()
-                    new_id = max([i['id'] for i in items]) if items else None
-                    if new_id: self.db.update_herbal_stock(new_id, d["stock"])
-                self.store.refresh_cache()
+                self.store.add_herbal(
+                    d["name"], d["unit"], d["price"], d["stock"], d["cost_price"],
+                    d["package_unit"], d["package_size"], d["min_stock"]
+                )
 
     def on_edit(self):
         index = self.table_view.currentIndex()
@@ -157,15 +173,14 @@ class HerbalDialog(QDialog):
         dlg = HerbalFormDialog(self, item)
         if dlg.exec_():
             d = dlg.get_data()
-            self.db.update_herbal(item["id"], d["name"], d["unit"], d["price"], 0)
-            diff = d["stock"] - item["stock"]
-            if diff != 0: self.db.update_herbal_stock(item["id"], diff)
-            self.store.refresh_cache()
+            self.store.update_herbal(
+                item["id"], d["name"], d["unit"], d["price"], d["stock"], d["cost_price"],
+                d["package_unit"], d["package_size"], d["min_stock"]
+            )
 
     def on_delete(self):
         index = self.table_view.currentIndex()
         if not index.isValid(): return
         item = self.model._data[index.row()]
         if QMessageBox.question(self, "Hapus", f"Hapus '{item['name']}'?") == QMessageBox.Yes:
-            self.db.delete_herbal(item["id"])
-            self.store.refresh_cache()
+            self.store.delete_herbal(item["id"])

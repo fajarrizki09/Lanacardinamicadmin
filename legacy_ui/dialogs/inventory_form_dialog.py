@@ -1,8 +1,10 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, 
-    QLineEdit, QSpinBox, QPushButton, QLabel
+    QLineEdit, QSpinBox, QPushButton, QLabel, QComboBox
 )
 from utils.styles import STYLES
+
+UNIT_OPTIONS = ["pcs", "unit", "botol", "saset", "box", "pack", "strip", "tablet", "kapsul", "dus"]
 
 class InventoryFormDialog(QDialog):
     def __init__(self, parent=None, data=None):
@@ -17,8 +19,17 @@ class InventoryFormDialog(QDialog):
         form = QFormLayout()
 
         self.name_input = QLineEdit()
-        self.unit_input = QLineEdit()
-        self.unit_input.setPlaceholderText("pcs / pack / unit")
+        self.unit_input = QComboBox()
+        self.unit_input.setEditable(True)
+        self.unit_input.addItems(UNIT_OPTIONS)
+
+        self.package_unit_input = QComboBox()
+        self.package_unit_input.setEditable(True)
+        self.package_unit_input.addItems([""] + UNIT_OPTIONS)
+
+        self.package_size_input = QSpinBox()
+        self.package_size_input.setRange(1, 9999)
+        self.package_size_input.setValue(1)
         
         self.stock_input = QSpinBox()
         self.stock_input.setRange(0, 9999)
@@ -28,12 +39,16 @@ class InventoryFormDialog(QDialog):
 
         if self.data:
             self.name_input.setText(self.data.get('name', ''))
-            self.unit_input.setText(self.data.get('unit', ''))
+            self.unit_input.setCurrentText(self.data.get('unit', 'pcs'))
+            self.package_unit_input.setCurrentText(self.data.get('package_unit', ''))
+            self.package_size_input.setValue(self.data.get('package_size', 1))
             self.stock_input.setValue(self.data.get('stock', 0))
             self.min_stock_input.setValue(self.data.get('min_stock', 10))
 
         form.addRow("Nama Alat:", self.name_input)
-        form.addRow("Satuan:", self.unit_input)
+        form.addRow("Satuan Dasar:", self.unit_input)
+        form.addRow("Satuan Kemasan:", self.package_unit_input)
+        form.addRow("Isi per Kemasan:", self.package_size_input)
         form.addRow("Stok Saat Ini:", self.stock_input)
         form.addRow("Minimal Stok:", self.min_stock_input)
         
@@ -54,7 +69,9 @@ class InventoryFormDialog(QDialog):
     def get_data(self):
         return {
             "name": self.name_input.text(),
-            "unit": self.unit_input.text(),
+            "unit": self.unit_input.currentText().strip(),
+            "package_unit": self.package_unit_input.currentText().strip(),
+            "package_size": self.package_size_input.value(),
             "stock": self.stock_input.value(),
             "min_stock": self.min_stock_input.value()
         }

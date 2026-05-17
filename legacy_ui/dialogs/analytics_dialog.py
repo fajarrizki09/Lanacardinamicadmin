@@ -1,16 +1,17 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QDateEdit, QMessageBox, QGridLayout, QSizePolicy
+    QDateEdit, QMessageBox, QGridLayout, QSizePolicy, QComboBox
 )
 from PySide6.QtCore import Qt, QDate
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from datetime import datetime
 from collections import defaultdict
+from viewmodels.analytics_view_model import AnalyticsViewModel
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QDateEdit, QMessageBox, QGridLayout, QSizePolicy, QGroupBox, QScrollArea, QWidget, QFrame
+    QDateEdit, QMessageBox, QGridLayout, QSizePolicy, QGroupBox, QScrollArea, QWidget, QFrame, QComboBox, QDoubleSpinBox
 )
 from PySide6.QtCore import Qt, QDate
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -19,11 +20,15 @@ from datetime import datetime
 from collections import defaultdict
 
 class AnalyticsDialog(QDialog):
-    def __init__(self, db, parent=None):
+    def __init__(self, analytics_source, parent=None):
         super().__init__(parent)
         self.setWindowTitle("📊 Analitik Kunjungan & Pemasukan")
         self.resize(1100, 850)
-        self.db = db
+        if isinstance(analytics_source, AnalyticsViewModel):
+            self.analytics_vm = analytics_source
+        else:
+            # Kompatibilitas constructor lama: AnalyticsDialog(db, parent)
+            self.analytics_vm = AnalyticsViewModel(analytics_source)
 
         # Main Layout for the Dialog
         main_layout = QVBoxLayout(self)
@@ -57,15 +62,15 @@ class AnalyticsDialog(QDialog):
         filter_layout.setContentsMargins(20, 15, 20, 15)
         filter_layout.setSpacing(15)
 
-        self.date_start = QDateEdit(calendarPopup=True)
-        self.date_start.setDate(QDate.currentDate().addMonths(-6))
-        self.date_start.setFixedWidth(140)
-        self.date_start.setStyleSheet("padding: 8px; border: 1px solid #ced4da; border-radius: 6px;")
-
-        self.date_end = QDateEdit(calendarPopup=True)
-        self.date_end.setDate(QDate.currentDate())
-        self.date_end.setFixedWidth(140)
-        self.date_end.setStyleSheet("padding: 8px; border: 1px solid #ced4da; border-radius: 6px;")
+        self.period_filter = QComboBox()
+        self.period_filter.addItem("7 Hari", "7d")
+        self.period_filter.addItem("30 Hari", "30d")
+        self.period_filter.addItem("6 Bulan", "6m")
+        self.period_filter.addItem("1 Tahun", "1y")
+        self.period_filter.addItem("Semua", "all")
+        self.period_filter.setCurrentIndex(2)
+        self.period_filter.setFixedWidth(140)
+        self.period_filter.setStyleSheet("padding: 8px; border: 1px solid #ced4da; border-radius: 6px;")
 
         self.btn_apply = QPushButton("🔍 Terapkan Filter")
         self.btn_apply.setFixedWidth(180)
@@ -80,10 +85,8 @@ class AnalyticsDialog(QDialog):
             QPushButton:hover { background-color: #2980b9; }
         """)
 
-        filter_layout.addWidget(QLabel("📅 Dari:"))
-        filter_layout.addWidget(self.date_start)
-        filter_layout.addWidget(QLabel("📅 Sampai:"))
-        filter_layout.addWidget(self.date_end)
+        filter_layout.addWidget(QLabel("Periode:"))
+        filter_layout.addWidget(self.period_filter)
         filter_layout.addSpacing(20)
         filter_layout.addWidget(self.btn_apply)
         filter_layout.addStretch()
@@ -126,9 +129,9 @@ class AnalyticsDialog(QDialog):
             return card, v_lbl, footer_lbl
 
         self.card_patients, self.val_patients, self.foot_patients = create_stat_card("Total Pasien", "#2c3e50", "👥")
-        self.card_visits, self.val_visits, self.foot_visits = create_stat_card("Total Kunjungan", "#2980b9", "🩺")
+        self.card_visits, self.val_visits, self.foot_visits = create_stat_card("Total Transaksi", "#2980b9", "🩺")
         self.card_income, self.val_income, self.foot_income = create_stat_card("Total Pemasukan", "#27ae60", "💰")
-        self.card_avg, self.val_avg, self.foot_avg = create_stat_card("Rata-rata/Visit", "#8e44ad", "📈")
+        self.card_avg, self.val_avg, self.foot_avg = create_stat_card("Rata-rata/Transaksi", "#8e44ad", "📈")
         self.card_stock_alert, self.val_stock_alert, self.foot_stock_alert = create_stat_card("Stok Menipis", "#e67e22", "⚠️")
 
         stats_layout.addWidget(self.card_patients)
@@ -137,6 +140,54 @@ class AnalyticsDialog(QDialog):
         stats_layout.addWidget(self.card_avg)
         stats_layout.addWidget(self.card_stock_alert)
         layout.addLayout(stats_layout)
+
+        profit_box = QGroupBox("Neraca Laba Rugi")
+        profit_box.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                background-color: white;
+                border: 1px solid #dcdde1;
+                border-radius: 12px;
+                margin-top: 10px;
+                padding-top: 15px;
+            }
+        """)
+        profit_layout = QGridLayout(profit_box)
+        profit_layout.setContentsMargins(20, 18, 20, 18)
+        profit_layout.setHorizontalSpacing(24)
+        profit_layout.setVerticalSpacing(10)
+
+        self.operational_expense_input = QDoubleSpinBox()
+        self.operational_expense_input.setRange(0, 1000000000)
+        self.operational_expense_input.setPrefix("Rp ")
+        self.operational_expense_input.setGroupSeparatorShown(True)
+        self.operational_expense_input.setDecimals(0)
+        self.operational_expense_input.valueChanged.connect(self.refresh_profit_labels)
+
+        self.val_service_income = QLabel("Rp 0")
+        self.val_herbal_income = QLabel("Rp 0")
+        self.val_herbal_cogs = QLabel("Rp 0")
+        self.val_gross_profit = QLabel("Rp 0")
+        self.val_net_profit = QLabel("Rp 0")
+        for label in [
+            self.val_service_income, self.val_herbal_income, self.val_herbal_cogs,
+            self.val_gross_profit, self.val_net_profit,
+        ]:
+            label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2c3e50;")
+
+        profit_layout.addWidget(QLabel("Pendapatan Layanan:"), 0, 0)
+        profit_layout.addWidget(self.val_service_income, 0, 1)
+        profit_layout.addWidget(QLabel("Penjualan Herbal:"), 0, 2)
+        profit_layout.addWidget(self.val_herbal_income, 0, 3)
+        profit_layout.addWidget(QLabel("HPP Herbal:"), 1, 0)
+        profit_layout.addWidget(self.val_herbal_cogs, 1, 1)
+        profit_layout.addWidget(QLabel("Laba Kotor:"), 1, 2)
+        profit_layout.addWidget(self.val_gross_profit, 1, 3)
+        profit_layout.addWidget(QLabel("Biaya Operasional:"), 2, 0)
+        profit_layout.addWidget(self.operational_expense_input, 2, 1)
+        profit_layout.addWidget(QLabel("Laba Bersih:"), 2, 2)
+        profit_layout.addWidget(self.val_net_profit, 2, 3)
+        layout.addWidget(profit_box)
 
         # ---- CHARTS CONTAINER ----
         charts_container = QHBoxLayout()
@@ -209,61 +260,51 @@ class AnalyticsDialog(QDialog):
         main_layout.addWidget(scroll)
 
         self.btn_apply.clicked.connect(self.refresh_data)
+        self.period_filter.currentIndexChanged.connect(self.refresh_data)
+        self.current_profit_data = {}
         self.refresh_data()
 
     def format_rupiah(self, amount):
         return f"Rp {amount:,.0f}".replace(",", ".")
 
     def refresh_data(self):
-        start_date = self.date_start.date().toPython()
-        end_date = self.date_end.date().toPython()
-        
-        visits = self.db.get_all_visits()
-        patients = self.db.get_patients()
+        data = self.analytics_vm.get_analytics_data(self.period_filter.currentData())
+        self.current_profit_data = data
 
-        filtered_visits = []
-        for v in visits:
-            dt = v["date"]
-            if isinstance(dt, str):
-                try: dt = datetime.fromisoformat(dt)
-                except: continue
-            if start_date <= dt.date() <= end_date:
-                filtered_visits.append({**v, "date": dt})
-
-        self.val_patients.setText(str(len(patients)))
-        self.val_visits.setText(str(len(filtered_visits)))
-        total_income = sum(v["price"] for v in filtered_visits)
+        self.val_patients.setText(str(data["total_patients"]))
+        self.val_visits.setText(str(data.get("total_transactions", data["total_visits"])))
+        total_income = data["total_income"]
         self.val_income.setText(self.format_rupiah(total_income))
-        
-        avg_income = total_income / len(filtered_visits) if filtered_visits else 0
-        self.val_avg.setText(self.format_rupiah(avg_income))
 
-        # Inventory & Herbal Data
-        inventory = self.db.get_all_inventory()
-        herbals = self.db.get_all_herbals()
-        
-        low_stock_count = 0
-        for item in inventory:
-            if item["quantity"] <= item["min_stock"]:
-                low_stock_count += 1
-        for h in herbals:
-            if h["stock"] <= 5: # Default threshold for herbals
-                low_stock_count += 1
-        
-        self.val_stock_alert.setText(str(low_stock_count))
+        self.val_avg.setText(self.format_rupiah(data["avg_income"]))
+
+        stock_data = self.analytics_vm.get_inventory_status()
+        inventory = stock_data["inventory"]
+
+        self.val_stock_alert.setText(str(stock_data["low_stock_count"]))
         self.foot_stock_alert.setText("Alat & Herbal")
 
-        visits_per_month = defaultdict(int)
-        income_per_month = defaultdict(int)
-
-        for v in filtered_visits:
-            key = v["date"].strftime("%Y-%m")
-            visits_per_month[key] += 1
-            income_per_month[key] += v["price"]
+        visits_per_month = {
+            label: value for label, value in zip(data["monthly_labels"], data["monthly_visits"])
+        }
+        income_per_month = {
+            label: value for label, value in zip(data["monthly_labels"], data["monthly_income"])
+        }
 
         self.plot_visits(visits_per_month)
         self.plot_income(income_per_month)
         self.plot_inventory(inventory)
+        self.refresh_profit_labels()
+
+    def refresh_profit_labels(self):
+        data = getattr(self, "current_profit_data", {}) or {}
+        gross_profit = float(data.get("gross_profit", 0) or 0)
+        operational_expense = float(self.operational_expense_input.value()) if hasattr(self, "operational_expense_input") else 0
+        self.val_service_income.setText(self.format_rupiah(float(data.get("net_visit_revenue", 0) or 0)))
+        self.val_herbal_income.setText(self.format_rupiah(float(data.get("net_herbal_sales", 0) or 0)))
+        self.val_herbal_cogs.setText(self.format_rupiah(float(data.get("herbal_cogs", 0) or 0)))
+        self.val_gross_profit.setText(self.format_rupiah(gross_profit))
+        self.val_net_profit.setText(self.format_rupiah(gross_profit - operational_expense))
 
     def plot_inventory(self, data):
         ax = self.ax_inventory
@@ -300,9 +341,14 @@ class AnalyticsDialog(QDialog):
             self.canvas_visits.draw()
             return
             
-        months = sorted(data.keys())
+        months = list(data.keys())
         values = [data[m] for m in months]
-        labels = [datetime.strptime(m, "%Y-%m").strftime("%b %y") for m in months]
+        labels = []
+        for m in months:
+            try:
+                labels.append(datetime.strptime(m, "%Y-%m").strftime("%b %y"))
+            except ValueError:
+                labels.append(m)
 
         bars = ax.bar(labels, values, color="#3498db", alpha=0.7, width=0.6, edgecolor="#2980b9", linewidth=1)
         ax.set_title("Volume Kunjungan Pasien", fontsize=12, fontweight='bold', pad=20, color="#34495e")
@@ -329,16 +375,21 @@ class AnalyticsDialog(QDialog):
             self.canvas_income.draw()
             return
 
-        months = sorted(data.keys())
+        months = list(data.keys())
         values = [data[m] for m in months]
-        labels = [datetime.strptime(m, "%Y-%m").strftime("%b %y") for m in months]
+        labels = []
+        for m in months:
+            try:
+                labels.append(datetime.strptime(m, "%Y-%m").strftime("%b %y"))
+            except ValueError:
+                labels.append(m)
 
         ax.plot(labels, values, marker='o', color="#27ae60", linewidth=3, markersize=10, 
                 markerfacecolor='white', markeredgewidth=3, markeredgecolor="#27ae60",
                 label="Pemasukan")
         ax.fill_between(labels, values, color="#2ecc71", alpha=0.1)
         
-        ax.set_title("Performa Pendapatan", fontsize=12, fontweight='bold', pad=20, color="#34495e")
+        ax.set_title("Performa Pendapatan Kunjungan & Herbal", fontsize=12, fontweight='bold', pad=20, color="#34495e")
         ax.grid(axis='y', linestyle=':', alpha=0.5)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)

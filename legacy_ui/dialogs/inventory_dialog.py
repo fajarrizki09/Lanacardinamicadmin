@@ -17,7 +17,8 @@ from viewmodels.inventory_store import InventoryTableModel
 class InventoryDialog(QDialog):
     def __init__(self, db, store, parent=None):
         super().__init__(parent)
-        self.db = db
+        # Parameter db dipertahankan untuk kompatibilitas constructor lama.
+        # Akses data stok diarahkan lewat InventoryStore.
         self.store = store
         self.setWindowTitle("📊 Manajemen Stok Alat (Inventory)")
         self.setMinimumSize(1100, 600)
@@ -107,7 +108,7 @@ class InventoryDialog(QDialog):
             QTableView::item { padding: 10px; }
         """)
         self.table_view.verticalHeader().setDefaultSectionSize(45)
-        self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Min Stok"])
+        self.model = InventoryTableModel(headers=["ID", "Nama Alat", "Stok", "Satuan", "Kemasan", "Min Stok"])
         self.table_view.setModel(self.model)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
@@ -122,7 +123,13 @@ class InventoryDialog(QDialog):
     def on_item_selected_view(self, index):
         if not index.isValid(): return
         item = self.model._data[index.row()]
-        self.transaction_form.set_item(item["id"], item["item_name"])
+        self.transaction_form.set_item(
+            item["id"],
+            item["item_name"],
+            item.get("unit"),
+            item.get("package_unit"),
+            item.get("package_size", 1),
+        )
 
     def filter_table(self, text):
         if not hasattr(self, 'all_items'): return
@@ -135,9 +142,19 @@ class InventoryDialog(QDialog):
             QMessageBox.warning(self, "Peringatan", "Pilih item dari daftar di kanan terlebih dahulu.")
             return
             
-        qty = data["qty"] if data["type"] == "IN" else -data["qty"]
-        self.store.update_stock(data["item_id"], qty)
-        QMessageBox.information(self, "Sukses", f"Transaksi berhasil. Stok diperbarui.")
+        converted_qty = int(data["qty"] * data.get("unit_multiplier", 1))
+        qty = converted_qty if data["type"] == "IN" else -converted_qty
+        note = data.get("notes") or f"{data['qty']} {data.get('unit_label', data.get('base_unit', 'unit'))}"
+        success, message = self.store.update_stock(
+            data["item_id"],
+            qty,
+            transaction_type=("stock_in" if data["type"] == "IN" else "stock_out"),
+            note=note,
+        )
+        if not success:
+            QMessageBox.warning(self, "Stok Tidak Cukup", message)
+            return
+        QMessageBox.information(self, "Sukses", message)
         self.transaction_form.item_name_display.clear()
 
     def on_add_item(self):
@@ -146,26 +163,32 @@ class InventoryDialog(QDialog):
         if dlg.exec_():
             d = dlg.get_data()
             if d["name"]:
-                self.db.add_inventory_item(d["name"], d["unit"], d["stock"], d["min_stock"])
-                self.store.refresh_cache()
+                self.store.add_inventory_item(
+                    d["name"], d["unit"], d["min_stock"], d["stock"], d["package_unit"], d["package_size"]
+                )
 
     def on_edit_item(self):
         index = self.table_view.currentIndex()
         if not index.isValid(): return
         item = self.model._data[index.row()]
         from dialogs.inventory_form_dialog import InventoryFormDialog
-        dlg = InventoryFormDialog(self, {"name": item["item_name"], "unit": item["unit"], "stock": item["quantity"], "min_stock": item["min_stock"]})
+        dlg = InventoryFormDialog(self, {
+            "name": item["item_name"],
+            "unit": item["unit"],
+            "package_unit": item.get("package_unit", ""),
+            "package_size": item.get("package_size", 1),
+            "stock": item["quantity"],
+            "min_stock": item["min_stock"],
+        })
         if dlg.exec_():
             d = dlg.get_data()
-            self.db.update_inventory_item(item["id"], d["name"], d["unit"], d["min_stock"])
-            diff = d["stock"] - item["quantity"]
-            if diff != 0: self.db.update_stock(item["id"], diff)
-            self.store.refresh_cache()
+            self.store.update_inventory_item(
+                item["id"], d["name"], d["stock"], d["unit"], d["min_stock"], d["package_unit"], d["package_size"]
+            )
 
     def on_delete_item(self):
         index = self.table_view.currentIndex()
         if not index.isValid(): return
         item = self.model._data[index.row()]
         if QMessageBox.question(self, "Hapus", f"Hapus '{item['item_name']}'?") == QMessageBox.Yes:
-            self.db.delete_inventory_item(item["id"])
-            self.store.refresh_cache()
+            self.store.delete_inventory_item(item["id"])

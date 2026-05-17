@@ -3,13 +3,18 @@ from PySide6.QtWidgets import (
     QPushButton, QFormLayout, QMessageBox
 )
 from utils.styles import STYLES
+from viewmodels.settings_view_model import SettingsViewModel
 
 class InventorySettingsDialog(QDialog):
-    def __init__(self, settings, parent=None):
+    def __init__(self, settings_source, parent=None):
         super().__init__(parent)
         self.setWindowTitle("⚙️ Pengaturan Pengurangan Stok Otomatis")
         self.setMinimumWidth(400)
-        self.settings = settings
+        if isinstance(settings_source, SettingsViewModel):
+            self.settings_vm = settings_source
+        else:
+            # Kompatibilitas constructor lama: InventorySettingsDialog(settings, parent)
+            self.settings_vm = SettingsViewModel(settings_source)
         self.init_ui()
 
     def init_ui(self):
@@ -21,7 +26,7 @@ class InventorySettingsDialog(QDialog):
 
         self.form_layout = QFormLayout()
         
-        config = self.settings.get_inventory_config()
+        config = self.settings_vm.get_inventory_config()
         
         self.pisau_spin = QSpinBox()
         self.pisau_spin.setRange(0, 10)
@@ -59,6 +64,6 @@ class InventorySettingsDialog(QDialog):
             "Pisau Bedah": self.pisau_spin.value(),
             "Tisu": self.tisu_spin.value()
         }
-        self.settings.set_inventory_config(new_config)
+        self.settings_vm.set_inventory_config(new_config)
         QMessageBox.information(self, "Berhasil", "Pengaturan stok otomatis berhasil diperbarui!")
         self.accept()
