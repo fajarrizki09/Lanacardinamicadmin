@@ -1,6 +1,6 @@
 # PRD - LancarDinamicAdmin
 
-> **Versi:** 0.1-draft | **Tanggal:** 2026-05-18 | **Status:** Internal – belum untuk distribusi publik
+> **Versi:** 0.2-draft | **Tanggal:** 2026-05-19 | **Status:** Internal – belum untuk distribusi publik
 
 ---
 
@@ -9,7 +9,7 @@
 **LancarDinamicAdmin** adalah aplikasi desktop hybrid untuk manajemen administrasi klinik terapi.  
 Aplikasi berjalan lokal di Windows, tidak membutuhkan internet setelah aktivasi, dan menyimpan semua data secara lokal (SQLite).
 
-Aplikasi menggabungkan backend Python/FastAPI dengan frontend berbasis browser (PySide6 WebEngine + JavaScript/TypeScript).  
+Aplikasi menggabungkan backend Python/FastAPI dengan frontend berbasis browser (PySide6 WebEngine + TypeScript yang dikompilasi ke JavaScript runtime).  
 Target pertama adalah klinik terapi skala kecil–menengah yang saat ini masih menggunakan catatan manual atau spreadsheet.
 
 Aplikasi ini **bukan** aplikasi bekam saja. Bekam adalah salah satu jenis layanan dari banyak layanan terapi yang didukung.
@@ -592,26 +592,46 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
 
 ## 20. TypeScript Migration Requirement
 
+### Status aktual 2026-05-19:
+- Frontend runtime tetap memuat JavaScript dari `/static/modules/*.js` dan `/static/app.js` melalui template HTML.
+- Source baru untuk modul legacy utama sudah tersedia di `api/static/ts/` dan dikompilasi dengan `npm run build:ts`.
+- Modul yang sudah memiliki source TypeScript: `app`, `audit`, `crm`, `dashboard`, `dom`, `formatters`, `herbals`, `invoices`, `license`, `modal`, `patients`, `services`, `settings`, `therapists`, `types`, `validators`.
+- Beberapa modul kecil/legacy masih berupa JavaScript runtime tanpa source TS sendiri: `api`, `help`, `inventory`, dan `owner_report`.
+- Build TypeScript menulis hasil kompilasi ke `api/static/modules/`; khusus `api/static/ts/app.ts`, hasil build disalin ke `api/static/app.js` lewat `tools/copy-built-app.cjs`.
+- Typecheck saat ini lulus dengan `npm run typecheck` dan build lulus dengan `npm run build:ts`.
+- `// @ts-nocheck` tidak boleh dipakai pada source `api/static/ts/**/*.ts`.
+- Penggunaan `any` harus dihindari. Jika perlu tipe longgar untuk migrasi legacy, gunakan tipe eksplisit seperti `LooseRecord`, `JQueryDataTableLike`, `PatientLoose`, `VisitLoose`, atau deklarasi `Window` terarah di `types/admin-globals.d.ts`.
+
 ### Prinsip:
-- `types.ts` adalah **single source of truth** untuk semua data model di frontend.
-- `admin-globals.d.ts` hanya untuk deklarasi `Window` / global browser.
+- `api/static/ts/types.ts` dan `types/admin-globals.d.ts` adalah sumber tipe frontend utama saat ini.
+- `types/admin-globals.d.ts` hanya untuk deklarasi global browser, kontrak helper global, dan tipe kompatibilitas legacy yang belum bisa dimodulkan.
 - Hindari duplikasi type antara file.
-- Jangan migrasi semua module JS ke TS sekaligus.
+- Module baru sebaiknya ditulis di TypeScript lebih dulu, lalu dikompilasi ke JavaScript runtime.
+- Jangan menambahkan `any` global hanya untuk membuat build lewat; tambahkan tipe domain yang spesifik atau cast lokal yang sempit.
 
-### Urutan migrasi yang aman:
+### Status module frontend:
 
-| Prioritas | Module |
+| Status | Module |
 |---|---|
-| 1 | Shared types (`types.ts`) |
-| 2 | Helper / utils frontend |
-| 3 | Dashboard |
-| 4 | Settings |
-| 5 | Services (layanan) |
-| 6 | Therapists |
-| 7 | Inventory / Herbals |
-| 8 | Invoices |
-| 9 | Visits |
-| 10 | Analytics / Owner Report |
+| Source TS aktif | `app`, `audit`, `crm`, `dashboard`, `dom`, `formatters`, `herbals`, `invoices`, `license`, `modal`, `patients`, `services`, `settings`, `therapists`, `types`, `validators` |
+| Masih perlu migrasi TS | `api`, `help`, `inventory`, `owner_report` |
+| Runtime hasil build | `/static/modules/*.js` dan `/static/app.js` |
+
+### Prioritas lanjutan yang aman:
+
+| Prioritas | Pekerjaan |
+|---|---|
+| 1 | Migrasikan `inventory.js` ke `inventory.ts` karena domain stok berisiko tinggi |
+| 2 | Migrasikan `owner_report.js` ke `owner_report.ts` untuk memperkuat formula laporan |
+| 3 | Migrasikan `help.js` dan `api.js` ke TS dengan tipe response standar |
+| 4 | Pecah tipe besar di `admin-globals.d.ts` menjadi tipe domain jika sudah stabil |
+| 5 | Hilangkan augmentasi DOM legacy bertahap dengan cast elemen spesifik (`HTMLInputElement`, `HTMLSelectElement`, dll.) |
+
+### Aturan build frontend:
+- `npm run typecheck` wajib lulus sebelum commit.
+- `npm run build:ts` wajib lulus dan menghasilkan runtime JS terbaru.
+- Perubahan source TypeScript harus disertai hasil build JavaScript runtime jika aplikasi masih memuat file JS dari template.
+- Script `tools/copy-built-app.cjs` harus tetap berjalan setelah `tsc` sampai template dipindahkan ke module loader/bundler lain.
 
 ---
 
@@ -713,6 +733,14 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
   **When** module TS lain menggunakan data tersebut  
   **Then** tidak ada duplikasi type di file lain
 
+- **Given** source di `api/static/ts/**/*.ts` diubah  
+  **When** developer menjalankan `npm run typecheck` dan `npm run build:ts`  
+  **Then** keduanya lulus tanpa `// @ts-nocheck` dan runtime JS di `/static/modules` atau `/static/app.js` ikut terbarui
+
+- **Given** modul legacy membutuhkan tipe longgar  
+  **When** developer menambahkan deklarasi TypeScript  
+  **Then** deklarasi memakai tipe domain eksplisit, bukan `Window [key: string]: any` atau global `any`
+
 ---
 
 ## 22. Risk Matrix
@@ -729,7 +757,9 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
 | Inventori | Non-consumable auto deduct | Sedang | P2 | Cek item_type sebelum auto-deduct | Test kunjungan dengan non-consumable item |
 | Invoice | Herbal multi-item invoice tidak lengkap | Sedang | P2 | Query invoice berdasarkan sale_group_id bukan satu item | Test invoice herbal multi-item |
 | Build | File runtime ikut build/installer | Sedang | P2 | Cek .gitignore dan PyInstaller spec | Review file build output |
-| Frontend | Type TS tidak cocok backend | Sedang | P2 | types.ts sebagai single source, validasi saat integrasi | Type check (tsc --noEmit) |
+| Frontend | Type TS tidak cocok backend | Sedang | P2 | `api/static/ts/types.ts` + `types/admin-globals.d.ts` sebagai kontrak frontend, validasi saat integrasi | `npm run typecheck` |
+| Frontend Build | Source TS berubah tapi JS runtime tidak ikut ter-build | Tinggi | P1 | Wajib jalankan `npm run build:ts` sebelum commit/release | Cek diff runtime JS dan smoke test tab utama |
+| Frontend Types | Deklarasi global terlalu longgar menyembunyikan bug | Sedang | P2 | Hindari global `any`, gunakan tipe domain/cast lokal sempit | Grep `as any`/`: any`, review `admin-globals.d.ts` |
 | Security | Stack trace bocor ke frontend | Tinggi | P1 | Global error handler, return pesan generik | Test error endpoint |
 | CRM WhatsApp | Bulk/auto-send tidak disengaja | Tinggi | P1 | One-click-one-message, disabled by default, no background sender | Mock + manual QA |
 | CRM WhatsApp | Akun WhatsApp terkena limit | Tinggi | P1 | Send lock, manual trigger, tidak bulk, nomor test saat prototype | Manual local test |
@@ -766,10 +796,11 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
 **Syarat Selesai:** Test laporan dengan skenario lengkap (normal + void + retur + gratis) menghasilkan angka yang benar
 
 ### Fase 5 — TypeScript Stabilization
-**Tujuan:** Migrasi JS ke TS bertahap sesuai urutan prioritas  
-**Pekerjaan:** Mulai dari types.ts → utils → dashboard → settings → services → therapists → inventory/herbals → invoices → visits → analytics  
-**Output:** Semua module yang sudah dimigrasi lulus `tsc --noEmit`  
-**Syarat Selesai:** Tidak ada type error di module yang sudah dimigrasi
+**Tujuan:** Menyelesaikan migrasi JS ke TS dan memperketat tipe bertahap  
+**Status 2026-05-19:** Mayoritas modul frontend sudah punya source TS dan lulus `npm run typecheck`/`npm run build:ts`; sisa prioritas adalah `inventory`, `owner_report`, `api`, dan `help`.  
+**Pekerjaan:** Migrasi sisa module JS, kurangi augmentasi DOM legacy, rapikan tipe domain, dan pastikan JS runtime selalu hasil build terbaru  
+**Output:** Semua modul frontend punya source TS dan lulus typecheck/build tanpa `ts-nocheck`  
+**Syarat Selesai:** Tidak ada source frontend utama yang hanya JS, tidak ada `// @ts-nocheck`, tidak ada global `any`, dan semua tab utama lulus smoke test
 
 ### Fase 6 — QA Internal
 **Tujuan:** Uji semua alur utama secara end-to-end  
@@ -802,7 +833,7 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
 - **Jangan rewrite total** — refactor inkremental, bukan ganti semua sekaligus
 - **Jangan ganti framework** — Python/FastAPI/PySide6 sudah dipilih, stick dengan itu
 - **Jangan pindah ke PostgreSQL dulu** — SQLite sudah mencukupi untuk skala lokal single-user
-- **Jangan migrasi semua JS ke TS sekaligus** — ikuti urutan prioritas di Fase 5
+- **Jangan menambah `any` global atau `ts-nocheck`** — migrasi TS harus tetap terlihat oleh typecheck
 - **Jangan tambah payment provider baru** sebelum alur payment_status rapi dan E2E tested
 - **Jangan klaim RME / SATUSEHAT / BPJS** di marketing maupun di UI
 - **Jangan jual massal** sebelum smoke test Fase 6 lulus
