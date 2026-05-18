@@ -10,11 +10,12 @@ import logging
 import os
 import sys
 
-from api.license_guard import require_valid_license
-from api.admin_pin import is_admin_pin_set, require_admin_pin, verify_admin_pin
-
 # Tambahkan direktori parent ke sys.path agar bisa import modul root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from api.license_guard import require_valid_license
+from api.admin_pin import is_admin_pin_set, require_admin_pin, verify_admin_pin
+from api.database_manager import is_restore_in_progress
 
 from utils.app_paths import get_app_data_dir
 from helpers.local_token import get_local_app_token, verify_local_app_token
@@ -109,6 +110,13 @@ async def require_local_app_token(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def block_writes_during_restore(request: Request, call_next):
+    if is_restore_in_progress() and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path != "/backups/restore":
+        return JSONResponse(status_code=423, content={"detail": "Restore database sedang berjalan. Coba lagi beberapa saat."})
+    return await call_next(request)
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code >= 500:
@@ -167,12 +175,14 @@ templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request, _license=Depends(require_valid_license)):
+    import time
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "show_api_docs": SHOW_API_DOCS,
             "app_token": get_local_app_token(),
+            "cache_buster": str(int(time.time())),
         },
     )
 
@@ -180,6 +190,7 @@ def read_root(request: Request, _license=Depends(require_valid_license)):
 @app.get("/license", response_class=HTMLResponse)
 def license_page(request: Request):
     from helpers.license import get_license_status_summary
+    import time
 
     return templates.TemplateResponse(
         "license.html",
@@ -187,6 +198,7 @@ def license_page(request: Request):
             "request": request,
             "app_token": get_local_app_token(),
             "license": get_license_status_summary(),
+            "cache_buster": str(int(time.time())),
         },
     )
 

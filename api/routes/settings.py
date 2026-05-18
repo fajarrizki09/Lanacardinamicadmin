@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Form, Request
 from fastapi.responses import RedirectResponse
 import sys
 from api.admin_pin import require_admin_pin
-from api.database_manager import db
+from api.database_manager import db, restore_write_lock
 from api.license_guard import require_valid_license
 from helpers.backup_helper import BackupHelper
 from utils.app_paths import get_app_data_dir
@@ -388,12 +388,15 @@ async def restore_backup(request: Request, relative_path: str = Form(...)):
         require_admin_pin(request)
         path = _resolve_backup_path(relative_path)
         helper = _backup_helper()
-        db.engine.dispose()
-        status = helper.restore_backup(path)
-        db.engine.dispose()
+        with restore_write_lock():
+            db.engine.dispose()
+            status = helper.restore_backup(path)
+            db.engine.dispose()
+            if status.get("success"):
+                db._migrate_existing_data()
         if not status.get("success"):
             raise ValueError(status.get("message") or "Restore backup gagal.")
-        db.log_audit("backup_restored", "backup", None, "Database direstore dari backup.", {"path": os.path.basename(path)})
+        db.log_audit("backup_restored", "backup", None, "Database direstore dari backup.", {"path": os.path.basename(path)}, required=True)
         return {
             "status": "success",
             "message": "Backup berhasil direstore. Silakan reload atau restart aplikasi agar data terbaru terbaca sempurna.",
@@ -402,7 +405,12 @@ async def restore_backup(request: Request, relative_path: str = Form(...)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        try:
+            from api.main import api_logger
+            api_logger.exception("Restore backup failed")
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="Restore backup gagal. Coba lagi atau hubungi admin.")
 
 
 @router.get("/discount_rules")

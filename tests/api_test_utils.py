@@ -19,6 +19,21 @@ atexit.register(_cleanup_temp_dir)
 
 from fastapi.testclient import TestClient
 
+try:
+    import inspect
+    import httpx
+
+    if "app" not in inspect.signature(httpx.Client.__init__).parameters:
+        _httpx_client_init = httpx.Client.__init__
+
+        def _compatible_httpx_client_init(self, *args, **kwargs):
+            kwargs.pop("app", None)
+            return _httpx_client_init(self, *args, **kwargs)
+
+        httpx.Client.__init__ = _compatible_httpx_client_init
+except Exception:
+    pass
+
 import api.admin_pin as admin_pin
 import api.license_guard as license_guard
 import api.main as api_main

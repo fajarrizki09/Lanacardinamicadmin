@@ -170,4 +170,10 @@ class BackupHelper:
             self.rotate_backups()
             return self._set_status(True, "Restore backup berhasil.", backup_path)
         except Exception as exc:
+            try:
+                if pre_restore and os.path.exists(pre_restore):
+                    shutil.copy2(pre_restore, self.db_path)
+                    self._log(f"Rollback restore memakai pre-restore backup: {pre_restore}")
+            except Exception as rollback_exc:
+                self._log(f"Rollback restore gagal: {rollback_exc}")
             return self._set_status(False, f"Gagal restore backup: {exc}", backup_path)
