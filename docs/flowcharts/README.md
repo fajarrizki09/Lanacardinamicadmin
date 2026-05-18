@@ -10,6 +10,7 @@ Folder ini berisi flowchart per logic/domain utama aplikasi sebagai acuan coding
 4. [Payment Status](./04-payment-status.md)
 5. [Invoice & Refresh PDF](./05-invoice-refresh-pdf.md)
 6. [Payment Gateway](./06-payment-gateway.md)
+	- Termasuk flow Midtrans QRIS, payment link, validasi nominal, konfirmasi status, dan opsi kirim link/QR via WhatsApp Follow-up.
 7. [Inventory Alat](./07-inventory.md)
 8. [Produk / Herbal](./08-herbals.md)
 9. [CRM Follow-up WhatsApp](./09-crm-followup-whatsapp.md)

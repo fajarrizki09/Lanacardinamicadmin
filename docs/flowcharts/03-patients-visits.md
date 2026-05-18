@@ -60,6 +60,15 @@ flowchart TD
     AN --> AO[Tulis audit log visit_created]
     AO --> AP[Invoice tab dapat menampilkan transaksi]
 
+    AP --> PG{payment_method gateway?}
+    PG -->|Tidak| END[Flow selesai]
+    PG -->|Ya| PG1[Set payment_status pending]
+    PG1 --> PG2[Gunakan provider aktif dari Settings]
+    PG2 --> PG3[Create payment link / QRIS provider]
+    PG3 --> PG4[Simpan payment_reference + payment_url ke Visit]
+    PG4 --> PG5[Pasien bayar via link/QR]
+    PG5 --> PG6[Status gateway mengubah payment_status]
+
     ROLLBACK --> AQ[Return error 400/409]
     AQ --> AR[Stok dan visit tetap seperti sebelum proses]
 ```
@@ -72,4 +81,7 @@ flowchart TD
 - Jangan sampai visit tersimpan tetapi inventory/herbal gagal dikurangi atau gagal dicatat.
 - Jika error di tengah proses, rollback semua perubahan: visit, inventory_transactions, herbal_transactions, voucher usage, dan stok.
 - Invoice PDF tidak otomatis wajib dibuat saat visit disimpan; invoice dibuat atau di-refresh dari tab invoice.
+- Payment gateway menempel ke transaksi `Visit`, bukan ke file PDF invoice.
+- Jika admin memilih metode gateway saat catat kunjungan, provider seharusnya otomatis mengikuti Settings, misalnya Midtrans, lalu sistem membuat `payment_reference` dan `payment_url`.
+- Tab invoice menampilkan transaksi dan link pembayaran; PDF invoice hanya snapshot dokumen.
 - Audit log wajib mencatat tambah/edit/hapus pasien dan kunjungan.
