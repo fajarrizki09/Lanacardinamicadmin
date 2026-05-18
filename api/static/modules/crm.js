@@ -65,10 +65,129 @@ const CRM_MESSAGE_TEMPLATES = {
     followup: "Follow-up kondisi pasien",
     schedule: "Jadwal terapi rutin",
     promo: "Promo/voucher",
+    friendly: "Sapaan netral ramah",
     custom: "Custom"
 };
 
 let CRM_TAG_OPTIONS = { service: [], manual: [] };
+
+function crmCleanText(value, fallback = '') {
+    const text = String(value || '').trim();
+    return text || fallback;
+}
+
+async function ensureCRMClinicSettingsLoaded() {
+    if (window._clinicSettings && typeof window._clinicSettings === 'object') {
+        return window._clinicSettings;
+    }
+    try {
+        const settings = await fetchCRMJson('/settings');
+        window._clinicSettings = settings || {};
+        if (settings?.clinic_name) window._clinicName = settings.clinic_name;
+    } catch (error) {
+        window._clinicSettings = {};
+    }
+    return window._clinicSettings || {};
+}
+
+function getCRMClinicMessageProfile(settings = {}) {
+    return {
+        clinicName: crmCleanText(settings.clinic_name || window._clinicName, 'Klinik'),
+        clinicTagline: crmCleanText(settings.clinic_tagline),
+        clinicAddress: crmCleanText(settings.clinic_address),
+        clinicPhone: crmCleanText(settings.clinic_phone),
+        clinicWebsite: crmCleanText(settings.clinic_website),
+    };
+}
+
+function crmClinicContactSuffix(profile) {
+    const parts = [];
+    if (profile.clinicPhone) parts.push(`Telp/WA: ${profile.clinicPhone}`);
+    if (profile.clinicWebsite) parts.push(profile.clinicWebsite);
+    return parts.length ? `\n\n${parts.join(' | ')}` : '';
+}
+
+function getCRMFollowupDateContext(value) {
+    const rawDate = crmCleanText(value);
+    if (!rawDate) {
+        return {
+            dateText: 'waktu dekat',
+            isOverdue: false,
+            routineText: 'Kami ingin mengingatkan jadwal kontrol/terapi berikutnya pada waktu dekat.',
+            scheduleText: 'Untuk menjaga konsistensi perawatan, kami dapat membantu menjadwalkan kunjungan berikutnya.'
+        };
+    }
+
+    const date = new Date(`${rawDate}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+        return {
+            dateText: rawDate,
+            isOverdue: false,
+            routineText: `Kami ingin mengingatkan jadwal kontrol/terapi berikutnya pada ${rawDate}.`,
+            scheduleText: `Untuk menjaga konsistensi perawatan, kami dapat membantu menjadwalkan kunjungan berikutnya pada ${rawDate}.`
+        };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
+
+    if (diffDays < 0) {
+        const lateDays = Math.abs(diffDays);
+        const lateText = lateDays === 1 ? 'kemarin' : `${lateDays} hari yang lalu`;
+        return {
+            dateText: rawDate,
+            isOverdue: true,
+            routineText: `Jadwal kontrol/terapi yang tercatat pada ${rawDate} sudah terlewat (${lateText}). Kami ingin membantu menjadwalkan ulang agar perawatan tetap berlanjut dengan baik.`,
+            scheduleText: `Jadwal kunjungan yang tercatat pada ${rawDate} sudah terlewat (${lateText}). Kami dapat bantu atur ulang jadwal sesuai waktu yang paling nyaman.`
+        };
+    }
+
+    if (diffDays === 0) {
+        return {
+            dateText: rawDate,
+            isOverdue: false,
+            routineText: `Kami ingin mengingatkan bahwa jadwal kontrol/terapi tercatat hari ini (${rawDate}).`,
+            scheduleText: `Jadwal kunjungan tercatat hari ini (${rawDate}). Kami dapat bantu konfirmasi atau ubah jadwal jika diperlukan.`
+        };
+    }
+
+    return {
+        dateText: rawDate,
+        isOverdue: false,
+        routineText: `Kami ingin mengingatkan jadwal kontrol/terapi berikutnya pada ${rawDate}.`,
+        scheduleText: `Untuk menjaga konsistensi perawatan, kami dapat membantu menjadwalkan kunjungan berikutnya pada ${rawDate}.`
+    };
+}
+
+function buildCRMMessageTemplate(template, patient, profile) {
+    const name = crmCleanText(patient?.name, 'Bapak/Ibu');
+    const clinic = profile.clinicName;
+    const tagline = profile.clinicTagline ? ` (${profile.clinicTagline})` : '';
+    const dateContext = getCRMFollowupDateContext(patient?.follow_up_date);
+    const contact = crmClinicContactSuffix(profile);
+
+    if (template === 'routine') {
+        const actionText = dateContext.isOverdue
+            ? 'Silakan balas pesan ini untuk memilih jadwal pengganti yang paling nyaman. Terima kasih.'
+            : 'Silakan balas pesan ini untuk konfirmasi jadwal yang paling nyaman. Terima kasih.';
+        return `Halo ${name}, kami dari ${clinic}${tagline}. ${dateContext.routineText} ${actionText}${contact}`;
+    }
+    if (template === 'followup') {
+        return `Halo ${name}, kami dari ${clinic}. Kami ingin follow-up kondisi setelah kunjungan/terapi sebelumnya. Apakah ada keluhan, perkembangan, atau hal yang ingin dikonsultasikan? Tim kami siap membantu.${contact}`;
+    }
+    if (template === 'schedule') {
+        return `Selamat pagi/siang ${name}, kami dari ${clinic}. ${dateContext.scheduleText} Hari dan jam apa yang paling sesuai untuk Anda?${contact}`;
+    }
+    if (template === 'promo') {
+        return `Halo ${name}, kami dari ${clinic}. Saat ini ada informasi promo/voucher yang mungkin sesuai untuk kunjungan berikutnya. Jika berkenan, kami dapat bantu kirimkan detailnya.${contact}`;
+    }
+    if (template === 'friendly') {
+        return `Halo ${name}, ini admin ${clinic}. Kami ingin memastikan kondisi Anda tetap terpantau dengan baik. Jika ada pertanyaan, kebutuhan jadwal ulang, atau ingin konsultasi singkat, silakan balas pesan ini kapan saja.${contact}`;
+    }
+    return '';
+}
 
 async function fetchCRMJson(url) {
     const response = await fetch(url);
@@ -823,17 +942,16 @@ async function generateCRMMessage(patientId) {
     const promoWarning = document.getElementById('crm-whatsapp-promo-warning');
     const lockWarning = document.getElementById('crm-whatsapp-lock-warning');
 
-    // local fallback for patient details from modal state
-    const name = window._currentCRMPatient?.name || 'Bapak/Ibu';
-    const clinic = 'Klinik Lancar';
-    const date = window._currentCRMPatient?.follow_up_date || 'waktu dekat';
+    const patient = window._currentCRMPatient || {};
+    const clinicSettings = await ensureCRMClinicSettingsLoaded();
+    const clinicProfile = getCRMClinicMessageProfile(clinicSettings);
 
     // check permissions based on data tags
-    const pref = window._currentCRMPatient?.contact_preference || {};
-    const tags = window._currentCRMPatient?.tags || [];
+    const pref = patient?.contact_preference || {};
+    const tags = patient?.tags || [];
     const dontContact = pref.jangan_dihubungi || tags.some(t => t.value === 'jangan-dihubungi');
     const dontPromo = pref.boleh_promo === false || tags.some(t => t.value === 'jangan-promo');
-    const phoneInvalid = !window._currentCRMPatient?.phone || window._currentCRMPatient.phone.length < 5;
+    const phoneInvalid = !patient?.phone || patient.phone.length < 5;
 
     if (dontContact || phoneInvalid) {
         if (btnWa) btnWa.disabled = true;
@@ -858,16 +976,8 @@ async function generateCRMMessage(patientId) {
         }
     }
 
-    let msg = '';
-    if (template === 'routine') {
-        msg = `Assalamu'alaikum Bapak/Ibu ${name}, kami dari ${clinic}. Kami ingin mengingatkan jadwal kontrol/terapi berikutnya pada ${date}. Jika berkenan, silakan konfirmasi jadwal yang nyaman. Terima kasih.`;
-    } else if (template === 'followup') {
-        msg = `Assalamu'alaikum Bapak/Ibu ${name}, kami dari ${clinic}. Kami ingin menanyakan kabar setelah terapi sebelumnya. Apakah ada keluhan atau perkembangan yang ingin disampaikan?`;
-    } else if (template === 'schedule') {
-        msg = `Assalamu'alaikum Bapak/Ibu ${name}, kami dari ${clinic}. Untuk menjaga rutinitas terapi, kami ingin membantu menjadwalkan kunjungan berikutnya. Apakah ada waktu yang nyaman untuk datang?`;
-    } else if (template === 'promo') {
-        msg = `Assalamu'alaikum Bapak/Ibu ${name}, kami dari ${clinic}. Saat ini tersedia informasi promo/voucher yang mungkin sesuai untuk kunjungan berikutnya. Jika berkenan, kami bisa bantu jelaskan detailnya.`;
-    } else {
+    let msg = buildCRMMessageTemplate(template, patient, clinicProfile);
+    if (template === 'custom') {
         msg = textarea && textarea.value && textarea.value !== 'Membuat pesan...' ? textarea.value : '';
     }
 

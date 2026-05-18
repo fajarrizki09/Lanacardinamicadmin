@@ -510,6 +510,7 @@ function applyClinicSettings(settings) {
     const sidebarClinicName = document.getElementById('sidebar-clinic-name');
 
     window._clinicName = clinicName;
+    window._clinicSettings = settings || {};
     document.title = `${clinicName} - Admin Dashboard`;
     if (sidebarClinicName) {
         sidebarClinicName.textContent = clinicName;
