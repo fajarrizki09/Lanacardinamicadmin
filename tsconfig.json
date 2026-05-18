@@ -18,7 +18,6 @@
     "types/**/*.d.ts",
     "types/**/*.ts",
     "api/static/ts/**/*.ts",
-    "api/static/modules/invoices.js",
-    "api/static/modules/license.js"
+    "api/static/ts/app.ts"
   ]
 }

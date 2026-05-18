@@ -199,7 +199,7 @@ async function toggleTherapist(id, btn) {
 }
 async function deleteTherapist(id) {
     const therapist = window._therapistMap?.[id];
-    const name = therapist?.name || 'terapis ini';
+    const name = typeof therapist === 'string' ? therapist : (therapist?.name || 'terapis ini');
     const ok = await showConfirm(`Hapus permanen terapis "${name}"?\n\nHapus hanya akan berhasil jika terapis belum pernah dipakai di kunjungan. Jika sudah punya riwayat, gunakan tombol Nonaktifkan agar riwayat tetap aman.`, 'error', { confirmText: 'Hapus', cancelText: 'Batal', maxWidth: '440px' });
     if (!ok)
         return;

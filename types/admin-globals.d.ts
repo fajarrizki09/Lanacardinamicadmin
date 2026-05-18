@@ -298,6 +298,85 @@ type ApiResponse<T = unknown> = {
   data?: T;
 };
 
+type LooseRecord = Record<string, unknown>;
+
+type JQueryDataTableLike = {
+  ajax: {
+    reload: (callback?: unknown, resetPaging?: boolean) => void;
+  };
+  destroy: () => void;
+  row: (row: unknown) => { data: () => unknown };
+  rows: () => {
+    every: (callback: (this: { data: () => unknown; node: () => Element }) => void) => void;
+  };
+};
+
+type JQueryLike = {
+  DataTable: (options?: unknown) => JQueryDataTableLike;
+  css: (property: string, value: string) => JQueryLike;
+  on: (eventName: string, handler: (event: Event) => void) => JQueryLike;
+  closest: (selector: string) => { length: number };
+  removeClass: (className: string) => JQueryLike;
+  addClass: (className: string) => JQueryLike;
+};
+
+type JQueryFactory = (selector: string | Element) => JQueryLike;
+
+type PatientTableRow = PatientLoose & {
+  id: string | number;
+};
+
+type VisitLoose = LooseRecord & {
+  id?: string | number;
+  date?: string | number | Date;
+  therapist_id?: string | number;
+  point_count?: number;
+  price?: number;
+  final_price?: number;
+  medical_notes?: string;
+  discount_applied?: boolean;
+  discount_rule_name?: string;
+  is_free_visit?: boolean;
+  free_visit_reason?: string;
+};
+
+type PatientLoose = LooseRecord & {
+  id?: string | number;
+  name?: string;
+  phone?: string;
+  address?: string;
+  gender?: string;
+  visits?: VisitLoose[];
+  contact_preference?: ContactPreference;
+  tags?: CRMTag[];
+};
+
+type CRMTag = {
+  value?: string;
+  label?: string;
+  type?: string;
+};
+
+type ContactPreference = {
+  jangan_dihubungi?: boolean;
+  boleh_promo?: boolean;
+};
+
+type VisitHerbalSelection = LooseRecord & {
+  herbal_id?: string | number;
+  quantity: number;
+  price?: number;
+  stock?: number;
+};
+
+type VisitHerbalCatalogItem = LooseRecord & {
+  id: string | number;
+  name?: string;
+  stock: number;
+  unit?: string;
+  price: number;
+};
+
 type Therapist = {
   id: number | string;
   name?: string;
@@ -322,6 +401,54 @@ type Service = {
   inventory_usage?: ServiceUsageItem[];
 };
 
+// Legacy browser scripts query many controls with getElementById/querySelector.
+// Keep these permissive DOM augmentations during the gradual JS -> TS migration.
+interface Element {
+  style: CSSStyleDeclaration;
+  dataset: DOMStringMap;
+  value: string;
+  checked: boolean;
+  disabled: boolean;
+  required: boolean;
+  readOnly: boolean;
+  placeholder: string;
+  files: FileList | null;
+  options: HTMLOptionsCollection;
+  selectedIndex: number;
+  selectedOptions: HTMLCollectionOf<HTMLOptionElement>;
+  selectionStart: number | null;
+  select(): void;
+  setSelectionRange(start: number, end: number, direction?: "forward" | "backward" | "none"): void;
+  click(): void;
+}
+
+interface HTMLElement {
+  autocomplete: string;
+  value: string;
+  checked: boolean;
+  disabled: boolean;
+  required: boolean;
+  readOnly: boolean;
+  placeholder: string;
+  files: FileList | null;
+  options: HTMLOptionsCollection;
+  selectedIndex: number;
+  selectedOptions: HTMLCollectionOf<HTMLOptionElement>;
+  selectionStart: number | null;
+  reset(): void;
+  setSelectionRange(start: number, end: number, direction?: "forward" | "backward" | "none"): void;
+}
+
+interface EventTarget {
+  id: string;
+  method: string;
+  action: string;
+  value: string;
+  closest: (selector: string) => Element | null;
+}
+
+declare const $: JQueryFactory;
+
 interface Window {
   _serviceInventoryList?: ServiceInventoryItem[];
   _serviceInventoryLoaded?: boolean;
@@ -330,7 +457,7 @@ interface Window {
   _serviceFilter?: "active" | "inactive" | "all";
   _serviceMap?: Record<string | number, AdminService>;
   _therapistFilter?: "active" | "inactive" | "all";
-  _therapistMap?: Record<string | number, AdminTherapist>;
+  _therapistMap?: Record<string | number, AdminTherapist | string>;
   _appToken?: string;
   _initialLicense?: LicenseStatusPayload;
   _clinicName?: string;
@@ -344,6 +471,28 @@ interface Window {
   _invoiceSearchRestoreFocus?: boolean;
   _analyticsPeriod?: string;
   _analyticsProfitData?: AnalyticsSummary;
+  _adminPin?: string;
+  _adminUnlocked?: boolean;
+  _clinicSettings?: LooseRecord;
+  _audit_rows?: AuditLogRow[];
+  _therapistsList?: AdminTherapist[];
+  _therapistsLoadError?: string | null;
+  _patientsData?: PatientLoose[];
+  _patientsDT?: JQueryDataTableLike | null;
+  _patientsTableMode?: "patients" | "visits" | string;
+  _currentPatientData?: PatientLoose | null;
+  _currentPatientIdx?: number;
+  _servicesList?: AdminService[];
+  _visitHerbalsList?: VisitHerbalCatalogItem[];
+  _visitSelectedHerbals?: VisitHerbalSelection[];
+  _visitDiscountRulesLoaded?: boolean;
+  _visitDiscountRuleMap?: Record<string | number, LooseRecord>;
+  _visitConfirmInProgress?: boolean;
+  _visitSubmitInProgress?: boolean;
+  _visitPricePerPoint?: number;
+  _visitPatientSearchTimer?: number;
+  _currentCRMPatient?: PatientLoose | null;
+  getUIZoom?: () => number;
   renderDashboard?: () => Promise<void>;
   renderTherapists?: (data: Therapist[]) => void;
   toggleTherapist?: (id: number | string, btn: HTMLButtonElement) => Promise<void>;
@@ -384,6 +533,9 @@ interface Window {
   submitEditInventory?: (event: SubmitEvent) => Promise<void>;
   deleteInventory?: (id: number | string, name: string) => Promise<void>;
   requestAnimationFrame(callback: FrameRequestCallback): number;
+  showAuditDetail?: (idx: number) => void;
+  closeAuditDetail?: (overlayEl: Element | null) => void;
+  copyAuditValue?: (btn: HTMLElement, text: string) => Promise<void>;
 }
 
 declare function escapeHtml(value: unknown): string;

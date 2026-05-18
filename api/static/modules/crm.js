@@ -1,5 +1,5 @@
+"use strict";
 // FOLLOW-UP PASIEN
-
 const CRM_SEGMENTS = {
     "": "Semua kategori pasien",
     new: "Pasien baru",
@@ -10,7 +10,6 @@ const CRM_SEGMENTS = {
     needs_followup: "Perlu follow-up",
     dormant: "Lama Tidak Datang",
 };
-
 const CRM_STATUSES = {
     "": "Semua status kontak",
     pending: "Belum dihubungi",
@@ -23,7 +22,6 @@ const CRM_STATUSES = {
     booking_ulang: "Booking ulang",
     inactive: "Tidak aktif",
 };
-
 const CRM_OUTCOMES = {
     "": "Pilih hasil follow-up",
     no_response: "Tidak Dibalas",
@@ -34,7 +32,6 @@ const CRM_OUTCOMES = {
     contact_later: "Hubungi Nanti",
     invalid_number: "Nomor Tidak Valid",
 };
-
 const CRM_LABELS = {
     pending: "Belum dihubungi",
     contacted: "Sudah dihubungi",
@@ -59,7 +56,6 @@ const CRM_LABELS = {
     high_value_at_risk: "Pasien Prioritas Perlu Dihubungi",
     dormant: "Lama Tidak Datang",
 };
-
 const CRM_MESSAGE_TEMPLATES = {
     routine: "Reminder kontrol",
     followup: "Follow-up kondisi pasien",
@@ -68,14 +64,11 @@ const CRM_MESSAGE_TEMPLATES = {
     friendly: "Sapaan netral ramah",
     custom: "Custom"
 };
-
 let CRM_TAG_OPTIONS = { service: [], manual: [] };
-
 function crmCleanText(value, fallback = '') {
     const text = String(value || '').trim();
     return text || fallback;
 }
-
 async function ensureCRMClinicSettingsLoaded() {
     if (window._clinicSettings && typeof window._clinicSettings === 'object') {
         return window._clinicSettings;
@@ -83,13 +76,14 @@ async function ensureCRMClinicSettingsLoaded() {
     try {
         const settings = await fetchCRMJson('/settings');
         window._clinicSettings = settings || {};
-        if (settings?.clinic_name) window._clinicName = settings.clinic_name;
-    } catch (error) {
+        if (settings?.clinic_name)
+            window._clinicName = settings.clinic_name;
+    }
+    catch (error) {
         window._clinicSettings = {};
     }
     return window._clinicSettings || {};
 }
-
 function getCRMClinicMessageProfile(settings = {}) {
     return {
         clinicName: crmCleanText(settings.clinic_name || window._clinicName, 'Klinik'),
@@ -99,14 +93,14 @@ function getCRMClinicMessageProfile(settings = {}) {
         clinicWebsite: crmCleanText(settings.clinic_website),
     };
 }
-
 function crmClinicContactSuffix(profile) {
     const parts = [];
-    if (profile.clinicPhone) parts.push(`Telp/WA: ${profile.clinicPhone}`);
-    if (profile.clinicWebsite) parts.push(profile.clinicWebsite);
+    if (profile.clinicPhone)
+        parts.push(`Telp/WA: ${profile.clinicPhone}`);
+    if (profile.clinicWebsite)
+        parts.push(profile.clinicWebsite);
     return parts.length ? `\n\n${parts.join(' | ')}` : '';
 }
-
 function getCRMFollowupDateContext(value) {
     const rawDate = crmCleanText(value);
     if (!rawDate) {
@@ -117,7 +111,6 @@ function getCRMFollowupDateContext(value) {
             scheduleText: 'Untuk menjaga konsistensi perawatan, kami dapat membantu menjadwalkan kunjungan berikutnya.'
         };
     }
-
     const date = new Date(`${rawDate}T00:00:00`);
     if (Number.isNaN(date.getTime())) {
         return {
@@ -127,12 +120,10 @@ function getCRMFollowupDateContext(value) {
             scheduleText: `Untuk menjaga konsistensi perawatan, kami dapat membantu menjadwalkan kunjungan berikutnya pada ${rawDate}.`
         };
     }
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     date.setHours(0, 0, 0, 0);
     const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
-
     if (diffDays < 0) {
         const lateDays = Math.abs(diffDays);
         const lateText = lateDays === 1 ? 'kemarin' : `${lateDays} hari yang lalu`;
@@ -143,7 +134,6 @@ function getCRMFollowupDateContext(value) {
             scheduleText: `Jadwal kunjungan yang tercatat pada ${rawDate} sudah terlewat (${lateText}). Kami dapat bantu atur ulang jadwal sesuai waktu yang paling nyaman.`
         };
     }
-
     if (diffDays === 0) {
         return {
             dateText: rawDate,
@@ -152,7 +142,6 @@ function getCRMFollowupDateContext(value) {
             scheduleText: `Jadwal kunjungan tercatat hari ini (${rawDate}). Kami dapat bantu konfirmasi atau ubah jadwal jika diperlukan.`
         };
     }
-
     return {
         dateText: rawDate,
         isOverdue: false,
@@ -160,14 +149,12 @@ function getCRMFollowupDateContext(value) {
         scheduleText: `Untuk menjaga konsistensi perawatan, kami dapat membantu menjadwalkan kunjungan berikutnya pada ${rawDate}.`
     };
 }
-
 function buildCRMMessageTemplate(template, patient, profile) {
     const name = crmCleanText(patient?.name, 'Bapak/Ibu');
     const clinic = profile.clinicName;
     const tagline = profile.clinicTagline ? ` (${profile.clinicTagline})` : '';
     const dateContext = getCRMFollowupDateContext(patient?.follow_up_date);
     const contact = crmClinicContactSuffix(profile);
-
     if (template === 'routine') {
         const actionText = dateContext.isOverdue
             ? 'Silakan balas pesan ini untuk memilih jadwal pengganti yang paling nyaman. Terima kasih.'
@@ -188,7 +175,6 @@ function buildCRMMessageTemplate(template, patient, profile) {
     }
     return '';
 }
-
 async function fetchCRMJson(url) {
     const response = await fetch(url);
     if (!response.ok) {
@@ -197,7 +183,6 @@ async function fetchCRMJson(url) {
     }
     return response.json();
 }
-
 async function renderCRM() {
     const display = document.getElementById('display-area');
     display.innerHTML = renderCRMLoading('Memuat data follow-up pasien...');
@@ -214,12 +199,12 @@ async function renderCRM() {
             fetchCRMJson('/crm/daily-tasks').catch(() => ({ total_tasks: 0, overdue: 0, due_today: 0, high_priority: 0 })),
             fetchCRMJson('/crm/conversion-report').catch(() => ({ conversion_rate: 0, total_confirmed_sent: 0 })),
         ]);
-    } catch (error) {
+    }
+    catch (error) {
         display.innerHTML = renderCRMError(error.message || 'Gagal memuat data follow-up pasien.');
         return;
     }
     CRM_TAG_OPTIONS = tagOptions || { service: [], manual: [] };
-
     display.innerHTML = `
         <div class="crm-shell">
             <div class="ops-summary">
@@ -257,14 +242,12 @@ async function renderCRM() {
             </div>
         </div>
     `;
-
     document.getElementById('crm-segment-filter').addEventListener('change', loadCRMList);
     document.getElementById('crm-status-filter').addEventListener('change', loadCRMList);
     document.getElementById('crm-service-filter').addEventListener('change', onCRMServiceFilterChange);
     document.getElementById('crm-manual-tag-filter').addEventListener('change', onCRMManualTagFilterChange);
     document.getElementById('crm-search-input').addEventListener('input', debounce(loadCRMList, 350));
 }
-
 function renderCRMLoading(message = 'Memuat data...') {
     return `
         <div class="dashboard-empty compact crm-state">
@@ -273,7 +256,6 @@ function renderCRMLoading(message = 'Memuat data...') {
         </div>
     `;
 }
-
 function renderCRMError(message) {
     return `
         <div class="dashboard-empty compact crm-state crm-state-error">
@@ -282,7 +264,6 @@ function renderCRMError(message) {
         </div>
     `;
 }
-
 function crmStatCard(icon, label, value) {
     const displayValue = typeof value === 'number' ? Number(value || 0) : escapeHtml(String(value || 0));
     return `
@@ -295,13 +276,11 @@ function crmStatCard(icon, label, value) {
         </div>
     `;
 }
-
 function crmOptions(options) {
     return Object.entries(options)
         .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
         .join('');
 }
-
 function crmTagOptions(type, emptyLabel, options = CRM_TAG_OPTIONS) {
     const rows = options[type] || [];
     let html = `<option value="">${escapeHtml(emptyLabel)}</option>`;
@@ -311,25 +290,24 @@ function crmTagOptions(type, emptyLabel, options = CRM_TAG_OPTIONS) {
     }).join('');
     return html;
 }
-
 function onCRMServiceFilterChange() {
     const manualSelect = document.getElementById('crm-manual-tag-filter');
-    if (document.getElementById('crm-service-filter')?.value && manualSelect) manualSelect.value = '';
+    if (document.getElementById('crm-service-filter')?.value && manualSelect)
+        manualSelect.value = '';
     loadCRMList();
 }
-
 function onCRMManualTagFilterChange() {
     const serviceSelect = document.getElementById('crm-service-filter');
-    if (document.getElementById('crm-manual-tag-filter')?.value && serviceSelect) serviceSelect.value = '';
+    if (document.getElementById('crm-manual-tag-filter')?.value && serviceSelect)
+        serviceSelect.value = '';
     loadCRMList();
 }
-
 function crmHumanLabel(value, fallback = '') {
     const key = String(value || '').trim();
-    if (!key) return fallback || '-';
+    if (!key)
+        return fallback || '-';
     return CRM_LABELS[key] || fallback || key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
 }
-
 function crmShortFollowupLabel(value, fallback = '') {
     const label = crmHumanLabel(value, fallback);
     const normalized = String(label || '').trim().toLowerCase();
@@ -345,15 +323,15 @@ function crmShortFollowupLabel(value, fallback = '') {
     };
     return shortLabels[normalized] || label;
 }
-
 function maskPhone(phone) {
     const text = String(phone || '').trim();
     const digits = text.replace(/\D+/g, '');
-    if (!digits) return '-';
-    if (digits.length <= 8) return escapeHtml(text);
+    if (!digits)
+        return '-';
+    if (digits.length <= 8)
+        return escapeHtml(text);
     return `${digits.slice(0, 7)}••••${digits.slice(-2)}`;
 }
-
 function renderCRMPatients(patients) {
     if (!patients.length) {
         return `
@@ -363,14 +341,12 @@ function renderCRMPatients(patients) {
             </div>
         `;
     }
-
     return `
         <div class="crm-followup-list">
             ${patients.map(renderCRMRowCard).join('')}
         </div>
     `;
 }
-
 function renderCRMRowCard(patient) {
     const days = patient.days_since_last_visit;
     const lastVisit = patient.last_visit || '-';
@@ -380,7 +356,6 @@ function renderCRMRowCard(patient) {
     const followupLabel = crmShortFollowupLabel(patient.followup_status, patient.followup_status_label);
     const outcomeLabel = crmHumanLabel(patient.followup_outcome, patient.followup_outcome_label);
     const recommendation = compactCRMRecommendation(patient);
-
     return `
         <div class="crm-followup-card">
             <div class="crm-patient-block">
@@ -419,12 +394,12 @@ function renderCRMRowCard(patient) {
         </div>
     `;
 }
-
 function renderCRMServiceBadges(tags) {
     const services = (tags || []).filter(tag => tag.type === 'service');
     const visibleServices = services.slice(0, 2);
     const hiddenServiceCount = Math.max(services.length - 2, 0);
-    if (!visibleServices.length && !hiddenServiceCount) return '';
+    if (!visibleServices.length && !hiddenServiceCount)
+        return '';
     return `
         <div class="crm-service-badges">
             ${visibleServices.map(renderCRMTagBadge).join('')}
@@ -432,50 +407,58 @@ function renderCRMServiceBadges(tags) {
         </div>
     `;
 }
-
 function renderCRMTagBadge(tag) {
     const label = String(tag.label || '').replace(/^Layanan:\s*/i, '');
     return `<span class="crm-tag-chip service">${escapeHtml(label)}</span>`;
 }
-
 function compactCRMRecommendation(patient) {
     const parts = [];
     if (patient.segment === 'high_value_at_risk') {
         parts.push('Pasien prioritas perlu dihubungi');
-    } else if (patient.segment === 'needs_followup' || patient.segment === 'dormant') {
+    }
+    else if (patient.segment === 'needs_followup' || patient.segment === 'dormant') {
         parts.push(patient.segment === 'dormant' ? 'Lama tidak datang' : 'Perlu dihubungi');
-    } else if (patient.segment === 'high_value') {
+    }
+    else if (patient.segment === 'high_value') {
         parts.push('Pasien prioritas aktif');
-    } else {
+    }
+    else {
         parts.push(crmHumanLabel(patient.segment, patient.segment_label));
     }
-    if (patient.top_service) parts.push(`Layanan: ${patient.top_service}`);
-    if (patient.top_therapist) parts.push(`Terapis: ${patient.top_therapist}`);
+    if (patient.top_service)
+        parts.push(`Layanan: ${patient.top_service}`);
+    if (patient.top_therapist)
+        parts.push(`Terapis: ${patient.top_therapist}`);
     return parts.filter(Boolean).join(' - ');
 }
-
 function crmSegmentBadge(segment) {
-    if (segment === 'high_value_at_risk') return 'badge-danger-soft';
-    if (segment === 'needs_followup' || segment === 'dormant') return 'badge-warning-soft';
-    if (segment === 'high_value' || segment === 'loyal') return 'badge-success-soft';
+    if (segment === 'high_value_at_risk')
+        return 'badge-danger-soft';
+    if (segment === 'needs_followup' || segment === 'dormant')
+        return 'badge-warning-soft';
+    if (segment === 'high_value' || segment === 'loyal')
+        return 'badge-success-soft';
     return '';
 }
-
 function crmFollowupBadge(status) {
-    if (status === 'pending') return 'badge-danger-soft';
-    if (status === 'waiting' || status === 'menunggu_respon') return 'badge-warning-soft';
-    if (status === 'booked') return 'badge-success-soft';
-    if (status === 'inactive') return 'badge-muted-soft';
-    if (status === 'contacted') return 'badge-info-soft';
+    if (status === 'pending')
+        return 'badge-danger-soft';
+    if (status === 'waiting' || status === 'menunggu_respon')
+        return 'badge-warning-soft';
+    if (status === 'booked')
+        return 'badge-success-soft';
+    if (status === 'inactive')
+        return 'badge-muted-soft';
+    if (status === 'contacted')
+        return 'badge-info-soft';
     return '';
 }
-
 function renderCRMDueBadge(patient) {
-    if (!patient.followup_due_status) return '';
+    if (!patient.followup_due_status)
+        return '';
     const badgeClass = patient.followup_due_status === 'scheduled' ? 'badge-info-soft' : 'badge-warning-soft';
     return `<span class="badge ${badgeClass} crm-due-badge">${escapeHtml(crmHumanLabel(patient.followup_due_status, patient.followup_due_label || ''))}</span>`;
 }
-
 function renderCRMManualTagEditor(patient) {
     const selected = new Set((patient.tags || []).filter(tag => tag.type === 'manual').map(tag => tag.value));
     const options = CRM_TAG_OPTIONS.manual || [];
@@ -493,7 +476,6 @@ function renderCRMManualTagEditor(patient) {
         </div>
     `;
 }
-
 function renderCRMContactPreferenceEditor(patient) {
     const pref = patient.contact_preference || {};
     return `
@@ -515,7 +497,6 @@ function renderCRMContactPreferenceEditor(patient) {
         </div>
     `;
 }
-
 async function loadCRMList() {
     const segment = document.getElementById('crm-segment-filter')?.value || '';
     const status = document.getElementById('crm-status-filter')?.value || '';
@@ -526,15 +507,18 @@ async function loadCRMList() {
     const tag = serviceTag || manualTag;
     const params = new URLSearchParams({ segment, status, search, tag_type: tagType, tag });
     const list = document.getElementById('crm-patient-list');
-    if (list) list.innerHTML = renderCRMLoading('Memuat daftar pasien...');
+    if (list)
+        list.innerHTML = renderCRMLoading('Memuat daftar pasien...');
     try {
         const patients = await fetchCRMJson(`/crm/patients?${params.toString()}`);
-        if (list) list.innerHTML = renderCRMPatients(patients);
-    } catch (error) {
-        if (list) list.innerHTML = renderCRMError(error.message || 'Gagal memuat daftar follow-up pasien.');
+        if (list)
+            list.innerHTML = renderCRMPatients(patients);
+    }
+    catch (error) {
+        if (list)
+            list.innerHTML = renderCRMError(error.message || 'Gagal memuat daftar follow-up pasien.');
     }
 }
-
 async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = false) {
     let patient;
     let history = [];
@@ -547,7 +531,8 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
             fetchCRMJson(`/crm/patient/${patientId}/message-logs`).catch(() => []),
             fetchCRMJson(`/crm/patient/${patientId}/vouchers`).catch(() => ({ special: [], general: [] })),
         ]);
-    } catch (error) {
+    }
+    catch (error) {
         alert(error.message || 'Gagal membuka data follow-up pasien.');
         return;
     }
@@ -689,7 +674,6 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
             </form>
         </div>
     `;
-
     document.body.appendChild(overlay);
     document.getElementById('crm-followup-form').addEventListener('submit', submitCRMFollowup);
     bindCRMFollowupModalButtons(overlay, patient.id);
@@ -703,33 +687,30 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
         setTimeout(() => document.getElementById('crm-new-voucher-name')?.focus(), 80);
     }
 }
-
 async function openCRMWhatsApp(patientId) {
     try {
         await openCRMFollowup(patientId, true);
-    } catch (error) {
+    }
+    catch (error) {
         alert(error.message || 'Gagal membuka WhatsApp follow-up.');
     }
 }
-
 function bindCRMFollowupModalButtons(modalRoot, patientId) {
     const waBtn = modalRoot.querySelector('[data-crm-wa-open]');
-    if (!waBtn) return;
-
+    if (!waBtn)
+        return;
     waBtn.onclick = async (event) => {
         event.preventDefault();
         event.stopPropagation();
-
-        if (waBtn.disabled || waBtn.dataset.opening === 'true') return;
+        if (waBtn.disabled || waBtn.dataset.opening === 'true')
+            return;
         waBtn.dataset.opening = 'true';
         window.setTimeout(() => {
             delete waBtn.dataset.opening;
         }, 500);
-
         await openCRMWhatsAppLink(patientId, event);
     };
 }
-
 function renderCRMFollowupHistory(history) {
     if (!history.length) {
         return `<div class="crm-history-empty">Belum ada riwayat follow-up.</div>`;
@@ -751,7 +732,6 @@ function renderCRMFollowupHistory(history) {
         </div>
     `;
 }
-
 function renderCRMMessageLogs(logs) {
     if (!logs.length) {
         return `<div class="crm-history-empty">Belum ada riwayat WhatsApp.</div>`;
@@ -772,7 +752,6 @@ function renderCRMMessageLogs(logs) {
         </div>
     `;
 }
-
 function renderCRMVoucherOptions(vouchers) {
     const special = Array.isArray(vouchers?.special) ? vouchers.special : [];
     const general = Array.isArray(vouchers?.general) ? vouchers.general : [];
@@ -789,25 +768,26 @@ function renderCRMVoucherOptions(vouchers) {
     }
     return html;
 }
-
 function onCRMVoucherSelectChange() {
     const selected = document.getElementById('crm-selected-voucher')?.selectedOptions?.[0];
     const wrap = document.getElementById('crm-general-voucher-confirm-wrap');
     const confirm = document.getElementById('crm-general-voucher-confirm');
     const isGeneral = selected?.dataset?.general === 'true';
-    if (wrap) wrap.classList.toggle('hidden', !isGeneral);
-    if (confirm && !isGeneral) confirm.checked = false;
+    if (wrap)
+        wrap.classList.toggle('hidden', !isGeneral);
+    if (confirm && !isGeneral)
+        confirm.checked = false;
 }
-
 function normalizeCRMMessageText(message) {
     let text = String(message || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-    if (!text) return '';
+    if (!text)
+        return '';
     text = text.replace(/\n{3,}/g, '\n\n');
-    if (text.includes('\n')) return text;
+    if (text.includes('\n'))
+        return text;
     const parts = text.split(/(?<=[.!?])\s+(?=[A-Z0-9A-ZÀ-Þ])/).map(part => part.trim()).filter(Boolean);
     return parts.length > 1 ? parts.join('\n\n') : text;
 }
-
 async function refreshCRMVouchers(patientId) {
     const vouchers = await fetchCRMJson(`/crm/patient/${patientId}/vouchers`);
     const select = document.getElementById('crm-selected-voucher');
@@ -818,7 +798,6 @@ async function refreshCRMVouchers(patientId) {
     await loadCRMList();
     return vouchers;
 }
-
 async function createCRMSpecialVoucher(patientId) {
     const name = document.getElementById('crm-new-voucher-name')?.value.trim() || '';
     const code = document.getElementById('crm-new-voucher-code')?.value.trim() || '';
@@ -837,10 +816,12 @@ async function createCRMSpecialVoucher(patientId) {
     try {
         const response = await fetch(`/crm/patient/${patientId}/vouchers`, { method: 'POST', body: formData });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal membuat voucher khusus.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal membuat voucher khusus.');
         ['crm-new-voucher-name', 'crm-new-voucher-code', 'crm-new-voucher-value', 'crm-new-voucher-end'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.value = '';
+            if (el)
+                el.value = '';
         });
         const select = document.getElementById('crm-selected-voucher');
         if (select) {
@@ -850,17 +831,18 @@ async function createCRMSpecialVoucher(patientId) {
         onCRMVoucherSelectChange();
         showToast(data.message || 'Voucher khusus berhasil dibuat.', 'success');
         await loadCRMList();
-    } catch (error) {
+    }
+    catch (error) {
         alert(error.message || 'Gagal membuat voucher khusus.');
     }
 }
-
 function updateCRMWhatsAppState(data) {
     const logInput = document.getElementById('crm-whatsapp-log-id');
     const warningBox = document.getElementById('crm-whatsapp-lock-warning');
     const overrideWrap = document.getElementById('crm-whatsapp-override-wrap');
     const overrideInput = document.getElementById('crm-whatsapp-override-lock');
-    if (logInput && data.log_id) logInput.value = data.log_id;
+    if (logInput && data.log_id)
+        logInput.value = data.log_id;
     const warning = data.lock_warning || '';
     if (warningBox) {
         warningBox.textContent = warning;
@@ -874,7 +856,6 @@ function updateCRMWhatsAppState(data) {
         overrideInput.checked = false;
     }
 }
-
 function collectCRMManualTags() {
     const tags = Array.from(document.querySelectorAll('.crm-manual-tag-input:checked')).map(input => ({
         type: 'manual',
@@ -884,19 +865,19 @@ function collectCRMManualTags() {
     const custom = document.getElementById('crm-custom-tags-input')?.value || '';
     custom.split(',').map(item => item.trim()).filter(Boolean).forEach(label => {
         const value = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || label;
-        if (!tags.some(tag => tag.value === value)) tags.push({ type: 'manual', value, label });
+        if (!tags.some(tag => tag.value === value))
+            tags.push({ type: 'manual', value, label });
     });
     return tags;
 }
-
 async function saveCRMPatientMeta(patientId) {
     try {
         const tagForm = new FormData();
         tagForm.append('tags', JSON.stringify(collectCRMManualTags()));
         const tagResponse = await fetch(`/crm/patient/${patientId}/tags`, { method: 'POST', body: tagForm });
         const tagData = await tagResponse.json().catch(() => ({}));
-        if (!tagResponse.ok) throw new Error(tagData.detail || 'Gagal menyimpan tag pasien.');
-
+        if (!tagResponse.ok)
+            throw new Error(tagData.detail || 'Gagal menyimpan tag pasien.');
         const prefForm = new FormData();
         prefForm.append('boleh_reminder_kontrol', document.getElementById('crm-pref-reminder')?.checked ? 'true' : 'false');
         prefForm.append('boleh_promo', document.getElementById('crm-pref-promo')?.checked ? 'true' : 'false');
@@ -904,16 +885,16 @@ async function saveCRMPatientMeta(patientId) {
         prefForm.append('catatan_kontak', document.getElementById('crm-pref-note')?.value || '');
         const prefResponse = await fetch(`/crm/patient/${patientId}/contact-preference`, { method: 'POST', body: prefForm });
         const prefData = await prefResponse.json().catch(() => ({}));
-        if (!prefResponse.ok) throw new Error(prefData.detail || 'Gagal menyimpan preferensi kontak.');
-
+        if (!prefResponse.ok)
+            throw new Error(prefData.detail || 'Gagal menyimpan preferensi kontak.');
         showToast('Tag dan izin kontak tersimpan.', 'success');
         CRM_TAG_OPTIONS = await fetchCRMJson('/crm/tag-options').catch(() => CRM_TAG_OPTIONS);
         await loadCRMList();
-    } catch (error) {
+    }
+    catch (error) {
         alert(error.message || 'Gagal menyimpan data follow-up pasien.');
     }
 }
-
 async function saveCRMFollowupOutcome(patientId) {
     const outcome = document.getElementById('crm-followup-outcome')?.value || '';
     if (!outcome) {
@@ -934,58 +915,54 @@ async function saveCRMFollowupOutcome(patientId) {
     document.querySelector('.crm-modal-overlay')?.remove();
     await renderCRM();
 }
-
 async function generateCRMMessage(patientId) {
     const template = document.getElementById('crm-message-template')?.value || 'routine';
     const textarea = document.getElementById('crm-generated-message');
     const btnWa = document.getElementById('crm-btn-open-wa');
     const promoWarning = document.getElementById('crm-whatsapp-promo-warning');
     const lockWarning = document.getElementById('crm-whatsapp-lock-warning');
-
     const patient = window._currentCRMPatient || {};
     const clinicSettings = await ensureCRMClinicSettingsLoaded();
     const clinicProfile = getCRMClinicMessageProfile(clinicSettings);
-
     // check permissions based on data tags
     const pref = patient?.contact_preference || {};
     const tags = patient?.tags || [];
     const dontContact = pref.jangan_dihubungi || tags.some(t => t.value === 'jangan-dihubungi');
     const dontPromo = pref.boleh_promo === false || tags.some(t => t.value === 'jangan-promo');
     const phoneInvalid = !patient?.phone || patient.phone.length < 5;
-
     if (dontContact || phoneInvalid) {
-        if (btnWa) btnWa.disabled = true;
-    } else {
-        if (btnWa) btnWa.disabled = false;
+        if (btnWa)
+            btnWa.disabled = true;
     }
-
+    else {
+        if (btnWa)
+            btnWa.disabled = false;
+    }
     if (lockWarning) {
         if (dontContact || phoneInvalid) {
             lockWarning.classList.remove('hidden');
             lockWarning.innerHTML = dontContact ? '<i class="fas fa-exclamation-triangle"></i> Pasien menolak dihubungi (JANGAN DIHUBUNGI).' : '<i class="fas fa-exclamation-triangle"></i> Nomor telepon tidak valid / kosong.';
-        } else {
+        }
+        else {
             lockWarning.classList.add('hidden');
         }
     }
-
     if (promoWarning) {
         if (dontPromo && template === 'promo') {
             promoWarning.classList.remove('hidden');
-        } else {
+        }
+        else {
             promoWarning.classList.add('hidden');
         }
     }
-
     let msg = buildCRMMessageTemplate(template, patient, clinicProfile);
     if (template === 'custom') {
         msg = textarea && textarea.value && textarea.value !== 'Membuat pesan...' ? textarea.value : '';
     }
-
     if (textarea && template !== 'custom') {
         textarea.value = msg;
     }
 }
-
 async function requestCRMWhatsAppLink(patientId, templateType, customMessage = '', overrideLock = false, markOpened = false) {
     const formData = new FormData();
     formData.append('template_type', templateType || 'routine');
@@ -1010,43 +987,35 @@ async function requestCRMWhatsAppLink(patientId, templateType, customMessage = '
     }
     return data;
 }
-
 async function openCRMWhatsAppLink(patientId, event) {
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
-
     const waBtn = document.getElementById('crm-btn-open-wa');
-    if (waBtn?.disabled) return;
-
+    if (waBtn?.disabled)
+        return;
     const textarea = document.getElementById('crm-generated-message');
     const message = normalizeCRMMessageText(textarea?.value || '');
-
     const pref = window._currentCRMPatient?.contact_preference || {};
     const tags = window._currentCRMPatient?.tags || [];
     const dontContact = pref.jangan_dihubungi || tags.some(t => t.value === 'jangan-dihubungi');
     const phone = window._currentCRMPatient?.phone;
-
     if (dontContact) {
         alert('Warning: Pasien ini memiliki preferensi JANGAN DIHUBUNGI.');
         return;
     }
-
     if (!phone || phone.length < 5) {
         alert('Nomor HP tidak valid.');
         return;
     }
-
     // Format phone to 628...
     let formattedPhone = String(phone).replace(/\D/g, '');
-    if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
-
+    if (formattedPhone.startsWith('0'))
+        formattedPhone = '62' + formattedPhone.slice(1);
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-
     // Optionally mark contacted or log silently
     try {
         const form = new FormData();
@@ -1055,19 +1024,22 @@ async function openCRMWhatsAppLink(patientId, event) {
         await fetch(`/crm/patient/${patientId}/whatsapp-link`, { method: 'POST', body: form });
         const logs = await fetchCRMJson(`/crm/patient/${patientId}/message-logs`);
         const logList = document.getElementById('crm-message-log-list');
-        if (logList) logList.innerHTML = renderCRMMessageLogs(logs);
-    } catch (e) {
+        if (logList)
+            logList.innerHTML = renderCRMMessageLogs(logs);
+    }
+    catch (e) {
         console.warn('Gagal push log', e);
     }
 }
-
 async function markCRMWhatsAppContacted(patientId) {
     const form = document.getElementById('crm-followup-form');
     const formData = new FormData();
     const followUpDate = form?.querySelector('[name="follow_up_date"]')?.value || '';
     const logId = document.getElementById('crm-whatsapp-log-id')?.value || '';
-    if (logId) formData.append('log_id', logId);
-    if (followUpDate) formData.append('follow_up_date', followUpDate);
+    if (logId)
+        formData.append('log_id', logId);
+    if (followUpDate)
+        formData.append('follow_up_date', followUpDate);
     const response = await fetch(`/crm/patient/${patientId}/whatsapp-confirm`, {
         method: 'POST',
         body: formData,
@@ -1081,7 +1053,6 @@ async function markCRMWhatsAppContacted(patientId) {
     form?.closest('.crm-modal-overlay')?.remove();
     await renderCRM();
 }
-
 async function copyCRMMessage() {
     const textarea = document.getElementById('crm-generated-message');
     const message = normalizeCRMMessageText(textarea?.value || '');
@@ -1089,17 +1060,18 @@ async function copyCRMMessage() {
         alert('Pesan masih kosong.');
         return;
     }
-    if (textarea) textarea.value = message;
+    if (textarea)
+        textarea.value = message;
     try {
         await navigator.clipboard.writeText(message);
         showToast('Pesan follow-up disalin.', 'success');
-    } catch (error) {
+    }
+    catch (error) {
         textarea.select();
         document.execCommand('copy');
         showToast('Pesan follow-up disalin.', 'success');
     }
 }
-
 async function submitCRMFollowup(event) {
     event.preventDefault();
     const form = event.target;
@@ -1116,7 +1088,6 @@ async function submitCRMFollowup(event) {
     showToast(data.message || 'Follow-up tersimpan.', 'success');
     await renderCRM();
 }
-
 function debounce(fn, wait) {
     let timeoutId;
     return (...args) => {
@@ -1124,7 +1095,6 @@ function debounce(fn, wait) {
         timeoutId = setTimeout(() => fn(...args), wait);
     };
 }
-
 // Global exports
 window.renderCRM = renderCRM;
 window.loadCRMList = loadCRMList;

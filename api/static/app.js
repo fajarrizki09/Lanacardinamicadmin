@@ -1,37 +1,36 @@
+"use strict";
 // ─── APP ENTRY POINT ─────────────────────────────────────────────────────────
 // Navigation setup only. All rendering logic lives in /static/modules/*.js
-
 window._adminPin = '';
 window._adminUnlocked = false;
-
 const USER_FRIENDLY_ERROR_MESSAGE = 'Terjadi kesalahan. Silakan coba lagi atau hubungi admin.';
 const TECHNICAL_ERROR_PATTERN = /(sqlalchemy|sqlite3|traceback|operationalerror|integrityerror|databaseerror|programmingerror|permissionerror|filenotfounderror|winerror|errno|site-packages|\.py\b|[a-z]:\\|\/users\/|\/home\/)/i;
 const ADMIN_IDLE_LOCK_MS = 15 * 60 * 1000;
 let adminIdleTimer = null;
 let adminIdleListenersReady = false;
-
 function sanitizeAppErrorMessage(value, fallback = USER_FRIENDLY_ERROR_MESSAGE) {
     let message = '';
     if (typeof value === 'string') {
         message = value.trim();
-    } else if (Array.isArray(value)) {
+    }
+    else if (Array.isArray(value)) {
         message = '';
-    } else if (value && typeof value === 'object') {
+    }
+    else if (value && typeof value === 'object') {
         message = String(value.detail || value.message || '').trim();
     }
-
-    if (!message) return fallback;
-    if (TECHNICAL_ERROR_PATTERN.test(message)) return fallback;
+    if (!message)
+        return fallback;
+    if (TECHNICAL_ERROR_PATTERN.test(message))
+        return fallback;
     return message;
 }
-
 async function sanitizeErrorResponse(response) {
-    if (response.ok) return response;
-
+    if (response.ok)
+        return response;
     const headers = new Headers(response.headers);
     const contentType = headers.get('content-type') || '';
     headers.set('content-type', 'application/json');
-
     if (contentType.includes('application/json')) {
         try {
             const payload = await response.clone().json();
@@ -41,18 +40,17 @@ async function sanitizeErrorResponse(response) {
                 statusText: response.statusText,
                 headers,
             });
-        } catch (error) {
+        }
+        catch (error) {
             return response;
         }
     }
-
     return new Response(JSON.stringify({ detail: USER_FRIENDLY_ERROR_MESSAGE }), {
         status: response.status,
         statusText: response.statusText,
         headers,
     });
 }
-
 const nativeFetch = window.fetch.bind(window);
 function withAppTokenHeaders(input, init = {}) {
     const requestInit = { ...init };
@@ -63,33 +61,28 @@ function withAppTokenHeaders(input, init = {}) {
     requestInit.headers = headers;
     return requestInit;
 }
-
 function appFetchRaw(input, init = {}) {
     return nativeFetch(input, withAppTokenHeaders(input, init));
 }
-
 window.fetch = async (input, init = {}) => {
     const requestInit = withAppTokenHeaders(input, init);
     const method = (requestInit.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
-    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const isAdminPinEndpoint = url.includes('/admin_pin/');
-
     if (window._adminPin && !isAdminPinEndpoint && method !== 'OPTIONS') {
         const headers = new Headers(requestInit.headers || {});
         headers.set('X-Admin-Pin', window._adminPin);
         requestInit.headers = headers;
     }
-
     const response = await nativeFetch(input, requestInit);
     return sanitizeErrorResponse(response);
 };
-
 document.addEventListener("DOMContentLoaded", async () => {
     resetUIZoomToDefault();
     const unlocked = await ensureAdminUnlocked();
-    if (!unlocked) return;
+    if (!unlocked)
+        return;
     await ensureFirstRunSetup();
-
     const tabs = document.querySelectorAll('.nav-links li');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -100,32 +93,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             updatePageHeader(target);
         });
     });
-
     // Initial load
     initModals();
     loadLicenseStatus();
     loadClinicSettings();
     loadTab('dashboard');
 });
-
 function resetUIZoomToDefault() {
     document.body.style.zoom = '100%';
     document.body.classList.remove('is-ui-zoomed');
     localStorage.removeItem('lancar_ui_zoom');
     window.getUIZoom = () => 100;
 }
-
 async function ensureFirstRunSetup() {
     try {
         const response = await fetch('/first_run/status');
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.completed) return true;
+        if (!response.ok || data.completed)
+            return true;
         return await showFirstRunWizard(data.settings || {});
-    } catch (error) {
+    }
+    catch (error) {
         return true;
     }
 }
-
 function renderFirstRunWizard(message = '') {
     let overlay = document.getElementById('first-run-overlay');
     if (!overlay) {
@@ -174,8 +165,7 @@ function renderFirstRunWizard(message = '') {
     `;
     return overlay;
 }
-
-async function showFirstRunWizard() {
+async function showFirstRunWizard(settings = {}) {
     renderFirstRunWizard();
     const form = document.getElementById('first-run-form');
     const message = document.getElementById('first-run-message');
@@ -191,7 +181,8 @@ async function showFirstRunWizard() {
         const services = [];
         for (let index = 0; index < inputs.length; index += 3) {
             const name = inputs[index]?.value.trim();
-            if (!name) continue;
+            if (!name)
+                continue;
             services.push({
                 name,
                 unit_label: inputs[index + 1]?.value.trim() || 'sesi',
@@ -202,38 +193,51 @@ async function showFirstRunWizard() {
         formData.set('services', JSON.stringify(services));
         const response = await fetch('/first_run/complete', { method: 'POST', body: formData });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal menyimpan setup awal.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyimpan setup awal.');
         document.getElementById('first-run-overlay')?.remove();
         showToast(data.message || 'Setup awal berhasil disimpan.', 'success');
         await loadClinicSettings();
         return true;
     };
-
     return await new Promise((resolve) => {
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
-            try { resolve(await saveSetup(false)); } catch (error) { message.textContent = error.message; }
+            try {
+                resolve(await saveSetup(false));
+            }
+            catch (error) {
+                message.textContent = error.message;
+            }
         });
         document.getElementById('first-run-skip')?.addEventListener('click', async () => {
             const ok = await showConfirm('Lewati setup awal? Data klinik masih memakai nilai default.', 'warning');
-            if (!ok) return;
-            try { resolve(await saveSetup(true)); } catch (error) { message.textContent = error.message; }
+            if (!ok)
+                return;
+            try {
+                resolve(await saveSetup(true));
+            }
+            catch (error) {
+                message.textContent = error.message;
+            }
         });
         document.getElementById('first-run-demo')?.addEventListener('click', async () => {
             const ok = await showConfirm('Data contoh akan bercampur dengan data yang sudah ada. Lanjutkan?', 'warning');
-            if (!ok) return;
+            if (!ok)
+                return;
             try {
                 const response = await fetch('/demo_data/seed', { method: 'POST' });
                 const data = await response.json().catch(() => ({}));
-                if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal mengisi data contoh.');
+                if (!response.ok || data.status !== 'success')
+                    throw new Error(data.detail || 'Gagal mengisi data contoh.');
                 showToast(data.message || 'Data contoh berhasil ditambahkan.', 'success');
-            } catch (error) {
+            }
+            catch (error) {
                 message.textContent = error.message;
             }
         });
     });
 }
-
 function setupAdminIdleLock() {
     if (!adminIdleListenersReady) {
         ['click', 'keydown', 'mousemove', 'touchstart'].forEach((eventName) => {
@@ -243,21 +247,21 @@ function setupAdminIdleLock() {
     }
     resetAdminIdleTimer();
 }
-
 function resetAdminIdleTimer() {
-    if (!window._adminUnlocked) return;
-    if (adminIdleTimer) clearTimeout(adminIdleTimer);
+    if (!window._adminUnlocked)
+        return;
+    if (adminIdleTimer)
+        clearTimeout(adminIdleTimer);
     adminIdleTimer = setTimeout(lockAdminSession, ADMIN_IDLE_LOCK_MS);
 }
-
 function lockAdminSession() {
     window._adminPin = '';
     window._adminUnlocked = false;
-    if (adminIdleTimer) clearTimeout(adminIdleTimer);
+    if (adminIdleTimer)
+        clearTimeout(adminIdleTimer);
     adminIdleTimer = null;
     ensureAdminUnlocked('Sesi terkunci karena tidak ada aktivitas. Masukkan PIN untuk lanjut.');
 }
-
 function renderAdminLock(message = '') {
     let overlay = document.getElementById('admin-lock-overlay');
     if (!overlay) {
@@ -266,7 +270,6 @@ function renderAdminLock(message = '') {
         overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#f8fafc;display:grid;place-items:center;font-family:Inter,Arial,sans-serif;overflow:auto;padding:18px;box-sizing:border-box;';
         document.body.appendChild(overlay);
     }
-
     overlay.innerHTML = `
         <div id="admin-lock-panel" style="width:min(420px,calc(100vw - 36px));background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.14);padding:24px;box-sizing:border-box;">
             <form id="admin-lock-form">
@@ -315,14 +318,12 @@ function renderAdminLock(message = '') {
     `;
     return overlay;
 }
-
 async function ensureAdminUnlocked(initialMessage = '') {
     try {
         const statusResponse = await appFetchRaw('/admin_pin/status');
         const status = await statusResponse.json();
         const pinSet = !!status.pin_set;
         renderAdminLock(initialMessage);
-
         const title = document.getElementById('admin-lock-title');
         const copy = document.getElementById('admin-lock-copy');
         const confirmWrap = document.getElementById('admin-lock-confirm-wrap');
@@ -334,18 +335,16 @@ async function ensureAdminUnlocked(initialMessage = '') {
         const resetMessage = document.getElementById('admin-lock-reset-message');
         const resetTitle = document.getElementById('admin-lock-reset-title');
         const resetCopy = document.getElementById('admin-lock-reset-copy');
-
         if (!pinSet) {
             title.textContent = 'Buat PIN Admin';
             copy.textContent = 'Buat PIN 4-8 digit untuk mengamankan restore, hapus data, koreksi stok, dan pengaturan.';
             confirmWrap.style.display = 'block';
             pinInput.autocomplete = 'new-password';
-        } else if (resetBox) {
+        }
+        else if (resetBox) {
             resetBox.style.display = 'block';
         }
-
         pinInput.focus();
-
         return await new Promise((resolve) => {
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
@@ -353,7 +352,6 @@ async function ensureAdminUnlocked(initialMessage = '') {
                 const submit = document.getElementById('admin-lock-submit');
                 const pin = pinInput.value.trim();
                 const confirm = document.getElementById('admin-lock-confirm')?.value.trim() || '';
-
                 if (!/^[0-9]{4,8}$/.test(pin)) {
                     message.textContent = 'PIN harus berisi 4-8 digit.';
                     return;
@@ -362,10 +360,8 @@ async function ensureAdminUnlocked(initialMessage = '') {
                     message.textContent = 'Konfirmasi PIN belum sama.';
                     return;
                 }
-
                 submit.disabled = true;
                 submit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memeriksa...';
-
                 try {
                     const formData = new FormData();
                     formData.set('pin', pin);
@@ -375,20 +371,19 @@ async function ensureAdminUnlocked(initialMessage = '') {
                     if (!response.ok || data.status !== 'success') {
                         throw new Error(sanitizeAppErrorMessage(data.detail || 'PIN salah.', 'PIN salah.'));
                     }
-
                     window._adminPin = pin;
                     window._adminUnlocked = true;
                     document.getElementById('admin-lock-overlay')?.remove();
                     setupAdminIdleLock();
                     resolve(true);
-                } catch (error) {
+                }
+                catch (error) {
                     message.textContent = sanitizeAppErrorMessage(error.message, 'PIN salah.');
                     submit.disabled = false;
                     submit.innerHTML = '<i class="fas fa-unlock"></i> Lanjut';
                     pinInput.select();
                 }
             });
-
             if (pinSet && resetRequestButton && resetForm && resetMessage) {
                 resetRequestButton.addEventListener('click', async () => {
                     const originalText = resetRequestButton.innerHTML;
@@ -396,7 +391,6 @@ async function ensureAdminUnlocked(initialMessage = '') {
                     resetRequestButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim...';
                     resetMessage.style.color = '#0f766e';
                     resetMessage.textContent = 'Menghubungi server lisensi untuk membuat permintaan reset...';
-
                     try {
                         const response = await appFetchRaw('/admin_pin/reset/request', { method: 'POST' });
                         const data = await response.json().catch(() => ({}));
@@ -412,19 +406,22 @@ async function ensureAdminUnlocked(initialMessage = '') {
                         resetBox.style.marginTop = '0';
                         resetBox.style.paddingTop = '0';
                         resetBox.style.borderTop = 'none';
-                        if (resetTitle) resetTitle.textContent = 'Reset PIN Admin';
-                        if (resetCopy) resetCopy.textContent = 'Masukkan kode reset dari server lisensi, lalu buat PIN admin baru.';
+                        if (resetTitle)
+                            resetTitle.textContent = 'Reset PIN Admin';
+                        if (resetCopy)
+                            resetCopy.textContent = 'Masukkan kode reset dari server lisensi, lalu buat PIN admin baru.';
                         resetForm.style.display = 'block';
                         document.getElementById('admin-lock-reset-token')?.focus();
-                    } catch (error) {
+                    }
+                    catch (error) {
                         resetMessage.style.color = '#dc2626';
                         resetMessage.textContent = sanitizeAppErrorMessage(error.message, 'Gagal meminta reset PIN.');
-                    } finally {
+                    }
+                    finally {
                         resetRequestButton.disabled = false;
                         resetRequestButton.innerHTML = originalText;
                     }
                 });
-
                 resetForm.addEventListener('submit', async (event) => {
                     event.preventDefault();
                     const resetSubmit = document.getElementById('admin-lock-reset-submit');
@@ -433,7 +430,6 @@ async function ensureAdminUnlocked(initialMessage = '') {
                     const newPin = document.getElementById('admin-lock-reset-new-pin')?.value.trim() || '';
                     const confirmPin = document.getElementById('admin-lock-reset-confirm-pin')?.value.trim() || '';
                     const originalText = resetSubmit ? resetSubmit.innerHTML : '';
-
                     if (!resetPin) {
                         resetMessage.style.color = '#dc2626';
                         resetMessage.textContent = 'Kode reset dari server lisensi wajib diisi.';
@@ -454,12 +450,10 @@ async function ensureAdminUnlocked(initialMessage = '') {
                         resetMessage.textContent = 'Konfirmasi PIN baru belum sama.';
                         return;
                     }
-
                     if (resetSubmit) {
                         resetSubmit.disabled = true;
                         resetSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mereset PIN...';
                     }
-
                     try {
                         const formData = new FormData();
                         formData.set('reset_token', resetToken);
@@ -470,16 +464,17 @@ async function ensureAdminUnlocked(initialMessage = '') {
                         if (!response.ok || data.status !== 'success') {
                             throw new Error(sanitizeAppErrorMessage(data.detail || 'Kode reset tidak valid atau sudah kedaluwarsa.', 'Kode reset tidak valid atau sudah kedaluwarsa.'));
                         }
-
                         window._adminPin = newPin;
                         window._adminUnlocked = true;
                         document.getElementById('admin-lock-overlay')?.remove();
                         setupAdminIdleLock();
                         resolve(true);
-                    } catch (error) {
+                    }
+                    catch (error) {
                         resetMessage.style.color = '#dc2626';
                         resetMessage.textContent = sanitizeAppErrorMessage(error.message, 'Gagal reset PIN admin.');
-                    } finally {
+                    }
+                    finally {
                         if (resetSubmit) {
                             resetSubmit.disabled = false;
                             resetSubmit.innerHTML = originalText;
@@ -488,27 +483,27 @@ async function ensureAdminUnlocked(initialMessage = '') {
                 });
             }
         });
-    } catch (error) {
+    }
+    catch (error) {
         renderAdminLock('Gagal menyiapkan PIN admin. Restart aplikasi lalu coba lagi.');
         return false;
     }
 }
-
 async function loadClinicSettings() {
     try {
         const response = await fetch('/settings');
-        if (!response.ok) throw new Error('Gagal memuat pengaturan klinik');
+        if (!response.ok)
+            throw new Error('Gagal memuat pengaturan klinik');
         const settings = await response.json();
         applyClinicSettings(settings);
-    } catch (error) {
+    }
+    catch (error) {
         applyClinicSettings({});
     }
 }
-
 function applyClinicSettings(settings) {
     const clinicName = (settings.clinic_name || 'Lancar Dynamic Admin').trim();
     const sidebarClinicName = document.getElementById('sidebar-clinic-name');
-
     window._clinicName = clinicName;
     window._clinicSettings = settings || {};
     document.title = `${clinicName} - Admin Dashboard`;
@@ -517,16 +512,15 @@ function applyClinicSettings(settings) {
         sidebarClinicName.title = clinicName;
     }
 }
-
 async function loadLicenseStatus() {
     const indicator = document.getElementById('license-indicator');
-    if (!indicator) return;
-
+    if (!indicator)
+        return;
     try {
         const response = await fetch('/license_status');
-        if (!response.ok) throw new Error('Gagal memuat status lisensi');
+        if (!response.ok)
+            throw new Error('Gagal memuat status lisensi');
         const data = await response.json();
-
         const isValid = data.valid === true && data.status !== 'expired';
         const expiredText = data.expired_at ? formatLicenseDate(data.expired_at) : '-';
         const statusLabel = isValid ? 'Lisensi Aktif' : 'Lisensi Bermasalah';
@@ -537,7 +531,6 @@ async function loadLicenseStatus() {
             `Key: ${keyText}`,
             data.expired_at ? `Expired: ${expiredText}` : ''
         ].filter(Boolean).join('\n');
-
         indicator.className = `license-indicator ${isValid ? 'active' : 'invalid'}`;
         indicator.title = detail || statusLabel;
         indicator.innerHTML = `
@@ -547,7 +540,8 @@ async function loadLicenseStatus() {
                 <small>${expiryLabel}</small>
             </span>
         `;
-    } catch (error) {
+    }
+    catch (error) {
         indicator.className = 'license-indicator invalid';
         indicator.title = error.message;
         indicator.innerHTML = `
@@ -556,11 +550,10 @@ async function loadLicenseStatus() {
         `;
     }
 }
-
 function formatLicenseDate(value) {
     const text = String(value || '').trim();
-    if (!text) return '-';
-
+    if (!text)
+        return '-';
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
         const [year, month, day] = text.split('-').map(Number);
         return new Date(year, month - 1, day).toLocaleDateString('id-ID', {
@@ -569,39 +562,36 @@ function formatLicenseDate(value) {
             year: 'numeric'
         });
     }
-
     const date = new Date(text);
-    if (Number.isNaN(date.getTime())) return value;
-
+    if (Number.isNaN(date.getTime()))
+        return value;
     return date.toLocaleDateString('id-ID', {
         day: '2-digit',
         month: 'short',
         year: 'numeric'
     });
 }
-
 // ── GLOBAL FORM INTERCEPTOR ──────────────────────────────────────────────────
 // Prevent traditional form submissions that reload the page and reset the tab.
 document.addEventListener('submit', async (e) => {
-    if (e.defaultPrevented) return;
-
+    if (e.defaultPrevented)
+        return;
     const form = e.target;
     // Don't intercept if it's the import form (handled separately)
-    if (form.id === 'import-form') return;
-
+    if (form.id === 'import-form')
+        return;
     // Only intercept POST forms
     if (form.method && form.method.toUpperCase() === 'POST') {
         e.preventDefault();
-
         const isVisitSubmit = form.action && form.action.endsWith('/add_visit');
         let preparedFormData = null;
         let visitRestorePatientId = null;
         if (isVisitSubmit && typeof confirmVisitSubmission === 'function') {
             preparedFormData = await confirmVisitSubmission(form);
-            if (!preparedFormData) return;
+            if (!preparedFormData)
+                return;
             visitRestorePatientId = preparedFormData.get('patient_id') || document.getElementById('visit_patient_id')?.value || null;
         }
-
         // Find submit button to show loading state
         const btn = form.querySelector('button[type="submit"]');
         const originalText = btn ? btn.innerHTML : '';
@@ -609,7 +599,6 @@ document.addEventListener('submit', async (e) => {
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
         }
-
         try {
             const formData = preparedFormData || new FormData(form);
             const res = await fetch(form.action, {
@@ -617,7 +606,6 @@ document.addEventListener('submit', async (e) => {
                 body: formData
             });
             const data = await res.json();
-
             if (data.status === 'success') {
                 if (form.id === 'settings-form') {
                     await loadClinicSettings();
@@ -631,12 +619,15 @@ document.addEventListener('submit', async (e) => {
                         await _dtShowVisits(Number(visitRestorePatientId));
                     }
                 }
-            } else {
+            }
+            else {
                 showToast(data.detail || 'Terjadi kesalahan saat menyimpan data.', 'error');
             }
-        } catch (error) {
+        }
+        catch (error) {
             showToast(sanitizeAppErrorMessage(error.message, 'Terjadi kesalahan saat menyimpan data.'), 'error');
-        } finally {
+        }
+        finally {
             if (isVisitSubmit && typeof resetVisitSubmitLoading === 'function') {
                 resetVisitSubmitLoading();
             }
@@ -647,7 +638,6 @@ document.addEventListener('submit', async (e) => {
         }
     }
 });
-
 function updatePageHeader(target) {
     const title = document.getElementById('page-title');
     const subtitle = title.nextElementSibling;
@@ -672,66 +662,81 @@ function updatePageHeader(target) {
     title.textContent = t;
     subtitle.textContent = s;
 }
-
 async function loadTab(tabName) {
     const displayArea = document.getElementById('display-area');
     const loader = document.getElementById('loader');
-
     // Destroy existing DataTable instance if navigating away from patient-backed tabs
     if (window._patientsDT && tabName !== 'patients' && tabName !== 'visits') {
-        try { window._patientsDT.destroy(); } catch (e) { }
+        try {
+            window._patientsDT.destroy();
+        }
+        catch (e) { }
         window._patientsDT = null;
     }
-
     displayArea.style.display = 'none';
     loader.style.display = 'flex';
     displayArea.innerHTML = '';
-
     try {
         if (tabName === 'dashboard') {
             await renderDashboard();
-        } else if (tabName === 'patients') {
+        }
+        else if (tabName === 'patients') {
             // Patients tab uses server-side DataTable — render layout first, then DT fetches
             await renderPatients();
-        } else if (tabName === 'visits') {
+        }
+        else if (tabName === 'visits') {
             await renderVisits();
-        } else if (tabName === 'crm') {
+        }
+        else if (tabName === 'crm') {
             await renderCRM();
-        } else if (tabName === 'owner-report') {
+        }
+        else if (tabName === 'owner-report') {
             await renderOwnerReport();
-        } else if (tabName === 'audit') {
+        }
+        else if (tabName === 'audit') {
             await renderAuditLogs();
-        } else if (tabName === 'help') {
+        }
+        else if (tabName === 'help') {
             await renderHelp();
-        } else if (tabName === 'vouchers') {
+        }
+        else if (tabName === 'vouchers') {
             renderVouchers();
-        } else {
+        }
+        else {
             let endpoint = '/' + tabName;
             if (tabName === 'analytics') {
                 const period = window._analyticsPeriod || '6m';
                 endpoint += '?period=' + period;
-            } else if (tabName === 'invoices') {
+            }
+            else if (tabName === 'invoices') {
                 const period = window._invoicesPeriod || 'all';
                 const page = window._invoicesPage || 1;
                 const search = window._invoicesSearch || '';
                 endpoint += `?period=${period}&page=${page}&page_size=100&search=${encodeURIComponent(search)}`;
             }
             const response = await fetch(endpoint);
-            if (!response.ok) throw new Error('Network response was not ok');
+            if (!response.ok)
+                throw new Error('Network response was not ok');
             const data = await response.json();
-
-            if (tabName === 'therapists') renderTherapists(data);
-            else if (tabName === 'services') renderServices(data);
-            else if (tabName === 'inventory') renderInventory(data);
-            else if (tabName === 'herbals') renderHerbals(data);
-            else if (tabName === 'analytics') renderAnalytics(data);
-            else if (tabName === 'invoices') renderInvoices(data);
-            else if (tabName === 'settings') renderSettings(data);
+            if (tabName === 'therapists')
+                renderTherapists(data);
+            else if (tabName === 'services')
+                renderServices(data);
+            else if (tabName === 'inventory')
+                renderInventory(data);
+            else if (tabName === 'herbals')
+                renderHerbals(data);
+            else if (tabName === 'analytics')
+                renderAnalytics(data);
+            else if (tabName === 'invoices')
+                renderInvoices(data);
+            else if (tabName === 'settings')
+                renderSettings(data);
         }
-
         loader.style.display = 'none';
         displayArea.style.display = 'block';
-    } catch (e) {
+    }
+    catch (e) {
         loader.style.display = 'none';
         displayArea.style.display = 'block';
         displayArea.innerHTML = `

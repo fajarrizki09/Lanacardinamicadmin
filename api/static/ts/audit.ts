@@ -148,7 +148,7 @@ async function renderAuditLogs(): Promise<void> {
     const rows = await apiGetJson<AuditLogRow[]>('/audit_logs?limit=100');
     const arr = Array.isArray(rows) ? rows : [];
     // expose rows for modal detail rendering
-    (window as any)._audit_rows = arr;
+    window._audit_rows = arr;
     const tableRows = arr.map((r, i) => renderAuditRow(r, i)).join('');
 
     const displayArea = document.getElementById('display-area');
@@ -201,7 +201,7 @@ function renderAuditCard(row: AuditLogRow, idx: number): string {
 
 function showAuditDetail(idx: number): void {
     try {
-        const rows: AuditLogRow[] = (window as any)._audit_rows || [];
+        const rows: AuditLogRow[] = window._audit_rows || [];
         const row = rows[idx];
         if (!row) return;
 
@@ -263,10 +263,10 @@ function closeAuditDetail(overlayEl: Element | null): void {
 }
 
 window.renderAuditLogs = renderAuditLogs;
-(window as any).showAuditDetail = showAuditDetail;
-(window as any).closeAuditDetail = closeAuditDetail;
+window.showAuditDetail = showAuditDetail;
+window.closeAuditDetail = closeAuditDetail;
 
-(window as any).copyAuditValue = async function(btn: HTMLElement, text: string) {
+window.copyAuditValue = async function(btn: HTMLElement, text: string) {
     try {
         await navigator.clipboard.writeText(text);
         const icon = btn.querySelector('i');

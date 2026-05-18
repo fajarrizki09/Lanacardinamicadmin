@@ -1,11 +1,10 @@
+"use strict";
 // ─── GLOBAL MODALS ────────────────────────────────────────────────────────────
-
 function initModals() {
-    if (document.getElementById('modal-container')) return;
-
+    if (document.getElementById('modal-container'))
+        return;
     const container = document.createElement('div');
     container.id = 'modal-container';
-
     container.innerHTML = `
         <!-- ── FULL EDIT MODAL (Pasien & Kunjungan) ──────────────────────────── -->
         <div id="full-edit-modal" onclick="if(event.target===this)closeFullEditModal()"
@@ -152,7 +151,6 @@ function initModals() {
         </div>
     `;
     document.body.appendChild(container);
-
     // Append styles directly
     const style = document.createElement('style');
     style.innerHTML = `
@@ -256,9 +254,7 @@ function initModals() {
     `;
     document.head.appendChild(style);
 }
-
 // ── FULL EDIT MODAL LOGIC (Patient) ──────────────────────────────────────────
-
 function _fullEditTherapistOptions(gender, selectedId) {
     const therapistsList = window._therapistsList || [];
     const therapists = therapistsList.filter(t => !gender || t.gender === gender || t.can_handle_any_gender);
@@ -269,7 +265,6 @@ function _fullEditTherapistOptions(gender, selectedId) {
     if (therapists.length === 0) {
         return `<option value="">Belum ada terapis aktif yang bisa menangani pasien ${escapeHtml(gender || 'ini')}</option>`;
     }
-
     let opts = `<option value=""${hasMismatch ? ' selected' : ''}>${hasMismatch ? 'Pilih terapis pengganti' : '- Pilih Terapis -'}</option>`;
     therapists.forEach(t => {
         const selected = String(t.id) === String(selectedId || '') ? ' selected' : '';
@@ -278,14 +273,12 @@ function _fullEditTherapistOptions(gender, selectedId) {
     });
     return opts;
 }
-
 function _fullEditTherapistHelp(gender, selectedId) {
     const therapistsList = window._therapistsList || [];
     const matching = therapistsList.filter(t => !gender || t.gender === gender || t.can_handle_any_gender);
     const selectedTherapist = selectedId
         ? therapistsList.find(t => String(t.id) === String(selectedId))
         : null;
-
     if (window._therapistsLoadError) {
         return {
             type: 'error',
@@ -309,54 +302,51 @@ function _fullEditTherapistHelp(gender, selectedId) {
         text: `Pilihan mencakup terapis ${gender || 'sesuai pasien'} dan terapis yang diizinkan menangani lintas gender.`
     };
 }
-
-function _syncFullEditTherapistHelp(row, gender, previousSelectedId) {
-    if (!row) return;
+function _syncFullEditTherapistHelp(row, gender, previousSelectedId = '') {
+    if (!row)
+        return;
     const helper = row.querySelector('.fe-v-therapist-help');
     const select = row.querySelector('.fe-v-therapist');
-    if (!helper || !select) return;
+    if (!helper || !select)
+        return;
     const selectedId = previousSelectedId || select.value;
     const help = _fullEditTherapistHelp(gender, selectedId);
     helper.textContent = help.text;
     helper.style.color = help.type === 'error' ? 'var(--danger)' : (help.type === 'warning' ? '#b45309' : 'var(--text-muted)');
 }
-
 function _refreshFullEditTherapistOptions() {
     const gender = document.getElementById('fe-gender').value;
     document.querySelectorAll('.fe-v-therapist').forEach(sel => {
         const selectedId = sel.value;
         sel.innerHTML = _fullEditTherapistOptions(gender, selectedId);
-        if (selectedId && Array.from(sel.options).some(opt => opt.value === selectedId)) sel.value = selectedId;
+        if (selectedId && Array.from(sel.options).some(opt => opt.value === selectedId))
+            sel.value = selectedId;
         _syncFullEditTherapistHelp(sel.closest('.fe-visit-row'), gender, selectedId);
     });
 }
-
 function openFullEditModal(idx) {
     const p = (window._patientsData || [])[idx];
-    if (!p) return;
-
+    if (!p)
+        return;
     // Bio
-    document.getElementById('fe-id').value = p.id;
-    document.getElementById('fe-name').value = p.name;
+    document.getElementById('fe-id').value = String(p.id || '');
+    document.getElementById('fe-name').value = p.name || '';
     document.getElementById('fe-phone').value = p.phone && p.phone.startsWith('TEMP-') ? '' : (p.phone || '');
     document.getElementById('fe-address').value = p.address || '';
     document.getElementById('fe-gender').value = p.gender || 'Laki-laki';
-
     const res = document.getElementById('fe-result');
     res.style.display = 'none';
     res.className = '';
-
     // Visits
     const container = document.getElementById('fe-visits-container');
     const vcount = document.getElementById('fe-visit-count');
     container.innerHTML = '';
-
     const visits = p.visits || [];
     vcount.textContent = `${visits.length} Kunjungan`;
-
     if (visits.length === 0) {
         container.innerHTML = '<div style="padding:30px; text-align:center; color:var(--text-muted); font-size:13px;">Belum ada kunjungan tercatat.</div>';
-    } else {
+    }
+    else {
         // Loop visits
         visits.forEach((v, vi) => {
             // Calculate local ISO string for datetime-local input
@@ -374,11 +364,9 @@ function openFullEditModal(idx) {
                     bg: v.is_free_visit ? '#ecfdf5' : (v.discount_applied ? '#f5f3ff' : '#f8fafc'),
                     border: v.is_free_visit ? '#a7f3d0' : (v.discount_applied ? '#ddd6fe' : '#e2e8f0')
                 };
-
             const row = document.createElement('div');
             row.className = 'fe-visit-row';
-            row.dataset.vid = v.id;
-
+            row.dataset.vid = String(v.id || '');
             row.innerHTML = `
                 <div class="fe-visit-field">
                     <label>Tanggal & Jam</label>
@@ -417,39 +405,40 @@ function openFullEditModal(idx) {
             `;
             container.appendChild(row);
             const therapistSelect = row.querySelector('.fe-v-therapist');
-            _syncFullEditTherapistHelp(row, p.gender, v.therapist_id);
+            _syncFullEditTherapistHelp(row, p.gender, String(v.therapist_id || ''));
             therapistSelect?.addEventListener('change', () => _syncFullEditTherapistHelp(row, document.getElementById('fe-gender').value));
-
         });
     }
-
     document.getElementById('full-edit-modal').style.display = 'flex';
 }
-
 function closeFullEditModal() {
     document.getElementById('full-edit-modal').style.display = 'none';
 }
-
 async function submitFullEdit() {
     const btn = document.querySelector('#full-edit-modal .btn-primary');
     const ogHtml = btn.innerHTML;
     const res = document.getElementById('fe-result');
-
     const id = document.getElementById('fe-id').value;
     const name = document.getElementById('fe-name').value.trim();
     const phone = document.getElementById('fe-phone').value.trim();
     const address = document.getElementById('fe-address').value.trim();
     const gender = document.getElementById('fe-gender').value;
-
     if (!name) {
-        res.style.display = 'block'; res.style.background = '#fef2f2'; res.style.color = 'var(--danger)'; res.style.border = '1px solid #fecaca';
-        res.innerHTML = '<i class="fas fa-exclamation-circle"></i> Nama pasien wajib diisi.'; return;
+        res.style.display = 'block';
+        res.style.background = '#fef2f2';
+        res.style.color = 'var(--danger)';
+        res.style.border = '1px solid #fecaca';
+        res.innerHTML = '<i class="fas fa-exclamation-circle"></i> Nama pasien wajib diisi.';
+        return;
     }
     if (phone && (!/^\d+$/.test(phone) || !phone.startsWith('08') || phone.length < 10 || phone.length > 13)) {
-        res.style.display = 'block'; res.style.background = '#fef2f2'; res.style.color = 'var(--danger)'; res.style.border = '1px solid #fecaca';
-        res.innerHTML = '<i class="fas fa-exclamation-circle"></i> Nomor HP harus diawali 08 dan berisi 10-13 digit.'; return;
+        res.style.display = 'block';
+        res.style.background = '#fef2f2';
+        res.style.color = 'var(--danger)';
+        res.style.border = '1px solid #fecaca';
+        res.innerHTML = '<i class="fas fa-exclamation-circle"></i> Nomor HP harus diawali 08 dan berisi 10-13 digit.';
+        return;
     }
-
     // Collect all visits
     const visits = [];
     let visitTherapistError = '';
@@ -471,14 +460,16 @@ async function submitFullEdit() {
         });
     });
     if (visitTherapistError) {
-        res.style.display = 'block'; res.style.background = '#fef2f2'; res.style.color = 'var(--danger)'; res.style.border = '1px solid #fecaca';
+        res.style.display = 'block';
+        res.style.background = '#fef2f2';
+        res.style.color = 'var(--danger)';
+        res.style.border = '1px solid #fecaca';
         res.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + escapeHtml(visitTherapistError);
         return;
     }
-
     try {
-        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
-
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
         const form = new FormData();
         form.append('patient_id', id);
         form.append('name', name);
@@ -486,65 +477,87 @@ async function submitFullEdit() {
         form.append('address', address);
         form.append('gender', gender);
         form.append('visits', JSON.stringify(visits));
-
         const r = await fetch('/update_patient_full', { method: 'POST', body: form });
         const d = await r.json();
-
         res.style.display = 'block';
         if (d.status === 'success') {
-            res.style.background = '#ecfdf5'; res.style.color = 'var(--success)'; res.style.border = '1px solid #a7f3d0';
+            res.style.background = '#ecfdf5';
+            res.style.color = 'var(--success)';
+            res.style.border = '1px solid #a7f3d0';
             res.innerHTML = '<i class="fas fa-check-circle"></i> ' + d.message;
             setTimeout(() => { closeFullEditModal(); loadTab('patients'); }, 700);
-        } else {
+        }
+        else {
             const message = typeof formatUserMessage === 'function'
                 ? formatUserMessage(d.detail, 'Gagal menyimpan.')
                 : (d.detail || 'Gagal menyimpan.');
-            res.style.background = '#fef2f2'; res.style.color = 'var(--danger)'; res.style.border = '1px solid #fecaca';
+            res.style.background = '#fef2f2';
+            res.style.color = 'var(--danger)';
+            res.style.border = '1px solid #fecaca';
             res.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + escapeHtml(message);
         }
-    } catch (e) {
+    }
+    catch (e) {
         res.style.display = 'block';
-        res.style.background = '#fef2f2'; res.style.color = 'var(--danger)'; res.style.border = '1px solid #fecaca';
+        res.style.background = '#fef2f2';
+        res.style.color = 'var(--danger)';
+        res.style.border = '1px solid #fecaca';
         res.innerHTML = '<i class="fas fa-times"></i> Error: ' + escapeHtml(e.message);
-    } finally {
-        btn.disabled = false; btn.innerHTML = ogHtml;
+    }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
     }
 }
-
 async function deletePatient(id) {
-    const form = new FormData(); form.append('patient_id', id);
+    const form = new FormData();
+    form.append('patient_id', id);
     try {
         const r = await fetch('/delete_patient', { method: 'POST', body: form });
         const d = await r.json();
-        if (d.status === 'success') { closeFullEditModal(); loadTab('patients'); }
-        else alert(d.detail || 'Gagal menghapus pasien.');
-    } catch (e) { alert('Error: ' + e.message); }
+        if (d.status === 'success') {
+            closeFullEditModal();
+            loadTab('patients');
+        }
+        else
+            alert(d.detail || 'Gagal menghapus pasien.');
+    }
+    catch (e) {
+        alert('Error: ' + e.message);
+    }
 }
-
 async function deleteVisit(visitId) {
-    const form = new FormData(); form.append('visit_id', visitId);
+    const form = new FormData();
+    form.append('visit_id', visitId);
     try {
         const r = await fetch('/delete_visit', { method: 'POST', body: form });
         const d = await r.json();
         if (d.status === 'success') {
             // Remove row from modal UI
             const row = document.querySelector(`.fe-visit-row[data-vid="${visitId}"]`);
-            if (row) row.remove();
+            if (row)
+                row.remove();
             // Reload DataTable if active
-            if (window._patientsDT) { window._patientsDT.ajax.reload(null, false); }
+            if (window._patientsDT) {
+                window._patientsDT.ajax.reload(null, false);
+            }
         }
-        else alert(d.detail || 'Gagal menghapus kunjungan.');
-    } catch (e) { alert('Error: ' + e.message); }
+        else
+            alert(d.detail || 'Gagal menghapus kunjungan.');
+    }
+    catch (e) {
+        alert('Error: ' + e.message);
+    }
 }
-
 // ── EDIT MODAL LOGIC (Therapist) ─────────────────────────────────────────────
-
 function openEditModal(id) {
     const t = (window._therapistMap || {})[id];
-    if (!t) { alert('Data tidak ditemukan.'); return; }
-
-    document.getElementById('edit-id').value = t.id;
-    document.getElementById('edit-name').value = t.name;
+    if (!t) {
+        alert('Data tidak ditemukan.');
+        return;
+    }
+    document.getElementById('edit-id').value = String(t.id || '');
+    document.getElementById('edit-name').value = t.name || '';
     document.getElementById('edit-spec').value = t.specialization || '';
     document.getElementById('edit-gender').value = t.gender || 'Laki-laki';
     const anyGender = document.getElementById('edit-any-gender');
@@ -552,11 +565,9 @@ function openEditModal(id) {
         anyGender.checked = t.can_handle_any_gender === true;
     }
     document.getElementById('edit-result').innerHTML = '';
-
     const modal = document.getElementById('therapist-modal');
     modal.style.display = 'flex';
 }
-
 function openModal(title, htmlContent) {
     const modal = document.getElementById('generic-modal');
     const titleEl = document.getElementById('generic-modal-title');
@@ -567,15 +578,14 @@ function openModal(title, htmlContent) {
         modal.style.display = 'flex';
     }
 }
-
 function closeModal() {
     const tModal = document.getElementById('therapist-modal');
-    if (tModal) tModal.style.display = 'none';
-
+    if (tModal)
+        tModal.style.display = 'none';
     const gModal = document.getElementById('generic-modal');
-    if (gModal) gModal.style.display = 'none';
+    if (gModal)
+        gModal.style.display = 'none';
 }
-
 async function submitEdit() {
     const id = document.getElementById('edit-id').value;
     const name = document.getElementById('edit-name').value.trim();
@@ -583,12 +593,10 @@ async function submitEdit() {
     const spec = document.getElementById('edit-spec').value.trim();
     const canHandleAnyGender = document.getElementById('edit-any-gender')?.checked || false;
     const resultDiv = document.getElementById('edit-result');
-
     if (!name) {
         resultDiv.innerHTML = '<p style="color:var(--danger);font-size:13px;margin:0;"><i class="fas fa-exclamation-circle"></i> Nama tidak boleh kosong.</p>';
         return;
     }
-
     const form = new FormData();
     form.append('therapist_id', id);
     form.append('name', name);
@@ -596,19 +604,19 @@ async function submitEdit() {
     form.append('specialization', spec);
     form.append('is_active', 'true');
     form.append('can_handle_any_gender', canHandleAnyGender ? 'true' : 'false');
-
     resultDiv.innerHTML = '<span style="color:var(--primary);font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Menyimpan...</span>';
-
     try {
         const res = await fetch('/update_therapist', { method: 'POST', body: form });
         const data = await res.json();
         if (data.status === 'success') {
             resultDiv.innerHTML = '<span style="color:var(--success);font-size:13px;"><i class="fas fa-check-circle"></i> Tersimpan!</span>';
             setTimeout(() => { closeModal(); loadTab('therapists'); }, 700);
-        } else {
+        }
+        else {
             resultDiv.innerHTML = `<span style="color:var(--danger);font-size:13px;">${data.detail || 'Gagal menyimpan.'}</span>`;
         }
-    } catch (e) {
+    }
+    catch (e) {
         resultDiv.innerHTML = `<span style="color:var(--danger);font-size:13px;">Error: ${e.message}</span>`;
     }
 }

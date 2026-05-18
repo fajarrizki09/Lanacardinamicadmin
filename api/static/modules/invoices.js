@@ -1,100 +1,96 @@
+"use strict";
 // ─── INVOICES ─────────────────────────────────────────────────────────────────
-
-// @ts-check
-
 function openInvoice(path) {
     fetch('/open_invoice?path=' + encodeURIComponent(path))
         .then(res => res.json())
         .then(data => {
-            if (data.status && data.status.toLowerCase() !== 'success') {
-                showToast('Gagal membuka file: ' + (data.detail || 'File tidak ditemukan'), 'error');
-            }
-        })
+        if (data.status && data.status.toLowerCase() !== 'success') {
+            showToast('Gagal membuka file: ' + (data.detail || 'File tidak ditemukan'), 'error');
+        }
+    })
         .catch(() => showToast('Koneksi gagal saat mencoba membuka file invoice PDF.', 'error'));
 }
-
 function printInvoice(path) {
     fetch('/print_invoice?path=' + encodeURIComponent(path))
         .then(res => res.json())
         .then(data => {
-            if (data.status && data.status.toLowerCase() === 'success') {
-                showToast(data.message || 'Memulai proses cetak ke printer default...', 'success');
-            } else {
-                showToast('Gagal mencetak: ' + (data.detail || 'File tidak ditemukan'), 'error');
-            }
-        })
+        if (data.status && data.status.toLowerCase() === 'success') {
+            showToast(data.message || 'Memulai proses cetak ke printer default...', 'success');
+        }
+        else {
+            showToast('Gagal mencetak: ' + (data.detail || 'File tidak ditemukan'), 'error');
+        }
+    })
         .catch(() => showToast('Koneksi gagal saat mencoba mencetak file invoice PDF.', 'error'));
 }
-
 function generateInvoiceForVisit(visitId) {
     showToast("Sedang mengekspor PDF...", "info");
     const formData = new FormData();
     formData.append("visit_id", String(visitId));
-
     fetch('/generate_invoice', {
         method: 'POST',
         body: formData
     })
         .then(res => {
-            // Tangkap HTTP error (4xx, 5xx) sebelum parsing JSON
-            if (!res.ok) {
-                return res.json().then(err => {
-                    throw new Error(err.detail || `Server error ${res.status}`);
-                }).catch(() => {
-                    throw new Error(`Server error ${res.status} - periksa log server`);
-                });
-            }
-            return res.json();
-        })
+        // Tangkap HTTP error (4xx, 5xx) sebelum parsing JSON
+        if (!res.ok) {
+            return res.json().then(err => {
+                throw new Error(err.detail || `Server error ${res.status}`);
+            }).catch(() => {
+                throw new Error(`Server error ${res.status} - periksa log server`);
+            });
+        }
+        return res.json();
+    })
         .then(data => {
-            if (data.status === "success") {
-                showToast(data.message || "Invoice PDF berhasil dibuat!", "success");
-                // Reload the invoices tab to show the new buttons
-                window._invoicesPage = 1;
-                loadTab('invoices');
-            } else {
-                showToast("Gagal membuat invoice: " + (data.detail || "Terjadi kesalahan server"), "error");
-            }
-        })
+        if (data.status === "success") {
+            showToast(data.message || "Invoice PDF berhasil dibuat!", "success");
+            // Reload the invoices tab to show the new buttons
+            window._invoicesPage = 1;
+            loadTab('invoices');
+        }
+        else {
+            showToast("Gagal membuat invoice: " + (data.detail || "Terjadi kesalahan server"), "error");
+        }
+    })
         .catch(err => showToast("Gagal membuat invoice: " + sanitizeAppErrorMessage(err, "Gagal membuat invoice."), "error"));
 }
-
 function generateInvoiceForHerbal(identifier) {
     showToast("Sedang mengekspor PDF herbal...", "info");
     const formData = new FormData();
     const idText = String(identifier || '');
     if (idText.startsWith('group:')) {
         formData.append("sale_group_id", idText.slice(6));
-    } else {
+    }
+    else {
         formData.append("transaction_id", idText);
     }
-
     fetch('/generate_herbal_invoice', {
         method: 'POST',
         body: formData
     })
         .then(res => {
-            if (!res.ok) {
-                return res.json().then(err => {
-                    throw new Error(err.detail || `Server error ${res.status}`);
-                }).catch(() => {
-                    throw new Error(`Server error ${res.status} - periksa log server`);
-                });
-            }
-            return res.json();
-        })
+        if (!res.ok) {
+            return res.json().then(err => {
+                throw new Error(err.detail || `Server error ${res.status}`);
+            }).catch(() => {
+                throw new Error(`Server error ${res.status} - periksa log server`);
+            });
+        }
+        return res.json();
+    })
         .then(data => {
-            if (data.status === "success") {
-                showToast(data.message || "Invoice herbal PDF berhasil dibuat!", "success");
-                window._invoicesPage = 1;
-                loadTab('invoices');
-            } else {
-                showToast("Gagal membuat invoice herbal: " + (data.detail || "Terjadi kesalahan server"), "error");
-            }
-        })
+        if (data.status === "success") {
+            showToast(data.message || "Invoice herbal PDF berhasil dibuat!", "success");
+            window._invoicesPage = 1;
+            loadTab('invoices');
+        }
+        else {
+            showToast("Gagal membuat invoice herbal: " + (data.detail || "Terjadi kesalahan server"), "error");
+        }
+    })
         .catch(err => showToast("Gagal membuat invoice herbal: " + sanitizeAppErrorMessage(err, "Gagal membuat invoice herbal."), "error"));
 }
-
 function _paymentProviderLabel(provider) {
     const labels = {
         gateway_mock: 'Pembayaran Internal',
@@ -103,19 +99,19 @@ function _paymentProviderLabel(provider) {
     };
     return labels[String(provider || 'manual').toLowerCase()] || 'Provider Tidak Didukung';
 }
-
 function _isSupportedGatewayProvider(provider) {
     return ['gateway_mock', 'midtrans'].includes(String(provider || '').toLowerCase());
 }
-
 function _paymentProviderBadgeStyle(provider) {
     const normalized = String(provider || 'manual').toLowerCase();
-    if (normalized === 'midtrans') return { bg: '#ede9fe', color: '#6d28d9' };
-    if (normalized === 'gateway_mock') return { bg: '#dcfce7', color: '#047857' };
-    if (normalized === 'manual') return { bg: '#f1f5f9', color: '#475569' };
+    if (normalized === 'midtrans')
+        return { bg: '#ede9fe', color: '#6d28d9' };
+    if (normalized === 'gateway_mock')
+        return { bg: '#dcfce7', color: '#047857' };
+    if (normalized === 'manual')
+        return { bg: '#f1f5f9', color: '#475569' };
     return { bg: '#fee2e2', color: '#b91c1c' };
 }
-
 function _paymentStatusLabel(status) {
     const normalized = String(status || '').toLowerCase();
     const labels = {
@@ -128,7 +124,6 @@ function _paymentStatusLabel(status) {
     };
     return labels[normalized] || status || '-';
 }
-
 function _paymentMethodLabel(method) {
     const normalized = String(method || '').toLowerCase();
     const labels = {
@@ -144,29 +139,30 @@ function _paymentMethodLabel(method) {
     };
     return labels[normalized] || method || '-';
 }
-
 function _gatewaySourceFromInvoiceId(invoiceId) {
     const strId = String(invoiceId || '');
-    if (strId.startsWith('v_')) return { source_type: 'visit', source_id: strId.slice(2) };
-    if (strId.startsWith('hg_')) return { source_type: 'herbal', source_id: 'group:' + strId.slice(3) };
-    if (strId.startsWith('h_')) return { source_type: 'herbal', source_id: strId.slice(2) };
+    if (strId.startsWith('v_'))
+        return { source_type: 'visit', source_id: strId.slice(2) };
+    if (strId.startsWith('hg_'))
+        return { source_type: 'herbal', source_id: 'group:' + strId.slice(3) };
+    if (strId.startsWith('h_'))
+        return { source_type: 'herbal', source_id: strId.slice(2) };
     return null;
 }
-
 function _canUseGateway(method) {
     return ['qris', 'ewallet', 'virtual_account', 'credit_card'].includes(String(method || '').toLowerCase());
 }
-
 function _absolutePaymentUrl(paymentUrl) {
     const url = String(paymentUrl || '').trim();
-    if (!url) return '';
+    if (!url)
+        return '';
     try {
         return new URL(url, window.location.origin).href;
-    } catch (e) {
+    }
+    catch (e) {
         return url;
     }
 }
-
 async function createGatewayPayment(invoiceId, amount, method, button) {
     const source = _gatewaySourceFromInvoiceId(invoiceId);
     if (!source) {
@@ -182,7 +178,8 @@ async function createGatewayPayment(invoiceId, amount, method, button) {
             paymentWindow.opener = null;
             paymentWindow.document.write('<!doctype html><title>Membuat Link Pembayaran</title><p style="font-family:system-ui,sans-serif;padding:24px;">Membuat link pembayaran...</p>');
         }
-    } catch (e) {
+    }
+    catch (e) {
         paymentWindow = null;
     }
     const form = new FormData();
@@ -207,31 +204,32 @@ async function createGatewayPayment(invoiceId, amount, method, button) {
         if (paymentUrl && !isInternalPayment) {
             if (paymentWindow) {
                 paymentWindow.location.href = paymentUrl;
-            } else {
+            }
+            else {
                 showToast('Link berhasil dibuat. Popup browser diblokir, klik ikon buka link pada invoice.', 'warning');
             }
-        } else if (paymentWindow) {
+        }
+        else if (paymentWindow) {
             paymentWindow.close();
         }
-        showToast(
-            isInternalPayment
-                ? `${providerLabel} berhasil dibuat. Status menunggu pembayaran.`
-                : `Link pembayaran ${providerLabel} berhasil dibuat.`,
-            'success'
-        );
+        showToast(isInternalPayment
+            ? `${providerLabel} berhasil dibuat. Status menunggu pembayaran.`
+            : `Link pembayaran ${providerLabel} berhasil dibuat.`, 'success');
         window._invoicesPage = 1;
         loadTab('invoices');
-    } catch (error) {
-        if (paymentWindow) paymentWindow.close();
+    }
+    catch (error) {
+        if (paymentWindow)
+            paymentWindow.close();
         showToast(sanitizeAppErrorMessage(error, 'Gagal membuat link pembayaran.'), 'error');
-    } finally {
+    }
+    finally {
         if (actionButton) {
             actionButton.disabled = false;
             actionButton.innerHTML = originalHtml;
         }
     }
 }
-
 function openGatewayPaymentUrl(paymentUrl) {
     const url = _absolutePaymentUrl(paymentUrl);
     if (!url) {
@@ -240,7 +238,6 @@ function openGatewayPaymentUrl(paymentUrl) {
     }
     window.open(url, '_blank', 'noopener');
 }
-
 async function checkGatewayStatus(paymentReference) {
     const reference = String(paymentReference || '').trim();
     if (!reference) {
@@ -256,11 +253,11 @@ async function checkGatewayStatus(paymentReference) {
         const payment = data.payment || {};
         showToast(`Status pembayaran: ${(payment.payment_status || '-').toUpperCase()}`, 'info');
         loadTab('invoices');
-    } catch (error) {
+    }
+    catch (error) {
         showToast(sanitizeAppErrorMessage(error, 'Gagal mengecek status pembayaran.'), 'error');
     }
 }
-
 async function voidInvoice(type, identifier) {
     const idText = String(identifier || '');
     const html = `
@@ -280,7 +277,6 @@ async function voidInvoice(type, identifier) {
     `;
     openModal('Void / Cancel Invoice', html);
 }
-
 async function submitVoidInvoice(type, identifier) {
     const reasonInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('void-invoice-reason'));
     const reason = reasonInput?.value.trim() || '';
@@ -293,15 +289,18 @@ async function submitVoidInvoice(type, identifier) {
         cancelText: 'Batal',
         maxWidth: '420px'
     });
-    if (!ok) return;
+    if (!ok)
+        return;
     const form = new FormData();
     form.append('invoice_type', type);
     form.append('reason', reason);
     if (type === 'visit') {
         form.append('visit_id', String(identifier));
-    } else if (String(identifier).startsWith('group:')) {
+    }
+    else if (String(identifier).startsWith('group:')) {
         form.append('sale_group_id', String(identifier).slice(6));
-    } else {
+    }
+    else {
         form.append('transaction_id', String(identifier));
     }
     try {
@@ -314,14 +313,15 @@ async function submitVoidInvoice(type, identifier) {
         showToast(data.message, 'success');
         window._invoicesPage = 1;
         loadTab('invoices');
-    } catch (error) {
+    }
+    catch (error) {
         showToast(sanitizeAppErrorMessage(error, 'Gagal membatalkan invoice.'), 'error');
     }
 }
-
 function _invoiceUpdateTarget(invoiceId) {
     const source = _gatewaySourceFromInvoiceId(invoiceId);
-    if (!source) return null;
+    if (!source)
+        return null;
     if (source.source_type === 'visit') {
         return { invoice_type: 'visit', visit_id: source.source_id };
     }
@@ -330,7 +330,6 @@ function _invoiceUpdateTarget(invoiceId) {
     }
     return { invoice_type: 'herbal', transaction_id: source.source_id };
 }
-
 function manualInvoicePayment(invoiceId, status, amount, currentMethod = 'cash') {
     const target = _invoiceUpdateTarget(invoiceId);
     if (!target) {
@@ -371,7 +370,6 @@ function manualInvoicePayment(invoiceId, status, amount, currentMethod = 'cash')
     `;
     openModal(isPartial ? 'Catat DP Manual' : 'Tandai Lunas Manual', html);
 }
-
 async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
     const target = _invoiceUpdateTarget(invoiceId);
     const methodInput = /** @type {HTMLSelectElement | null} */ (document.getElementById('manual-payment-method'));
@@ -388,9 +386,12 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
     }
     const form = new FormData();
     form.append('invoice_type', target.invoice_type);
-    if (target.visit_id) form.append('visit_id', String(target.visit_id));
-    if (target.transaction_id) form.append('transaction_id', String(target.transaction_id));
-    if (target.sale_group_id) form.append('sale_group_id', String(target.sale_group_id));
+    if (target.visit_id)
+        form.append('visit_id', String(target.visit_id));
+    if (target.transaction_id)
+        form.append('transaction_id', String(target.transaction_id));
+    if (target.sale_group_id)
+        form.append('sale_group_id', String(target.sale_group_id));
     form.append('payment_status', status);
     form.append('payment_method', method);
     form.append('amount_paid', String(Math.round(amount)));
@@ -401,15 +402,11 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
             throw new Error(data.detail || 'Gagal memperbarui status pembayaran.');
         }
         closeModal();
-        const shouldRefreshPdf = await showConfirm(
-            `${data.message || 'Status pembayaran berhasil diperbarui.'}\n\nPDF invoice adalah snapshot. Update PDF sekarang agar status pembayaran di PDF ikut terbaru?`,
-            'info',
-            {
-                confirmText: 'Update PDF Sekarang',
-                cancelText: 'Nanti',
-                maxWidth: '460px'
-            }
-        );
+        const shouldRefreshPdf = await showConfirm(`${data.message || 'Status pembayaran berhasil diperbarui.'}\n\nPDF invoice adalah snapshot. Update PDF sekarang agar status pembayaran di PDF ikut terbaru?`, 'info', {
+            confirmText: 'Update PDF Sekarang',
+            cancelText: 'Nanti',
+            maxWidth: '460px'
+        });
         if (shouldRefreshPdf) {
             const target = _invoiceUpdateTarget(invoiceId);
             if (target?.invoice_type === 'visit' && target.visit_id) {
@@ -424,12 +421,11 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
         showToast(data.message || 'Status pembayaran berhasil diperbarui.', 'success');
         window._invoicesPage = 1;
         loadTab('invoices');
-    } catch (error) {
+    }
+    catch (error) {
         showToast(sanitizeAppErrorMessage(error, 'Gagal memperbarui status pembayaran.'), 'error');
     }
 }
-
-
 /** @param {InvoiceItem[]} data */
 function renderInvoices(data) {
     window._invoicesPage = window._invoicesPage || 1;
@@ -445,7 +441,6 @@ function renderInvoices(data) {
         'all': 'Semua'
     };
     const periodTitle = periodMap[activePeriod] || 'Semua';
-
     let html = `
         <!-- Summary bar -->
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:20px;">
@@ -494,7 +489,6 @@ function renderInvoices(data) {
                 </div>
                 </div>
             </div>`;
-
     if (data.length === 0) {
         html += `
             <div style="padding:60px; text-align:center; color:var(--text-muted);">
@@ -502,21 +496,20 @@ function renderInvoices(data) {
                 <p style="font-size:15px; font-weight:500;">Belum ada Data Transaksi.</p>
                 <p style="font-size:12px; margin-top:8px;">Data transaksi kunjungan pasien dan penjualan produk/herbal akan otomatis muncul di sini.</p>
             </div>`;
-    } else {
+    }
+    else {
         html += `<div class="table-container"><table class="invoice-table"><thead><tr>
             <th style="width:190px;">Tanggal</th>
             <th>Klien</th>
             <th style="text-align:right; width:160px;">Nilai Tagihan</th>
             <th style="text-align:center; width:250px;">Aksi</th>
         </tr></thead><tbody>`;
-
         data.forEach((i, idx) => {
             // Konversi backslash Windows ke forward slash agar aman di-embed dalam JS string HTML onclick.
             // Backslash di dalam string JS inline akan diinterpretasikan sebagai escape sequences (\U, \H dll)
             // sehingga seluruh path rusak. Server-side _resolve_invoice_path sudah handle forward slash.
             const rawPath = (i.path || '').replace(/\\/g, '/');
             const safePath = rawPath.replace(/'/g, "\\'");
-
             const strId = String(i.id);
             const isHerbal = strId.startsWith('h_') || strId.startsWith('hg_');
             const isVisit = strId.startsWith('v_');
@@ -594,7 +587,6 @@ function renderInvoices(data) {
                     </button>
                 `
                 : '';
-
             let actionHtml = '';
             if (isHerbal) {
                 if (hasInvoicePath && fileExists) {
@@ -621,7 +613,8 @@ function renderInvoices(data) {
                             <i class="fas fa-ban"></i>
                         </button>`}
                     `;
-                } else {
+                }
+                else {
                     actionHtml = `
                         ${missingFileNotice}
                         <button class="invoice-action-btn invoice-action-btn-text" onclick="generateInvoiceForHerbal('${strId.startsWith('hg_') ? 'group:' + numId : numId}')" title="Generate PDF Invoice Herbal"
@@ -632,7 +625,8 @@ function renderInvoices(data) {
                         </button>
                     `;
                 }
-            } else {
+            }
+            else {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
                         ${stalePdfNotice}
@@ -657,7 +651,8 @@ function renderInvoices(data) {
                             <i class="fas fa-ban"></i>
                         </button>`}
                     `;
-                } else {
+                }
+                else {
                     actionHtml = `
                         ${missingFileNotice}
                         <button class="invoice-action-btn invoice-action-btn-text" onclick="generateInvoiceForVisit(${numId})" title="Generate PDF Invoice"
@@ -669,7 +664,6 @@ function renderInvoices(data) {
                     `;
                 }
             }
-
             html += `<tr>
                 <td style="color:var(--text-muted);">
                     <i class="fas fa-calendar-alt" style="color:#cbd5e1; margin-right:6px;"></i>
@@ -696,7 +690,6 @@ function renderInvoices(data) {
                 </td>
             </tr>`;
         });
-
         html += `</tbody></table></div>
             <div style="display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:1px solid var(--border-color);">
                 <button type="button" class="btn btn-secondary" style="width:auto;" ${window._invoicesPage <= 1 ? 'disabled' : ''} onclick="window._invoicesPage=Math.max(1,(window._invoicesPage||1)-1); loadTab('invoices')">
@@ -707,10 +700,10 @@ function renderInvoices(data) {
                 </button>
             </div>`;
     }
-
     html += `</div>`;
     const displayArea = document.getElementById('display-area');
-    if (displayArea) displayArea.innerHTML = html;
+    if (displayArea)
+        displayArea.innerHTML = html;
     if (window._invoiceSearchRestoreFocus) {
         const input = /** @type {HTMLInputElement | null} */ (document.getElementById('invoice-search-input'));
         const cursor = Number(window._invoiceSearchCursor ?? String(window._invoicesSearch || '').length);
@@ -720,30 +713,31 @@ function renderInvoices(data) {
                 const pos = Math.min(cursor, input.value.length);
                 try {
                     input.setSelectionRange(pos, pos);
-                } catch (e) { }
+                }
+                catch (e) { }
             });
         }
         window._invoiceSearchRestoreFocus = false;
     }
 }
-
 async function refreshInvoicesList({ preserveSearchFocus = false } = {}) {
     const period = window._invoicesPeriod || 'all';
     const page = window._invoicesPage || 1;
     const search = window._invoicesSearch || '';
     const endpoint = `/invoices?period=${period}&page=${page}&page_size=100&search=${encodeURIComponent(search)}`;
-    if (preserveSearchFocus) window._invoiceSearchRestoreFocus = true;
-
+    if (preserveSearchFocus)
+        window._invoiceSearchRestoreFocus = true;
     try {
         const response = await fetch(endpoint);
-        if (!response.ok) throw new Error('Gagal memuat invoice.');
+        if (!response.ok)
+            throw new Error('Gagal memuat invoice.');
         const data = await response.json();
         renderInvoices(data);
-    } catch (error) {
+    }
+    catch (error) {
         showToast(sanitizeAppErrorMessage(error, 'Gagal memuat invoice.'), 'error');
     }
 }
-
 function onInvoiceSearchInput(value) {
     const input = /** @type {HTMLInputElement | null} */ (document.getElementById('invoice-search-input'));
     window._invoiceSearchCursor = input ? input.selectionStart : String(value || '').length;

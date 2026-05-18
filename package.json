@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "build:ts": "tsc -p tsconfig.static.json",
+    "build:ts": "tsc -p tsconfig.static.json && node tools/copy-built-app.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:services": "tsc -p tsconfig.json --noEmit --pretty false"
   },

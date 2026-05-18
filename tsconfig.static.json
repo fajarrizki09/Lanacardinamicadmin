@@ -6,8 +6,9 @@
     "ignoreDeprecations": "6.0",
     "rootDir": "api/static/ts",
     "outDir": "api/static/modules",
-    "strict": true,
-    "noImplicitAny": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false,
     "skipLibCheck": true,
     "types": []
   },

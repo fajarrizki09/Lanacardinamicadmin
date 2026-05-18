@@ -1,5 +1,5 @@
+"use strict";
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
-
 function renderSettings(s, options = {}) {
     const onlyDiscount = options.onlyDiscount === true;
     const pricePerPoint = s.price_per_point ?? 10000;
@@ -9,7 +9,7 @@ function renderSettings(s, options = {}) {
         : 'gateway_mock';
     const paymentProviderRegistry = s.payment_gateway_provider_registry || {};
     const comingSoonProviders = Object.entries(paymentProviderRegistry)
-        .filter(([, info]) => info && info.status === 'coming_soon')
+        .filter(([, info]) => info.status === 'coming_soon')
         .map(([id, info]) => ({ id, label: info.display_name || id }));
     const comingSoonHtml = comingSoonProviders.length
         ? `<div class="settings-info-row" style="margin-bottom:14px;">
@@ -505,18 +505,19 @@ function renderSettings(s, options = {}) {
         syncManualSimulationControl();
         return;
     }
-    if (discountCard) discountCard.remove();
+    if (discountCard)
+        discountCard.remove();
     arrangeSettingsLayout();
     loadLicenseSettingsStatus();
     loadSettingsExportFolder();
     loadBackupManagement();
 }
-
 function renderVouchers() {
     renderSettings({}, { onlyDiscount: true });
     const displayArea = document.getElementById('display-area');
     const discountCard = displayArea?.querySelector('.discount-admin-card');
-    if (!displayArea || !discountCard) return;
+    if (!displayArea || !discountCard)
+        return;
     discountCard.insertAdjacentHTML('beforebegin', `
         <div class="card free-visit-reasons-card" style="margin-bottom:18px; border-top:3px solid #10b981;">
             <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
@@ -548,15 +549,16 @@ function renderVouchers() {
     `);
     loadFreeVisitReasons();
 }
-
 async function loadDiscountPatientOptions(selectedIds = []) {
     const select = document.getElementById('discount-rule-target-patients');
-    if (!select) return;
+    if (!select)
+        return;
     const selectedSet = new Set((selectedIds || []).map(id => String(id)));
     try {
         const response = await fetch('/patients');
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.detail || 'Gagal memuat pasien.');
+        if (!response.ok)
+            throw new Error(data.detail || 'Gagal memuat pasien.');
         const patients = Array.isArray(data.patients) ? data.patients : [];
         if (!patients.length) {
             select.innerHTML = '<option value="">Belum ada pasien.</option>';
@@ -569,80 +571,86 @@ async function loadDiscountPatientOptions(selectedIds = []) {
             return `<option value="${escapeHtml(id)}" ${selectedSet.has(id) ? 'selected' : ''}>${escapeHtml(patient.name || 'Pasien')}${escapeHtml(phone)}</option>`;
         }).join('');
         syncDiscountTargetPatients();
-    } catch (error) {
+    }
+    catch (error) {
         select.innerHTML = `<option value="">${escapeHtml(sanitizeAppErrorMessage(error.message, 'Gagal memuat pasien.'))}</option>`;
         syncDiscountTargetPatients();
     }
 }
-
 function syncDiscountTargetPatients() {
     const select = document.getElementById('discount-rule-target-patients');
     const hidden = document.getElementById('discount-rule-target-patient-ids');
-    if (!select || !hidden) return;
+    if (!select || !hidden)
+        return;
     hidden.value = Array.from(select.selectedOptions || [])
         .map(option => option.value)
         .filter(Boolean)
         .join(',');
 }
-
 function defaultFreeVisitReasons() {
     return ['promo', 'keluarga', 'koreksi', 'gratis lain-lain'];
 }
-
 async function loadFreeVisitReasons() {
     const input = document.getElementById('free-visit-reasons-input');
     const result = document.getElementById('free-visit-reasons-result');
-    if (!input) return;
+    if (!input)
+        return;
     try {
         const response = await fetch('/free_visit_reasons');
-        if (!response.ok) throw new Error('Gagal memuat alasan promo gratis.');
+        if (!response.ok)
+            throw new Error('Gagal memuat alasan promo gratis.');
         const data = await response.json();
         const items = Array.isArray(data.items) && data.items.length ? data.items : defaultFreeVisitReasons();
         input.value = items.join('\n');
-        if (result) result.innerHTML = '';
-    } catch (error) {
+        if (result)
+            result.innerHTML = '';
+    }
+    catch (error) {
         input.value = defaultFreeVisitReasons().join('\n');
         if (result) {
             result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
         }
     }
 }
-
 function resetFreeVisitReasons() {
     const input = document.getElementById('free-visit-reasons-input');
-    if (input) input.value = defaultFreeVisitReasons().join('\n');
+    if (input)
+        input.value = defaultFreeVisitReasons().join('\n');
 }
-
 async function submitFreeVisitReasons(event) {
     event.preventDefault();
     const input = document.getElementById('free-visit-reasons-input');
     const result = document.getElementById('free-visit-reasons-result');
-    if (!input) return;
+    if (!input)
+        return;
     const lines = input.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
     if (!lines.length) {
-        if (result) result.innerHTML = '<div style="padding:10px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:13px;">Minimal isi satu alasan promo gratis.</div>';
+        if (result)
+            result.innerHTML = '<div style="padding:10px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:13px;">Minimal isi satu alasan promo gratis.</div>';
         return;
     }
-
     const formData = new FormData();
     formData.set('reasons', lines.join('\n'));
     try {
         const response = await fetch('/free_visit_reasons', { method: 'POST', body: formData });
         const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal menyimpan alasan promo gratis.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyimpan alasan promo gratis.');
         input.value = (data.items || lines).join('\n');
-        if (result) result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
+        if (result)
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
         showToast(data.message, 'success');
-    } catch (error) {
-        if (result) result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
+    }
+    catch (error) {
+        if (result)
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
         showToast(error.message, 'error');
     }
 }
-
 function arrangeSettingsLayout() {
     const root = document.querySelector('.settings-compact-grid');
-    if (!root || root.querySelector('.settings-left-stack')) return;
-
+    if (!root || root.querySelector('.settings-left-stack'))
+        return;
     const systemCard = root.querySelector('.settings-system-card');
     const stack = root.querySelector('.settings-card-stack');
     const licenseCard = root.querySelector('.settings-license-card');
@@ -651,80 +659,88 @@ function arrangeSettingsLayout() {
     const exportCard = root.querySelector('.settings-export-card');
     const importCard = root.querySelector('.settings-import-card');
     const backupCard = root.querySelector('.settings-backup-card');
-    if (!systemCard || !stack) return;
-
+    if (!systemCard || !stack)
+        return;
     const left = document.createElement('div');
     left.className = 'settings-left-stack';
     const right = document.createElement('div');
     right.className = 'settings-right-stack';
-
     left.appendChild(systemCard);
-    if (exportCard) left.appendChild(exportCard);
-    if (importCard) left.appendChild(importCard);
-    if (licenseCard) right.appendChild(licenseCard);
-    if (securityCard) right.appendChild(securityCard);
-    if (demoCard) right.appendChild(demoCard);
-    if (backupCard) right.appendChild(backupCard);
-
+    if (exportCard)
+        left.appendChild(exportCard);
+    if (importCard)
+        left.appendChild(importCard);
+    if (licenseCard)
+        right.appendChild(licenseCard);
+    if (securityCard)
+        right.appendChild(securityCard);
+    if (demoCard)
+        right.appendChild(demoCard);
+    if (backupCard)
+        right.appendChild(backupCard);
     root.replaceChildren(left, right);
 }
-
 async function uploadClinicLogo(input) {
     const result = document.getElementById('clinic-logo-result');
     const pathInput = document.getElementById('clinic-logo-path');
     const file = input?.files?.[0];
-    if (!file) return;
-
+    if (!file)
+        return;
     if (file.size > 2 * 1024 * 1024) {
         input.value = '';
-        if (result) result.innerHTML = '<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>Ukuran logo maksimal 2 MB.</span></div>';
+        if (result)
+            result.innerHTML = '<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>Ukuran logo maksimal 2 MB.</span></div>';
         showToast('Ukuran logo maksimal 2 MB.', 'error');
         return;
     }
-
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
     const allowedExt = /\.(png|jpe?g|webp)$/i;
     if (!allowedTypes.includes(file.type) && !allowedExt.test(file.name || '')) {
         input.value = '';
-        if (result) result.innerHTML = '<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>Format logo harus PNG, JPG, JPEG, atau WebP.</span></div>';
+        if (result)
+            result.innerHTML = '<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>Format logo harus PNG, JPG, JPEG, atau WebP.</span></div>';
         showToast('Format logo harus PNG, JPG, JPEG, atau WebP.', 'error');
         return;
     }
-
     const formData = new FormData();
     formData.append('logo', file, file.name);
-    if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Menyimpan logo...</span></div>';
-
+    if (result)
+        result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Menyimpan logo...</span></div>';
     try {
         const response = await fetch('/settings/logo', { method: 'POST', body: formData });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal menyimpan logo.');
-        if (pathInput) pathInput.value = data.path || '';
-        if (result) result.innerHTML = `<div class="settings-info-row success"><i class="fas fa-check-circle"></i><span>${escapeHtml(data.message || 'Logo klinik siap disimpan.')}</span></div>`;
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyimpan logo.');
+        if (pathInput)
+            pathInput.value = data.path || '';
+        if (result)
+            result.innerHTML = `<div class="settings-info-row success"><i class="fas fa-check-circle"></i><span>${escapeHtml(data.message || 'Logo klinik siap disimpan.')}</span></div>`;
         showToast('Logo klinik siap disimpan. Klik Simpan Semua Pengaturan.', 'success');
-    } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(error.message || 'Gagal menyimpan logo.')}</span></div>`;
+    }
+    catch (error) {
+        if (result)
+            result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(error.message || 'Gagal menyimpan logo.')}</span></div>`;
         showToast(error.message || 'Gagal menyimpan logo.', 'error');
     }
 }
-
 function clearClinicLogoPath() {
     const pathInput = document.getElementById('clinic-logo-path');
     const fileInput = document.getElementById('clinic-logo-file');
     const result = document.getElementById('clinic-logo-result');
-    if (pathInput) pathInput.value = '';
-    if (fileInput) fileInput.value = '';
-    if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-info-circle"></i><span>Logo akan dikosongkan setelah pengaturan disimpan.</span></div>';
+    if (pathInput)
+        pathInput.value = '';
+    if (fileInput)
+        fileInput.value = '';
+    if (result)
+        result.innerHTML = '<div class="settings-info-row"><i class="fas fa-info-circle"></i><span>Logo akan dikosongkan setelah pengaturan disimpan.</span></div>';
 }
-
 let discountRulesCache = [];
-
 function setDiscountRuleType(type) {
     const typeSelect = document.getElementById('discount-rule-type');
-    if (typeSelect) typeSelect.value = type;
+    if (typeSelect)
+        typeSelect.value = type;
     updateDiscountRuleTypeUI();
 }
-
 function updateDiscountRuleTypeUI() {
     const type = document.getElementById('discount-rule-type')?.value || 'visit_count';
     document.querySelectorAll('.discount-type-picker button').forEach(button => {
@@ -733,20 +749,24 @@ function updateDiscountRuleTypeUI() {
     document.querySelectorAll('.discount-field-condition').forEach(el => el.style.display = type === 'visit_count' ? '' : 'none');
     document.querySelectorAll('.discount-field-voucher').forEach(el => el.style.display = type === 'voucher' ? '' : 'none');
     document.querySelectorAll('.discount-field-date').forEach(el => el.style.display = type === 'period' ? '' : 'none');
-
     const condition = document.getElementById('discount-rule-condition');
     const voucher = document.getElementById('discount-rule-voucher');
     const usageLimit = document.getElementById('discount-rule-usage-limit');
     const perPatientLimit = document.getElementById('discount-rule-per-patient-limit');
     const start = document.getElementById('discount-rule-start');
     const end = document.getElementById('discount-rule-end');
-    if (condition) condition.required = type === 'visit_count';
-    if (voucher) voucher.required = type === 'voucher';
-    if (usageLimit) usageLimit.required = false;
-    if (perPatientLimit) perPatientLimit.required = false;
-    if (start) start.required = type === 'period' && !end?.value;
-    if (end) end.required = type === 'period' && !start?.value;
-
+    if (condition)
+        condition.required = type === 'visit_count';
+    if (voucher)
+        voucher.required = type === 'voucher';
+    if (usageLimit)
+        usageLimit.required = false;
+    if (perPatientLimit)
+        perPatientLimit.required = false;
+    if (start)
+        start.required = type === 'period' && !end?.value;
+    if (end)
+        end.required = type === 'period' && !start?.value;
     const nameInput = document.getElementById('discount-rule-name');
     if (nameInput && !nameInput.value) {
         const names = {
@@ -758,45 +778,42 @@ function updateDiscountRuleTypeUI() {
         nameInput.placeholder = names[type] || 'Nama diskon';
     }
 }
-
 function syncDiscountActivationControl() {
     const input = document.getElementById('discount-rule-active');
     const control = document.getElementById('discount-rule-active-control');
     const title = document.getElementById('discount-rule-active-title');
     const help = document.getElementById('discount-rule-active-help');
     const active = input ? input.checked : false;
-
     if (control) {
         control.classList.toggle('is-on', active);
         control.classList.toggle('is-off', !active);
     }
-    if (title) title.textContent = active ? 'Aktif' : 'Nonaktif';
+    if (title)
+        title.textContent = active ? 'Aktif' : 'Nonaktif';
     if (help) {
         help.textContent = active
             ? 'Diskon/voucher akan dihitung untuk transaksi baru.'
             : 'Transaksi baru memakai harga normal sampai diaktifkan lagi.';
     }
 }
-
 function syncManualSimulationControl() {
     const input = document.getElementById('discount-sim-manual');
     const control = document.getElementById('discount-sim-manual-control');
     const title = document.getElementById('discount-sim-manual-title');
     const help = document.getElementById('discount-sim-manual-help');
     const active = input ? input.checked : false;
-
     if (control) {
         control.classList.toggle('is-on', active);
         control.classList.toggle('is-off', !active);
     }
-    if (title) title.textContent = active ? 'Harga manual aktif' : 'Harga normal';
+    if (title)
+        title.textContent = active ? 'Harga manual aktif' : 'Harga normal';
     if (help) {
         help.textContent = active
             ? 'Simulasi menganggap admin sudah mengubah harga manual.'
             : 'Simulasi memakai aturan diskon otomatis.';
     }
 }
-
 async function runDiscountSimulation() {
     const result = document.getElementById('discount-simulation-result');
     const params = new URLSearchParams({
@@ -805,12 +822,13 @@ async function runDiscountSimulation() {
         voucher_code: document.getElementById('discount-sim-voucher')?.value || '',
         manual_price_used: document.getElementById('discount-sim-manual')?.checked ? 'true' : 'false',
     });
-    if (result) result.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghitung simulasi...';
-
+    if (result)
+        result.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghitung simulasi...';
     try {
         const response = await fetch(`/discount_rules/simulate?${params.toString()}`);
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || 'Gagal menjalankan simulasi.');
+        if (!response.ok)
+            throw new Error(data.detail || 'Gagal menjalankan simulasi.');
         const selected = data.selected;
         const matches = data.matches || [];
         if (!selected) {
@@ -825,23 +843,24 @@ async function runDiscountSimulation() {
             </div>
             ${matches.length > 1 ? `<div class="discount-sim-conflict">${escapeHtml(data.message)} Cocok juga: ${matches.slice(1).map(item => escapeHtml(item.name)).join(', ')}</div>` : `<div class="discount-sim-note">${escapeHtml(data.message)}</div>`}
         `;
-    } catch (error) {
+    }
+    catch (error) {
         result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
     }
 }
-
 function formatBackupSize(bytes) {
     const value = Number(bytes || 0);
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-    if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+    if (value >= 1024 * 1024)
+        return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    if (value >= 1024)
+        return `${(value / 1024).toFixed(1)} KB`;
     return `${value} B`;
 }
-
 function renderBackupManagement(data) {
     const list = document.getElementById('backup-management-list');
     const result = document.getElementById('backup-management-result');
-    if (!list) return;
-
+    if (!list)
+        return;
     const status = data.status || {};
     if (result && status.message) {
         result.innerHTML = `
@@ -850,12 +869,10 @@ function renderBackupManagement(data) {
                 <span>${escapeHtml(status.message)}</span>
             </div>`;
     }
-
     if (!data.items || !data.items.length) {
         list.innerHTML = '<div class="settings-muted-row">Belum ada file backup.</div>';
         return;
     }
-
     list.innerHTML = data.items.map(item => `
         <div class="backup-item">
             <div>
@@ -868,69 +885,73 @@ function renderBackupManagement(data) {
         </div>
     `).join('');
 }
-
 async function loadBackupManagement() {
     const list = document.getElementById('backup-management-list');
-    if (list) list.innerHTML = '<div class="settings-muted-row"><i class="fas fa-spinner fa-spin"></i> Memuat daftar backup...</div>';
-
+    if (list)
+        list.innerHTML = '<div class="settings-muted-row"><i class="fas fa-spinner fa-spin"></i> Memuat daftar backup...</div>';
     try {
         const response = await fetch('/backups');
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || 'Gagal memuat backup.');
+        if (!response.ok)
+            throw new Error(data.detail || 'Gagal memuat backup.');
         renderBackupManagement(data);
-    } catch (error) {
-        if (list) list.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
+    }
+    catch (error) {
+        if (list)
+            list.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
     }
 }
-
 async function createWebBackup() {
     const result = document.getElementById('backup-management-result');
-    if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Membuat backup database...</span></div>';
-
+    if (result)
+        result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Membuat backup database...</span></div>';
     try {
         const response = await fetch('/backups/create', { method: 'POST' });
         const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal membuat backup.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal membuat backup.');
         showToast(data.message || 'Backup berhasil dibuat.', 'success');
         await loadBackupManagement();
-    } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
+    }
+    catch (error) {
+        if (result)
+            result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
     }
 }
-
 async function restoreWebBackup(path) {
     const ok = await showConfirm('Restore database dari backup ini? Database aktif akan dibuatkan backup pengaman terlebih dahulu.', 'warning');
-    if (!ok) return;
-
+    if (!ok)
+        return;
     const result = document.getElementById('backup-management-result');
-    if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Restore backup...</span></div>';
-
+    if (result)
+        result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Restore backup...</span></div>';
     try {
         const formData = new FormData();
         formData.set('relative_path', path);
         const response = await fetch('/backups/restore', { method: 'POST', body: formData });
         const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal restore backup.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal restore backup.');
         showToast(data.message || 'Restore backup berhasil.', 'success');
         await loadBackupManagement();
-    } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
+    }
+    catch (error) {
+        if (result)
+            result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
     }
 }
-
 function renderLicenseSettingsStatus(data) {
     const box = document.getElementById('license-settings-status');
     const clinicInput = document.getElementById('license-clinic-id');
-    if (!box) return;
-
+    if (!box)
+        return;
     const isValid = data && data.valid === true && data.status !== 'expired';
     const keyText = data && data.license_key ? data.license_key : 'Belum tersedia';
     const clinicId = data && data.clinic_id ? data.clinic_id : '';
     const expiredAt = data && data.expired_at ? formatLicenseSettingsDate(data.expired_at) : '-';
     const message = data && data.message ? data.message : '';
-
-    if (clinicInput && !clinicInput.value) clinicInput.value = clinicId;
-
+    if (clinicInput && !clinicInput.value)
+        clinicInput.value = clinicId;
     box.style.background = isValid ? '#ecfdf5' : '#fef2f2';
     box.style.borderColor = isValid ? '#a7f3d0' : '#fecaca';
     box.style.color = isValid ? '#065f46' : '#991b1b';
@@ -948,11 +969,10 @@ function renderLicenseSettingsStatus(data) {
             </div>
         </div>`;
 }
-
 function formatLicenseSettingsDate(value) {
     const text = String(value || '').trim();
-    if (!text) return '-';
-
+    if (!text)
+        return '-';
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
         const [year, month, day] = text.split('-').map(Number);
         return new Date(year, month - 1, day).toLocaleDateString('id-ID', {
@@ -961,35 +981,33 @@ function formatLicenseSettingsDate(value) {
             year: 'numeric'
         });
     }
-
     const date = new Date(text);
-    if (Number.isNaN(date.getTime())) return text;
-
+    if (Number.isNaN(date.getTime()))
+        return text;
     return date.toLocaleDateString('id-ID', {
         day: '2-digit',
         month: 'short',
         year: 'numeric'
     });
 }
-
 async function loadLicenseSettingsStatus() {
     try {
         const response = await fetch('/license_status');
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || 'Gagal memuat status lisensi.');
+        if (!response.ok)
+            throw new Error(data.detail || 'Gagal memuat status lisensi.');
         renderLicenseSettingsStatus(data);
-    } catch (error) {
+    }
+    catch (error) {
         renderLicenseSettingsStatus({ valid: false, message: error.message });
     }
 }
-
 async function submitLicenseActivation(event) {
     event.preventDefault();
     const form = event.target;
     const result = document.getElementById('license-settings-result');
     const button = form.querySelector('button[type="submit"]');
     const originalText = button ? button.innerHTML : '';
-
     if (button) {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memverifikasi...';
@@ -997,34 +1015,35 @@ async function submitLicenseActivation(event) {
     if (result) {
         result.innerHTML = '<div style="color:#4f46e5;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Menghubungi server lisensi...</div>';
     }
-
     try {
         const response = await fetch('/activate_license', {
             method: 'POST',
             body: new FormData(form),
         });
         const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Aktivasi lisensi gagal.');
-
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Aktivasi lisensi gagal.');
         if (result) {
             result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
         }
         document.getElementById('license-key-input').value = '';
         renderLicenseSettingsStatus(data.license || {});
-        if (typeof loadLicenseStatus === 'function') await loadLicenseStatus();
-    } catch (error) {
+        if (typeof loadLicenseStatus === 'function')
+            await loadLicenseStatus();
+    }
+    catch (error) {
         if (result) {
             result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
         }
         await loadLicenseSettingsStatus();
-    } finally {
+    }
+    finally {
         if (button) {
             button.disabled = false;
             button.innerHTML = originalText;
         }
     }
 }
-
 async function submitAdminPinChange(event) {
     event.preventDefault();
     const form = event.target;
@@ -1034,9 +1053,9 @@ async function submitAdminPinChange(event) {
     const currentPin = document.getElementById('admin-current-pin')?.value.trim() || '';
     const newPin = document.getElementById('admin-new-pin')?.value.trim() || '';
     const confirmPin = document.getElementById('admin-confirm-pin')?.value.trim() || '';
-
     const showPinResult = (message, type = 'error') => {
-        if (!result) return;
+        if (!result)
+            return;
         const ok = type === 'success';
         result.innerHTML = `
             <div class="${ok ? 'settings-info-row success' : 'settings-error-row'}">
@@ -1044,7 +1063,6 @@ async function submitAdminPinChange(event) {
                 <span>${escapeHtml(message)}</span>
             </div>`;
     };
-
     if (!currentPin || !newPin || !confirmPin) {
         showPinResult('Semua field PIN wajib diisi.');
         return;
@@ -1057,12 +1075,10 @@ async function submitAdminPinChange(event) {
         showPinResult('Konfirmasi PIN baru belum sama.');
         return;
     }
-
     if (button) {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengubah PIN...';
     }
-
     try {
         const formData = new FormData();
         formData.set('current_pin', currentPin);
@@ -1073,24 +1089,25 @@ async function submitAdminPinChange(event) {
             const message = response.status === 403 ? 'PIN lama salah.' : (data.detail || 'Gagal mengubah PIN admin.');
             throw new Error(message);
         }
-
         window._adminPin = newPin;
         form.reset();
         showPinResult(data.message || 'PIN admin berhasil diubah.', 'success');
         showToast('PIN admin berhasil diubah.', 'success');
-    } catch (error) {
+    }
+    catch (error) {
         showPinResult(error.message || 'Gagal mengubah PIN admin.');
-    } finally {
+    }
+    finally {
         if (button) {
             button.disabled = false;
             button.innerHTML = originalText;
         }
     }
 }
-
 function renderAdminPinResetResult(message, type = 'error') {
     const result = document.getElementById('admin-pin-reset-result');
-    if (!result) return;
+    if (!result)
+        return;
     const ok = type === 'success';
     result.innerHTML = `
         <div class="${ok ? 'settings-info-row success' : 'settings-error-row'}">
@@ -1098,7 +1115,6 @@ function renderAdminPinResetResult(message, type = 'error') {
             <span>${escapeHtml(message)}</span>
         </div>`;
 }
-
 async function requestAdminPinReset() {
     const button = document.getElementById('admin-pin-reset-request-btn');
     const originalText = button ? button.innerHTML : '';
@@ -1107,7 +1123,6 @@ async function requestAdminPinReset() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim...';
     }
     renderAdminPinResetResult('Menghubungi server lisensi untuk membuat permintaan reset...', 'success');
-
     try {
         const response = await fetch('/admin_pin/reset/request', { method: 'POST' });
         const data = await response.json().catch(() => ({}));
@@ -1116,19 +1131,21 @@ async function requestAdminPinReset() {
         }
         const suffix = data.reset_request_id ? ` ID permintaan: ${data.reset_request_id}` : '';
         const form = document.getElementById('admin-pin-reset-form');
-        if (form) form.dataset.resetToken = data.reset_token || '';
+        if (form)
+            form.dataset.resetToken = data.reset_token || '';
         renderAdminPinResetResult(`${data.message || 'Permintaan reset PIN dikirim.'}${suffix}`, 'success');
         showToast('Permintaan reset PIN dikirim ke server lisensi.', 'success');
-    } catch (error) {
+    }
+    catch (error) {
         renderAdminPinResetResult(error.message || 'Gagal meminta reset PIN.');
-    } finally {
+    }
+    finally {
         if (button) {
             button.disabled = false;
             button.innerHTML = originalText;
         }
     }
 }
-
 async function submitAdminPinReset(event) {
     event.preventDefault();
     const form = event.target;
@@ -1138,7 +1155,6 @@ async function submitAdminPinReset(event) {
     const resetPin = document.getElementById('admin-reset-token')?.value.trim() || '';
     const newPin = document.getElementById('admin-reset-new-pin')?.value.trim() || '';
     const confirmPin = document.getElementById('admin-reset-confirm-pin')?.value.trim() || '';
-
     if (!resetPin) {
         renderAdminPinResetResult('Kode reset dari server lisensi wajib diisi.');
         return;
@@ -1155,12 +1171,10 @@ async function submitAdminPinReset(event) {
         renderAdminPinResetResult('Konfirmasi PIN baru belum sama.');
         return;
     }
-
     if (button) {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mereset PIN...';
     }
-
     try {
         const formData = new FormData();
         formData.set('reset_token', token);
@@ -1171,54 +1185,64 @@ async function submitAdminPinReset(event) {
         if (!response.ok || data.status !== 'success') {
             throw new Error(data.detail || 'Kode reset tidak valid atau sudah kedaluwarsa.');
         }
-
         window._adminPin = newPin;
         window._adminUnlocked = true;
         form.reset();
         renderAdminPinResetResult(data.message || 'PIN admin berhasil direset.', 'success');
         showToast('PIN admin berhasil direset.', 'success');
-    } catch (error) {
+    }
+    catch (error) {
         renderAdminPinResetResult(error.message || 'Gagal reset PIN admin.');
-    } finally {
+    }
+    finally {
         if (button) {
             button.disabled = false;
             button.innerHTML = originalText;
         }
     }
 }
-
 async function seedDemoData() {
     const result = document.getElementById('demo-data-result');
     const ok = await showConfirm('Data contoh akan bercampur dengan data asli jika database sudah berisi data. Lanjutkan?', 'warning');
-    if (!ok) return;
-    if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Mengisi data contoh...</span></div>';
+    if (!ok)
+        return;
+    if (result)
+        result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Mengisi data contoh...</span></div>';
     try {
         const response = await fetch('/demo_data/seed', { method: 'POST' });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal mengisi data contoh.');
-        if (result) result.innerHTML = `<div class="settings-info-row success"><i class="fas fa-check-circle"></i><span>${escapeHtml(data.message || 'Data contoh berhasil ditambahkan.')}</span></div>`;
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal mengisi data contoh.');
+        if (result)
+            result.innerHTML = `<div class="settings-info-row success"><i class="fas fa-check-circle"></i><span>${escapeHtml(data.message || 'Data contoh berhasil ditambahkan.')}</span></div>`;
         showToast(data.message || 'Data contoh berhasil ditambahkan.', 'success');
-    } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(error.message)}</span></div>`;
+    }
+    catch (error) {
+        if (result)
+            result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(error.message)}</span></div>`;
     }
 }
-
 async function clearDemoData() {
     const result = document.getElementById('demo-data-result');
     const ok = await showConfirm('Hapus/nonaktifkan data demo yang dikenali sistem? Data asli tidak akan disentuh.', 'warning');
-    if (!ok) return;
-    if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Menghapus data demo...</span></div>';
+    if (!ok)
+        return;
+    if (result)
+        result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Menghapus data demo...</span></div>';
     try {
         const response = await fetch('/demo_data/clear', { method: 'POST' });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal menghapus data demo.');
-        if (result) result.innerHTML = `<div class="settings-info-row success"><i class="fas fa-check-circle"></i><span>${escapeHtml(data.message || 'Data demo dihapus.')}</span></div>`;
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menghapus data demo.');
+        if (result)
+            result.innerHTML = `<div class="settings-info-row success"><i class="fas fa-check-circle"></i><span>${escapeHtml(data.message || 'Data demo dihapus.')}</span></div>`;
         showToast(data.message || 'Data demo dihapus.', 'success');
-    } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(error.message)}</span></div>`;
+    }
+    catch (error) {
+        if (result)
+            result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(error.message)}</span></div>`;
     }
 }
-
 async function exportSettingsData(format) {
     const safeFormat = format === 'json' ? 'json' : 'xlsx';
     const kind = document.getElementById('settings-export-kind')?.value || 'all';
@@ -1226,7 +1250,6 @@ async function exportSettingsData(format) {
     const result = document.getElementById('settings-export-result');
     const original = button ? button.innerHTML : '';
     const exportUrl = `/export/save?format=${safeFormat}&kind=${encodeURIComponent(kind)}`;
-
     try {
         if (button) {
             button.disabled = true;
@@ -1235,13 +1258,11 @@ async function exportSettingsData(format) {
         if (result) {
             result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Menyiapkan file export...</span></div>';
         }
-
         const response = await fetch(exportUrl);
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
             throw new Error(data.detail || 'Gagal export data.');
         }
-
         const message = safeFormat === 'json' ? 'Export JSON berhasil dibuat.' : 'Export Excel berhasil dibuat.';
         if (result) {
             result.innerHTML = `
@@ -1259,48 +1280,52 @@ async function exportSettingsData(format) {
             `;
         }
         showToast(message, 'success');
-    } catch (error) {
+    }
+    catch (error) {
         const message = sanitizeAppErrorMessage(error.message, 'Gagal export data.');
         if (result) {
             result.innerHTML = `<div class="settings-error-row"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(message)}</span></div>`;
         }
         showToast(message, 'error');
-    } finally {
+    }
+    finally {
         if (button) {
             button.disabled = false;
             button.innerHTML = original;
         }
     }
 }
-
 async function loadSettingsExportFolder() {
     const box = document.getElementById('settings-export-folder');
-    if (!box) return;
+    if (!box)
+        return;
     try {
         const response = await fetch('/support/app_info');
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.detail || 'Gagal memuat folder export.');
+        if (!response.ok)
+            throw new Error(data.detail || 'Gagal memuat folder export.');
         box.innerHTML = `
             <i class="fas fa-folder"></i>
             <span>Folder export:<br><small>${escapeHtml(data.exports_dir || '-')}</small></span>
         `;
-    } catch (error) {
+    }
+    catch (error) {
         box.innerHTML = `<i class="fas fa-exclamation-circle"></i><span>${escapeHtml(sanitizeAppErrorMessage(error.message, 'Gagal memuat folder export.'))}</span>`;
         box.classList.add('settings-error-row');
     }
 }
-
 async function openSettingsExportFolder() {
     try {
         const response = await fetch('/support/open_folder?kind=exports', { method: 'POST' });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal membuka folder export.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal membuka folder export.');
         showToast('Folder export dibuka.', 'success');
-    } catch (error) {
+    }
+    catch (error) {
         showToast(sanitizeAppErrorMessage(error.message, 'Gagal membuka folder export.'), 'error');
     }
 }
-
 function formatDiscountRuleType(value) {
     const labels = {
         visit_count: 'Jumlah Kunjungan',
@@ -1310,14 +1335,14 @@ function formatDiscountRuleType(value) {
     };
     return labels[value] || value || '-';
 }
-
 function formatDiscountRuleValue(rule) {
-    if (rule.discount_type === 'percent') return `${Number(rule.discount_value || 0)}%`;
+    if (rule.discount_type === 'percent')
+        return `${Number(rule.discount_value || 0)}%`;
     return formatRupiah(Number(rule.discount_value || 0));
 }
-
 function formatDiscountRuleCondition(rule) {
-    if (rule.type === 'visit_count') return rule.condition_value ? `Mulai kunjungan ke-${Number(rule.condition_value)} dan seterusnya` : '-';
+    if (rule.type === 'visit_count')
+        return rule.condition_value ? `Mulai kunjungan ke-${Number(rule.condition_value)} dan seterusnya` : '-';
     if (rule.type === 'voucher') {
         const used = Number(rule.usage_count || 0);
         const total = rule.usage_limit ? `${used}/${Number(rule.usage_limit)} kali` : `${used} kali`;
@@ -1327,31 +1352,30 @@ function formatDiscountRuleCondition(rule) {
             : '';
         return `${rule.voucher_code || '-'} - terpakai ${total}${patient}${targets}`;
     }
-    if (rule.type === 'manual') return 'Harga manual';
+    if (rule.type === 'manual')
+        return 'Harga manual';
     return 'Tanggal aktif';
 }
-
 function formatDiscountRulePeriod(rule) {
     const start = rule.start_date || '-';
     const end = rule.end_date || '-';
-    if (start === '-' && end === '-') return '-';
+    if (start === '-' && end === '-')
+        return '-';
     return `${start} s/d ${end}`;
 }
-
 async function loadDiscountRules() {
     const body = document.getElementById('discount-rules-body');
-    if (!body) return;
-
+    if (!body)
+        return;
     try {
         const response = await fetch('/discount_rules');
-        if (!response.ok) throw new Error('Gagal memuat aturan diskon');
+        if (!response.ok)
+            throw new Error('Gagal memuat aturan diskon');
         discountRulesCache = await response.json();
-
         if (!discountRulesCache.length) {
             body.innerHTML = '<tr><td colspan="7" style="padding:14px; color:var(--text-muted);">Belum ada aturan diskon dinamis.</td></tr>';
             return;
         }
-
         body.innerHTML = discountRulesCache.map(rule => `
             <tr style="border-top:1px solid #e2e8f0; font-size:13px;">
                 <td style="padding:10px;"><strong>${escapeHtml(rule.name)}</strong><br><span style="color:var(--text-muted);">Prioritas ${rule.priority}</span></td>
@@ -1376,14 +1400,15 @@ async function loadDiscountRules() {
                 </td>
             </tr>
         `).join('');
-    } catch (error) {
+    }
+    catch (error) {
         body.innerHTML = `<tr><td colspan="7" style="padding:14px; color:#dc2626;">${escapeHtml(error.message)}</td></tr>`;
     }
 }
-
 function resetDiscountRuleForm() {
     const form = document.getElementById('discount-rule-form');
-    if (!form) return;
+    if (!form)
+        return;
     form.reset();
     document.getElementById('discount-rule-id').value = '0';
     document.getElementById('discount-rule-priority').value = '100';
@@ -1392,11 +1417,10 @@ function resetDiscountRuleForm() {
     updateDiscountRuleTypeUI();
     syncDiscountActivationControl();
 }
-
 function editDiscountRule(ruleId) {
     const rule = discountRulesCache.find(item => item.id === ruleId);
-    if (!rule) return;
-
+    if (!rule)
+        return;
     document.getElementById('discount-rule-id').value = rule.id;
     document.getElementById('discount-rule-name').value = rule.name || '';
     document.getElementById('discount-rule-type').value = rule.type || 'visit_count';
@@ -1414,7 +1438,6 @@ function editDiscountRule(ruleId) {
     updateDiscountRuleTypeUI();
     syncDiscountActivationControl();
 }
-
 async function submitDiscountRule(event) {
     event.preventDefault();
     const form = event.target;
@@ -1422,19 +1445,19 @@ async function submitDiscountRule(event) {
     syncDiscountTargetPatients();
     const formData = new FormData(form);
     formData.set('is_active', document.getElementById('discount-rule-active').checked ? 'true' : 'false');
-
     try {
         const response = await fetch('/discount_rules', { method: 'POST', body: formData });
         const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal menyimpan aturan diskon.');
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyimpan aturan diskon.');
         result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
         resetDiscountRuleForm();
         await loadDiscountRules();
-    } catch (error) {
+    }
+    catch (error) {
         result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
     }
 }
-
 async function toggleDiscountRule(ruleId, isActive) {
     const formData = new FormData();
     formData.set('is_active', isActive ? 'true' : 'false');
@@ -1446,11 +1469,10 @@ async function toggleDiscountRule(ruleId, isActive) {
     }
     await loadDiscountRules();
 }
-
 async function deleteDiscountRule(ruleId) {
     const ok = await showConfirm('Hapus aturan diskon ini?', 'warning');
-    if (!ok) return;
-
+    if (!ok)
+        return;
     const response = await fetch(`/discount_rules/${ruleId}/delete`, { method: 'POST' });
     if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -1460,17 +1482,15 @@ async function deleteDiscountRule(ruleId) {
     await loadDiscountRules();
     resetDiscountRuleForm();
 }
-
 async function submitImport(event) {
     event.preventDefault();
     const fileInput = document.getElementById('import-file');
     const resultDiv = document.getElementById('import-result');
-    if (!fileInput.files[0]) return;
-
+    if (!fileInput.files[0])
+        return;
     const file = fileInput.files[0];
     const formData = new FormData();
     formData.append('file', file, file.name);
-
     resultDiv.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:#6366f1;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Sedang mengimpor data...</div>';
     try {
         const res = await fetch('/import', { method: 'POST', body: formData });
@@ -1481,7 +1501,8 @@ async function submitImport(event) {
                 <i class="fas ${isSuccess ? 'fa-check-circle' : 'fa-exclamation-circle'}" style="color:${isSuccess ? '#10b981' : '#f59e0b'};margin-top:1px;"></i>
                 <span style="font-size:13px;color:${isSuccess ? '#065f46' : '#92400e'};">${result.message}</span>
             </div>`;
-    } catch (e) {
+    }
+    catch (e) {
         resultDiv.innerHTML = `<div style="padding:12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;"><i class="fas fa-times-circle"></i> Error: ${e.message}</div>`;
     }
 }

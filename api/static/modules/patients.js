@@ -1,11 +1,12 @@
+"use strict";
 // ─── PATIENTS (Server-Side DataTable) ────────────────────────────────────────
-
 function _normalizeTherapistsPayload(payload) {
-    if (Array.isArray(payload)) return payload;
-    if (payload && Array.isArray(payload.therapists)) return payload.therapists;
+    if (Array.isArray(payload))
+        return payload;
+    if (payload && Array.isArray(payload.therapists))
+        return payload.therapists;
     return [];
 }
-
 function _cacheTherapists(payload) {
     const therapists = _normalizeTherapistsPayload(payload).filter(t => t && t.id);
     window._therapistsLoadError = null;
@@ -21,16 +22,13 @@ function _cacheTherapists(payload) {
     window._therapistsList.forEach(t => { window._therapistMap[t.id] = t.name; });
     return window._therapistsList;
 }
-
 function _therapistsForGender(gender) {
     const therapists = window._therapistsList || [];
     return therapists.filter(t => !gender || t.gender === gender || t.can_handle_any_gender);
 }
-
 function _therapistGenderCopy(gender) {
     return gender || 'jenis kelamin pasien';
 }
-
 function _visitTherapistState(gender) {
     const hasPatient = Boolean(gender);
     const therapists = _therapistsForGender(gender);
@@ -63,20 +61,20 @@ function _visitTherapistState(gender) {
         helper: `Terapis yang tampil: gender ${_therapistGenderCopy(gender)} atau terapis yang diizinkan menangani lintas gender.`
     };
 }
-
 window._visitHerbalsList = window._visitHerbalsList || [];
 window._visitSelectedHerbals = window._visitSelectedHerbals || [];
 window._visitDiscountRulesLoaded = window._visitDiscountRulesLoaded || false;
 window._visitDiscountRuleMap = window._visitDiscountRuleMap || {};
 window._visitConfirmInProgress = window._visitConfirmInProgress || false;
 window._visitSubmitInProgress = window._visitSubmitInProgress || false;
-
 function setVisitSubmitLoading(isLoading) {
     window._visitSubmitInProgress = !!isLoading;
     const submitButton = document.getElementById('visit-submit-button');
-    if (!submitButton) return;
+    if (!submitButton)
+        return;
     if (isLoading) {
-        if (!submitButton.dataset.originalHtml) submitButton.dataset.originalHtml = submitButton.innerHTML;
+        if (!submitButton.dataset.originalHtml)
+            submitButton.dataset.originalHtml = submitButton.innerHTML;
         submitButton.disabled = true;
         submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
         submitButton.style.opacity = '0.7';
@@ -91,11 +89,9 @@ function setVisitSubmitLoading(isLoading) {
     submitButton.style.opacity = '1';
     submitButton.style.cursor = 'pointer';
 }
-
 function resetVisitSubmitLoading() {
     setVisitSubmitLoading(false);
 }
-
 function getVisitIdempotencyKey(form) {
     let input = form.querySelector('input[name="idempotency_key"]');
     if (!input) {
@@ -112,33 +108,40 @@ function getVisitIdempotencyKey(form) {
     }
     return input.value;
 }
-
 async function ensureVisitDiscountRulesLoaded() {
-    if (window._visitDiscountRulesLoaded) return;
+    if (window._visitDiscountRulesLoaded)
+        return;
     try {
         const r = await fetch('/discount_rules');
-        if (!r.ok) throw new Error('Gagal memuat rule diskon');
+        if (!r.ok)
+            throw new Error('Gagal memuat rule diskon');
         const rules = await r.json();
         window._visitDiscountRuleMap = {};
         (Array.isArray(rules) ? rules : []).forEach(rule => {
-            if (rule && rule.id) window._visitDiscountRuleMap[rule.id] = rule;
+            if (rule && rule.id)
+                window._visitDiscountRuleMap[rule.id] = rule;
         });
-    } catch (e) {
+    }
+    catch (e) {
         window._visitDiscountRuleMap = {};
-    } finally {
+    }
+    finally {
         window._visitDiscountRulesLoaded = true;
     }
 }
-
 function _visitDiscountKind(rule) {
-    if (!rule) return 'Diskon';
-    if (rule.type === 'voucher') return 'Voucher';
-    if (rule.type === 'visit_count') return 'Rule kunjungan';
-    if (rule.type === 'manual') return 'Harga manual';
-    if (rule.type === 'period') return 'Promo periode';
+    if (!rule)
+        return 'Diskon';
+    if (rule.type === 'voucher')
+        return 'Voucher';
+    if (rule.type === 'visit_count')
+        return 'Rule kunjungan';
+    if (rule.type === 'manual')
+        return 'Harga manual';
+    if (rule.type === 'period')
+        return 'Promo periode';
     return 'Diskon';
 }
-
 function getVisitDiscountInfo(v) {
     const finalPrice = Number(v?.final_price ?? v?.price ?? 0);
     if (v?.is_free_visit) {
@@ -151,7 +154,6 @@ function getVisitDiscountInfo(v) {
             border: '#a7f3d0'
         };
     }
-
     const rule = v?.discount_rule_id ? window._visitDiscountRuleMap[v.discount_rule_id] : null;
     if (v?.discount_applied || v?.discount_rule_id || v?.discount_rule_name) {
         return {
@@ -163,7 +165,6 @@ function getVisitDiscountInfo(v) {
             border: '#ddd6fe'
         };
     }
-
     return {
         title: 'Harga normal',
         detail: 'Tanpa voucher atau rule diskon',
@@ -173,7 +174,6 @@ function getVisitDiscountInfo(v) {
         border: '#e2e8f0'
     };
 }
-
 function renderVisitDiscountBadge(v) {
     const info = getVisitDiscountInfo(v);
     return `<div class="visit-price-cell">
@@ -182,7 +182,6 @@ function renderVisitDiscountBadge(v) {
         <span class="visit-price-sub">${escapeHtml(info.detail)}</span>
     </div>`;
 }
-
 function getVisitUnitLabel(v) {
     const services = Array.isArray(window._servicesList) ? window._servicesList : [];
     const byId = v?.service_id ? services.find(service => String(service.id) === String(v.service_id)) : null;
@@ -191,42 +190,41 @@ function getVisitUnitLabel(v) {
         ? services.find(service => String(service.name || '').trim().toLowerCase() === serviceName)
         : null;
     const unit = byId?.unit_label || byName?.unit_label;
-    if (unit) return String(unit).trim();
-    if (serviceName === 'bekam') return 'titik';
+    if (unit)
+        return String(unit).trim();
+    if (serviceName === 'bekam')
+        return 'titik';
     return 'sesi';
 }
-
 function _cacheVisitHerbals(payload) {
     const herbals = Array.isArray(payload) ? payload : [];
     window._visitHerbalsList = herbals
         .filter(h => h && h.id)
         .map(h => ({
-            id: Number(h.id),
-            name: h.name || '',
-            stock: Number(h.stock || 0),
-            price: Number(h.price || 0),
-            unit: h.unit || 'pcs'
-        }));
+        id: Number(h.id),
+        name: h.name || '',
+        stock: Number(h.stock || 0),
+        price: Number(h.price || 0),
+        unit: h.unit || 'pcs'
+    }));
     return window._visitHerbalsList;
 }
-
 function _buildVisitHerbalOptions() {
     const herbals = window._visitHerbalsList || [];
-    if (!herbals.length) return '<option value="">Belum ada produk/herbal aktif</option>';
+    if (!herbals.length)
+        return '<option value="">Belum ada produk/herbal aktif</option>';
     let opts = '<option value="">- Pilih Produk / Herbal -</option>';
     herbals.forEach(h => {
         opts += `<option value="${h.id}" data-stock="${h.stock}" data-price="${h.price}" data-unit="${escapeHtml(h.unit)}">${escapeHtml(h.name)} - stok ${h.stock} ${escapeHtml(h.unit)} - ${formatRupiah(h.price)}</option>`;
     });
     return opts;
 }
-
-function _buildTherapistOptions(gender) {
+function _buildTherapistOptions(gender = '') {
     const state = _visitTherapistState(gender);
     const therapists = _therapistsForGender(gender);
     if (therapists.length === 0) {
         return `<option value="">${escapeHtml(state.option)}</option>`;
     }
-
     let opts = `<option value="">${escapeHtml(state.option)}</option>`;
     therapists.forEach(t => {
         const scope = t.can_handle_any_gender && gender && t.gender !== gender ? ' - lintas gender' : '';
@@ -234,13 +232,11 @@ function _buildTherapistOptions(gender) {
     });
     return opts;
 }
-
-function _refreshVisitTherapistSelect(gender) {
+function _refreshVisitTherapistSelect(gender = '') {
     const therapistSelect = document.getElementById('visit-therapist-select');
     const submitButton = document.getElementById('visit-submit-button');
     const helper = document.getElementById('visit-therapist-helper');
     const state = _visitTherapistState(gender);
-
     if (therapistSelect) {
         therapistSelect.innerHTML = _buildTherapistOptions(gender);
         therapistSelect.disabled = !state.canSelect;
@@ -256,21 +252,18 @@ function _refreshVisitTherapistSelect(gender) {
         submitButton.style.cursor = state.canSelect ? 'pointer' : 'not-allowed';
     }
 }
-
-function validateVisitTherapistSelected(event) {
+function validateVisitTherapistSelected(event = null) {
     const patient = window._currentPatientData || {};
     const gender = patient.gender || '';
     const state = _visitTherapistState(gender);
     const therapistSelect = document.getElementById('visit-therapist-select');
     const selectedId = therapistSelect?.value;
-
-    if (state.canSelect && selectedId) return true;
-
+    if (state.canSelect && selectedId)
+        return true;
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
-
     const message = !gender
         ? 'Pilih pasien dulu agar terapis bisa difilter sesuai jenis kelamin.'
         : state.canSelect
@@ -279,11 +272,10 @@ function validateVisitTherapistSelected(event) {
     showToast(message, state.canSelect ? 'warning' : 'error');
     return false;
 }
-
-function validateVisitPatientSelected(event) {
+function validateVisitPatientSelected(event = null) {
     const patientInput = document.getElementById('visit_patient_id');
-    if (patientInput && patientInput.value) return true;
-
+    if (patientInput && patientInput.value)
+        return true;
     if (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -291,19 +283,19 @@ function validateVisitPatientSelected(event) {
     showToast('Cari dan aktifkan pasien terlebih dahulu dari pencarian di atas.', 'warning');
     return false;
 }
-
 async function renderPatients() {
     window._patientsTableMode = 'patients';
     try {
         const r = await fetch('/therapists?active_only=true');
-        if (!r.ok) throw new Error('Gagal memuat terapis');
+        if (!r.ok)
+            throw new Error('Gagal memuat terapis');
         const d = await r.json();
         _cacheTherapists(d);
-    } catch (e) {
+    }
+    catch (e) {
         window._therapistsList = [];
         window._therapistMap = {};
     }
-
     const html = `
         <div class="patients-page">
             <div class="card patient-form-card">
@@ -358,12 +350,10 @@ async function renderPatients() {
                 </table>
             </div>
         </div>`;
-
     document.getElementById('display-area').innerHTML = html;
     window._currentPatientData = null;
     _initPatientsDataTable();
 }
-
 async function renderVisits() {
     window._patientsTableMode = 'visits';
     await ensureVisitDiscountRulesLoaded();
@@ -376,11 +366,13 @@ async function renderVisits() {
     window._visitPricePerPoint = window._visitPricePerPoint || 10000;
     try {
         const r = await fetch('/therapists?active_only=true');
-        if (!r.ok) throw new Error('Gagal memuat terapis');
+        if (!r.ok)
+            throw new Error('Gagal memuat terapis');
         const d = await r.json();
         _cacheTherapists(d);
         trptOpts = _buildTherapistOptions();
-    } catch (e) {
+    }
+    catch (e) {
         window._therapistsLoadError = 'Gagal memuat terapis';
         window._therapistsList = [];
         window._therapistMap = {};
@@ -388,18 +380,18 @@ async function renderVisits() {
     }
     try {
         const r = await fetch('/visit_form_options');
-        if (!r.ok) throw new Error('Gagal memuat opsi kunjungan');
+        if (!r.ok)
+            throw new Error('Gagal memuat opsi kunjungan');
         const options = await r.json();
         const services = options.services || [];
         window._servicesList = services;
         window._visitPricePerPoint = parseFloat(options.price_per_point || 10000);
-        serviceOpts = services.map(s =>
-            `<option value="${s.id}" data-name="${escapeHtml(s.name)}" data-unit="${escapeHtml(s.unit_label || 'sesi')}" data-qty="${s.default_quantity || 1}" data-price="${s.price_per_unit || 0}" data-notes="${escapeHtml(s.notes_template || '')}">${escapeHtml(s.name)}</option>`
-        ).join('') || '<option value="" data-name="Bekam" data-unit="titik" data-qty="13" data-price="0">Layanan Terapi</option>';
+        serviceOpts = services.map(s => `<option value="${s.id}" data-name="${escapeHtml(s.name)}" data-unit="${escapeHtml(s.unit_label || 'sesi')}" data-qty="${s.default_quantity || 1}" data-price="${s.price_per_unit || 0}" data-notes="${escapeHtml(s.notes_template || '')}">${escapeHtml(s.name)}</option>`).join('') || '<option value="" data-name="Bekam" data-unit="titik" data-qty="13" data-price="0">Layanan Terapi</option>';
         freeReasonOpts = (options.free_visit_reasons || ['promo', 'keluarga', 'koreksi', 'gratis lain-lain'])
             .map(reason => `<option value="${escapeHtml(reason)}">${escapeHtml(reason)}</option>`)
             .join('');
-    } catch (e) {
+    }
+    catch (e) {
         window._servicesList = [];
         serviceOpts = '<option value="" data-name="Bekam" data-unit="titik" data-qty="13" data-price="0">Layanan Terapi</option>';
         freeReasonOpts = ['promo', 'keluarga', 'koreksi', 'gratis lain-lain']
@@ -408,15 +400,16 @@ async function renderVisits() {
     }
     try {
         const r = await fetch('/herbals');
-        if (!r.ok) throw new Error('Gagal memuat herbal');
+        if (!r.ok)
+            throw new Error('Gagal memuat herbal');
         const d = await r.json();
         _cacheVisitHerbals(d);
         herbalOpts = _buildVisitHerbalOptions();
-    } catch (e) {
+    }
+    catch (e) {
         window._visitHerbalsList = [];
         herbalOpts = '<option value="">Gagal memuat herbal</option>';
     }
-
     // 2. Build static layout HTML
     const html = `
         <div class="visit-page">
@@ -664,7 +657,6 @@ async function renderVisits() {
             </div>
 
         </div>`;
-
     document.getElementById('display-area').innerHTML = html;
     const visitsRoot = document.getElementById('display-area').firstElementChild;
     if (visitsRoot) {
@@ -690,32 +682,31 @@ async function renderVisits() {
     syncVisitHerbalItems();
     window._currentPatientData = null;
     _refreshVisitTherapistSelect();
-
     // 3. Init DataTable server-side
     _initPatientsDataTable();
-
     // 4. Setup Search Results Delegate
     setupVisitSearchDelegate();
 }
-
 function setupVisitSearchDelegate() {
     const results = document.getElementById('visit-patient-results');
     const input = document.getElementById('visit-patient-search');
-    if (!results || !input) return;
-
+    if (!results || !input)
+        return;
     // Click Delegation
     results.addEventListener('click', (e) => {
         const btn = e.target.closest('.visit-patient-result');
-        if (!btn) return;
+        if (!btn)
+            return;
         const id = btn.dataset.patientId;
-        if (id) _dtShowVisits(Number(id));
+        if (id)
+            _dtShowVisits(Number(id));
     });
-
     // Keyboard support
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeVisitPatientResults();
-        } else if (e.key === 'Enter') {
+        }
+        else if (e.key === 'Enter') {
             const first = results.querySelector('.visit-patient-result');
             if (first && !results.hidden) {
                 e.preventDefault();
@@ -723,7 +714,6 @@ function setupVisitSearchDelegate() {
             }
         }
     });
-
     // Close on click outside
     document.addEventListener('click', (e) => {
         if (!results.contains(e.target) && e.target !== input) {
@@ -731,14 +721,15 @@ function setupVisitSearchDelegate() {
         }
     });
 }
-
 // ── DATATABLES INIT ───────────────────────────────────────────────────────────
 function _initPatientsDataTable() {
     if (window._patientsDT) {
-        try { window._patientsDT.destroy(); } catch (e) { }
+        try {
+            window._patientsDT.destroy();
+        }
+        catch (e) { }
         window._patientsDT = null;
     }
-
     window._patientsDT = $('#patients-dt').DataTable({
         serverSide: true,
         processing: true,
@@ -763,22 +754,20 @@ function _initPatientsDataTable() {
             const orderColIdx = dtParams.order && dtParams.order[0] ? dtParams.order[0].column : 0;
             const orderDir = dtParams.order && dtParams.order[0] ? dtParams.order[0].dir : 'asc';
             const searchVal = dtParams.search ? dtParams.search.value : '';
-
             const url = `/patients_paginated?draw=${dtParams.draw}&start=${dtParams.start}&length=${dtParams.length}&search=${encodeURIComponent(searchVal)}&order_col=${orderColIdx}&order_dir=${orderDir}`;
-
             fetch(url)
                 .then(r => r.json())
                 .then(data => {
-                    const badge = document.getElementById('dt-total-badge');
-                    if (badge) badge.textContent = `Total: ${data.recordsTotal} pasien`;
-
-                    callback({
-                        draw: data.draw,
-                        recordsTotal: data.recordsTotal,
-                        recordsFiltered: data.recordsFiltered,
-                        data: data.data
-                    });
-                })
+                const badge = document.getElementById('dt-total-badge');
+                if (badge)
+                    badge.textContent = `Total: ${data.recordsTotal} pasien`;
+                callback({
+                    draw: data.draw,
+                    recordsTotal: data.recordsTotal,
+                    recordsFiltered: data.recordsFiltered,
+                    data: data.data
+                });
+            })
                 .catch(err => console.error('DT fetch error:', err));
         },
         columns: [
@@ -815,7 +804,8 @@ function _initPatientsDataTable() {
             {
                 data: 'phone',
                 render: function (val) {
-                    if (!val || val.startsWith('TEMP-')) return '<span style="color:#94a3b8; font-size:12px; font-style:italic;">Belum diatur</span>';
+                    if (!val || val.startsWith('TEMP-'))
+                        return '<span style="color:#94a3b8; font-size:12px; font-style:italic;">Belum diatur</span>';
                     return `<span style="font-size:13px; font-weight:600; color:#475569;">${escapeHtml(val)}</span>`;
                 },
                 orderable: true
@@ -858,7 +848,8 @@ function _initPatientsDataTable() {
         createdRow: function (row, data) {
             $(row).css('cursor', 'pointer');
             $(row).on('click', function (e) {
-                if ($(e.target).closest('button').length) return;
+                if ($(e.target).closest('button').length)
+                    return;
                 if (window._patientsTableMode === 'patients') {
                     _dtEditPatient(data.id);
                     return;
@@ -870,17 +861,17 @@ function _initPatientsDataTable() {
         }
     });
 }
-
 // ── SHOW VISIT PANEL (by patient id, from cached row data) ────────────────────
 async function _dtLoadPatientDetail(patientRow) {
-    if (patientRow && Array.isArray(patientRow.visits)) return patientRow;
+    if (patientRow && Array.isArray(patientRow.visits))
+        return patientRow;
     const res = await fetch(`/patient_detail/${patientRow.id}`);
-    if (!res.ok) throw new Error('Gagal memuat detail pasien');
+    if (!res.ok)
+        throw new Error('Gagal memuat detail pasien');
     const detail = await res.json();
     Object.assign(patientRow, detail);
     return patientRow;
 }
-
 function closeVisitPatientResults() {
     const results = document.getElementById('visit-patient-results');
     if (results) {
@@ -888,17 +879,15 @@ function closeVisitPatientResults() {
         results.innerHTML = '';
     }
 }
-
 function updateVisitSelectedPatientCard(patient) {
     const card = document.getElementById('visit-selected-patient-card');
-    if (!card || !patient) return;
-
+    if (!card || !patient)
+        return;
     const visits = Array.isArray(patient.visits) ? patient.visits : [];
     const visitCount = patient.visits_count || visits.length || 0;
     const totalIncome = visits.reduce((sum, visit) => sum + (parseFloat(visit.price) || 0), 0);
     const phone = patient.phone && !patient.phone.startsWith('TEMP-') ? patient.phone : 'No HP belum diatur';
     const gender = patient.gender || '-';
-
     card.classList.remove('is-empty');
     card.innerHTML = `
         <div class="visit-selected-main">
@@ -917,21 +906,19 @@ function updateVisitSelectedPatientCard(patient) {
             <span>Total revenue</span>
         </div>
         <button type="button" class="visit-change-patient-btn" onclick="clearVisitPatientSearch(true)">Ganti Pasien</button>`;
-
     const search = document.getElementById('visit-patient-search');
-    if (search) search.value = patient.name || '';
+    if (search)
+        search.value = patient.name || '';
 }
-
 function renderVisitPatientResults(patients, query) {
     const results = document.getElementById('visit-patient-results');
-    if (!results) return;
-
+    if (!results)
+        return;
     if (!patients.length) {
         results.hidden = false;
         results.innerHTML = `<div class="visit-patient-result-empty">Tidak ada pasien cocok untuk "${escapeHtml(query)}".</div>`;
         return;
     }
-
     results.hidden = false;
     results.innerHTML = patients.map(patient => {
         const phone = patient.phone && !patient.phone.startsWith('TEMP-') ? patient.phone : 'No HP belum diatur';
@@ -946,68 +933,67 @@ function renderVisitPatientResults(patients, query) {
             </button>`;
     }).join('');
 }
-
 async function searchVisitPatients(query) {
     const trimmed = String(query || '').trim();
     if (trimmed.length < 2) {
         closeVisitPatientResults();
         return;
     }
-
     const results = document.getElementById('visit-patient-results');
     if (results) {
         results.hidden = false;
         results.innerHTML = '<div class="visit-patient-result-empty"><i class="fas fa-spinner fa-spin"></i> Mencari pasien...</div>';
     }
-
     try {
         const url = `/patients_paginated?draw=1&start=0&length=8&search=${encodeURIComponent(trimmed)}&order_col=0&order_dir=asc`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error('Gagal mencari pasien');
+        if (!res.ok)
+            throw new Error('Gagal mencari pasien');
         const data = await res.json();
         const patients = Array.isArray(data.data) ? [...data.data] : [];
-
         if (/^\d+$/.test(trimmed) && !patients.some(patient => String(patient.id) === trimmed)) {
             try {
                 const detailRes = await fetch(`/patient_detail/${trimmed}`);
-                if (detailRes.ok) patients.unshift(await detailRes.json());
-            } catch (e) { }
+                if (detailRes.ok)
+                    patients.unshift(await detailRes.json());
+            }
+            catch (e) { }
         }
-
         renderVisitPatientResults(patients, trimmed);
-    } catch (e) {
+    }
+    catch (e) {
         if (results) {
             results.hidden = false;
             results.innerHTML = `<div class="visit-patient-result-empty">${escapeHtml(e.message || 'Gagal mencari pasien.')}</div>`;
         }
     }
 }
-
 function onVisitPatientSearchInput(value) {
     clearTimeout(window._visitPatientSearchTimer);
     window._visitPatientSearchTimer = setTimeout(() => searchVisitPatients(value), 220);
 }
-
 function clearVisitPatientSearch(focus = false) {
     const input = document.getElementById('visit-patient-search');
-    if (input) input.value = '';
+    if (input)
+        input.value = '';
     closeVisitPatientResults();
-    if (focus) input?.focus();
+    if (focus)
+        input?.focus();
 }
-
 async function _dtShowVisits(patientId) {
     // Find row data in current DT page
     const table = window._patientsDT;
-    if (!table) return;
-
+    if (!table)
+        return;
     let patientRow = null;
     table.rows().every(function () {
         const d = this.data();
-        if (d && d.id === patientId) { patientRow = d; }
+        if (d && d.id === patientId) {
+            patientRow = d;
+        }
     });
-
-    if (!patientRow) patientRow = { id: patientId };
-
+    if (!patientRow)
+        patientRow = { id: patientId };
     // Highlight table row
     $('#patients-dt tbody tr').removeClass('dt-selected-row');
     table.rows().every(function () {
@@ -1015,25 +1001,23 @@ async function _dtShowVisits(patientId) {
             $(this.node()).addClass('dt-selected-row');
         }
     });
-
     try {
         patientRow = await _dtLoadPatientDetail(patientRow);
         await ensureVisitDiscountRulesLoaded();
-    } catch (e) {
+    }
+    catch (e) {
         const panel = document.getElementById('visit-panel-content');
         if (panel) {
             panel.innerHTML = `<div style="padding:24px;color:var(--danger);font-weight:600;">${escapeHtml(e.message)}</div>`;
         }
         return;
     }
-
     // Cache for visit form
     window._currentPatientData = patientRow;
-
     // Update visit form patient selector
     const visitPtIdInput = document.getElementById('visit_patient_id');
-    if (visitPtIdInput) visitPtIdInput.value = patientRow.id;
-
+    if (visitPtIdInput)
+        visitPtIdInput.value = patientRow.id;
     const badge = document.getElementById('selected-patient-badge');
     if (badge) {
         const genderColor = patientRow.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
@@ -1041,12 +1025,9 @@ async function _dtShowVisits(patientId) {
     }
     updateVisitSelectedPatientCard(patientRow);
     closeVisitPatientResults();
-
     scrollVisitFormIntoView();
-
     // Filter therapist dropdown by patient gender
     _refreshVisitTherapistSelect(patientRow.gender);
-
     // Build visit detail panel
     const therapistMap = window._therapistMap || {};
     const visits = patientRow.visits || [];
@@ -1055,7 +1036,6 @@ async function _dtShowVisits(patientId) {
     const genderColor = patientRow.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
     const genderBg = patientRow.gender === 'Laki-laki' ? '#eff6ff' : '#fdf2f8';
     const genderIcon = patientRow.gender === 'Laki-laki' ? 'fa-male' : 'fa-female';
-
     let content = `
         <div class="visit-patient-header">
             <div class="visit-patient-avatar" style="background:${genderBg};color:${genderColor};">
@@ -1083,10 +1063,10 @@ async function _dtShowVisits(patientId) {
             </div>
         </div>
                         <div class="visit-history-body">`;
-
     if (visits.length === 0) {
         content += `<div class="visit-empty-panel"><i class="fas fa-calendar-times"></i><p>Belum ada kunjungan tercatat.</p></div>`;
-    } else {
+    }
+    else {
         content += `
         <div class="visit-history-wrapper">
         <table class="visit-history-table">
@@ -1154,7 +1134,6 @@ async function _dtShowVisits(patientId) {
         cardContent += '</div>';
         content += `</tbody></table></div>${cardContent}`;
     }
-
     content += `</div>`;
     const panel = document.getElementById('visit-panel-content');
     if (panel) {
@@ -1164,29 +1143,29 @@ async function _dtShowVisits(patientId) {
         panel.innerHTML = content;
     }
 }
-
 // ── EDIT PATIENT (bridge ke openFullEditModal di modal.js) ────────────────────
 async function _dtEditPatient(patientId) {
     // Find the patient data row in DT cache
     const table = window._patientsDT;
-    if (!table) return;
-
+    if (!table)
+        return;
     let patientRow = null;
     table.rows().every(function () {
         const d = this.data();
-        if (d && d.id === patientId) { patientRow = d; }
+        if (d && d.id === patientId) {
+            patientRow = d;
+        }
     });
-
-    if (!patientRow) return;
-
+    if (!patientRow)
+        return;
     try {
         patientRow = await _dtLoadPatientDetail(patientRow);
         await ensureVisitDiscountRulesLoaded();
-    } catch (e) {
+    }
+    catch (e) {
         showToast(e.message, 'error');
         return;
     }
-
     // Reshape into format expected by openFullEditModal (idx-based)
     // We temporarily store data in window._patientsData as array of one
     // and set _currentPatientIdx = 0 for compat with modal.js
@@ -1194,24 +1173,22 @@ async function _dtEditPatient(patientId) {
     window._currentPatientIdx = 0;
     openFullEditModal(0);
 }
-
 // ── AUTO PRICE CALC ───────────────────────────────────────────────────────────
 function _selectedVisitHerbal() {
     const select = document.getElementById('visit-herbal-select');
     const id = Number(select?.value || 0);
     return (window._visitHerbalsList || []).find(h => h.id === id) || null;
 }
-
 function _visitHerbalUsedQty(herbalId) {
     return (window._visitSelectedHerbals || [])
         .filter(item => item.herbal_id === herbalId)
         .reduce((sum, item) => sum + item.quantity, 0);
 }
-
 function onVisitHerbalSelectChange() {
     const herbal = _selectedVisitHerbal();
     const info = document.getElementById('visit-herbal-info');
-    if (!info) return;
+    if (!info)
+        return;
     if (!herbal) {
         info.textContent = 'Pilih produk/herbal untuk melihat stok dan harga.';
         return;
@@ -1219,27 +1196,27 @@ function onVisitHerbalSelectChange() {
     info.textContent = `${herbal.name} - stok ${herbal.stock} ${herbal.unit} - ${formatRupiah(herbal.price)}`;
     onVisitHerbalQtyInput();
 }
-
 function onVisitHerbalQtyInput() {
     const herbal = _selectedVisitHerbal();
     const qty = Number(document.getElementById('visit-herbal-qty')?.value || 0);
     const warning = document.getElementById('visit-herbal-warning');
-    if (!warning) return;
+    if (!warning)
+        return;
     warning.style.display = 'none';
     warning.textContent = '';
-    if (!herbal || qty <= 0) return;
+    if (!herbal || qty <= 0)
+        return;
     const used = _visitHerbalUsedQty(herbal.id);
     if (used + qty > herbal.stock) {
         warning.textContent = `Stok ${herbal.name} tidak cukup. Tersedia ${herbal.stock}, sudah dipilih ${used}.`;
         warning.style.display = 'block';
     }
 }
-
 function scrollVisitFormIntoView() {
     const formCard = document.querySelector('.visit-form-card');
     const main = document.querySelector('main');
-    if (!formCard) return;
-
+    if (!formCard)
+        return;
     if (main) {
         const mainTop = main.getBoundingClientRect().top;
         const formTop = formCard.getBoundingClientRect().top;
@@ -1247,10 +1224,8 @@ function scrollVisitFormIntoView() {
         main.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
         return;
     }
-
     formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-
 function addVisitHerbalItem() {
     const herbal = _selectedVisitHerbal();
     const qtyInput = document.getElementById('visit-herbal-qty');
@@ -1271,7 +1246,8 @@ function addVisitHerbalItem() {
     const existing = (window._visitSelectedHerbals || []).find(item => item.herbal_id === herbal.id);
     if (existing) {
         existing.quantity += qty;
-    } else {
+    }
+    else {
         window._visitSelectedHerbals.push({
             herbal_id: herbal.id,
             name: herbal.name,
@@ -1281,39 +1257,35 @@ function addVisitHerbalItem() {
             stock: herbal.stock
         });
     }
-    if (qtyInput) qtyInput.value = '';
+    if (qtyInput)
+        qtyInput.value = '';
     syncVisitHerbalItems();
 }
-
 function removeVisitHerbalItem(herbalId) {
     window._visitSelectedHerbals = (window._visitSelectedHerbals || []).filter(item => item.herbal_id !== herbalId);
     syncVisitHerbalItems();
 }
-
 function _visitHerbalSubtotal() {
     return (window._visitSelectedHerbals || []).reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
 }
-
 function _visitServiceTotal() {
     return Number(document.getElementById('visit-price-input')?.value || 0);
 }
-
 function _visitGrandTotal() {
     return Math.max(0, _visitServiceTotal() + _visitHerbalSubtotal());
 }
-
 function syncVisitHerbalItems() {
     const items = window._visitSelectedHerbals || [];
     const hidden = document.getElementById('visit-herbal-items-input');
     if (hidden) {
         hidden.value = JSON.stringify(items.map(item => ({ herbal_id: item.herbal_id, quantity: item.quantity })));
     }
-
     const list = document.getElementById('visit-herbal-list');
     if (list) {
         if (!items.length) {
             list.innerHTML = '<div class="visit-herbal-empty">Belum ada herbal dipilih.</div>';
-        } else {
+        }
+        else {
             const rows = items.map(item => {
                 const subtotal = Number(item.price || 0) * Number(item.quantity || 0);
                 return `
@@ -1337,16 +1309,16 @@ function syncVisitHerbalItems() {
                 </div>`;
         }
     }
-
     const herbalSubtotal = _visitHerbalSubtotal();
     const herbalSubtotalEl = document.getElementById('visit-herbal-subtotal');
     const grandTotalEl = document.getElementById('visit-grand-total');
-    if (herbalSubtotalEl) herbalSubtotalEl.textContent = formatRupiah(herbalSubtotal);
-    if (grandTotalEl) grandTotalEl.textContent = formatRupiah(_visitGrandTotal());
+    if (herbalSubtotalEl)
+        herbalSubtotalEl.textContent = formatRupiah(herbalSubtotal);
+    if (grandTotalEl)
+        grandTotalEl.textContent = formatRupiah(_visitGrandTotal());
     onVisitPaymentStatusChange();
     onVisitHerbalQtyInput();
 }
-
 function validateVisitHerbalStock() {
     for (const item of (window._visitSelectedHerbals || [])) {
         if (item.quantity > item.stock) {
@@ -1356,7 +1328,6 @@ function validateVisitHerbalStock() {
     }
     return true;
 }
-
 function getVisitHerbalConfirmItems() {
     const items = window._visitSelectedHerbals || [];
     return items.map(item => ({
@@ -1365,11 +1336,10 @@ function getVisitHerbalConfirmItems() {
         subtotal: Number(item.price || 0) * Number(item.quantity || 0),
     }));
 }
-
 async function getVisitDiscountPreview(formData, visitPrice) {
     const isFreeVisit = document.getElementById('visit-free-checkbox')?.checked;
-    if (isFreeVisit || Number(visitPrice || 0) <= 0) return null;
-
+    if (isFreeVisit || Number(visitPrice || 0) <= 0)
+        return null;
     const patient = window._currentPatientData || {};
     const visitCount = Number(patient.visits_count ?? (Array.isArray(patient.visits) ? patient.visits.length : 0)) || 0;
     const manualPriceUsed = ['1', 'true', 'yes', 'on'].includes(String(formData.get('manual_price_used') || '').toLowerCase());
@@ -1380,17 +1350,17 @@ async function getVisitDiscountPreview(formData, visitPrice) {
         voucher_code: String(formData.get('voucher_code') || ''),
         manual_price_used: String(manualPriceUsed)
     });
-
     try {
         const response = await fetch(`/discount_rules/simulate?${params.toString()}`);
-        if (!response.ok) return null;
+        if (!response.ok)
+            return null;
         const data = await response.json();
         return data && data.selected ? data.selected : null;
-    } catch (e) {
+    }
+    catch (e) {
         return null;
     }
 }
-
 function prepareVisitHerbalFormData(formData) {
     formData.set('herbal_items', JSON.stringify((window._visitSelectedHerbals || []).map(item => ({
         herbal_id: item.herbal_id,
@@ -1402,15 +1372,16 @@ function prepareVisitHerbalFormData(formData) {
         formData.set('payment_method', 'free');
         formData.set('amount_paid', '0');
         formData.set('voucher_code', '');
-    } else if (formData.get('payment_status') === 'unpaid') {
+    }
+    else if (formData.get('payment_status') === 'unpaid') {
         formData.set('payment_method', 'other');
         formData.set('amount_paid', '0');
-    } else if (formData.get('payment_status') === 'paid' && !formData.get('amount_paid')) {
+    }
+    else if (formData.get('payment_status') === 'paid' && !formData.get('amount_paid')) {
         formData.set('amount_paid', String(_visitGrandTotal()));
     }
     return formData;
 }
-
 async function confirmVisitSubmission(form) {
     if (window._visitSubmitInProgress || window._visitConfirmInProgress) {
         showToast('Kunjungan sedang disimpan. Tunggu proses sebelumnya selesai.', 'info');
@@ -1425,11 +1396,9 @@ async function confirmVisitSubmission(form) {
     if (!validateVisitHerbalStock()) {
         return null;
     }
-
     const formData = new FormData(form);
     prepareVisitHerbalFormData(formData);
     formData.set('idempotency_key', getVisitIdempotencyKey(form));
-
     const patient = window._currentPatientData || {};
     const serviceSelect = document.getElementById('visit-service-select');
     const serviceOption = serviceSelect ? serviceSelect.options[serviceSelect.selectedIndex] : null;
@@ -1453,7 +1422,6 @@ async function confirmVisitSubmission(form) {
         showToast('Jumlah DP wajib lebih dari Rp0.', 'warning');
         return null;
     }
-
     const herbalHtml = herbalItems.length
         ? herbalItems.map(item => `
             <div class="visit-confirm-herbal-row">
@@ -1477,7 +1445,6 @@ async function confirmVisitSubmission(form) {
                     <strong>${formatRupiah(discountedVisitPrice)}</strong>
                 </div>
             </div>` : '';
-
     const message = `
         <div class="visit-confirm">
             <p class="visit-confirm-lead">Cek ulang data kunjungan sebelum disimpan.</p>
@@ -1502,7 +1469,6 @@ async function confirmVisitSubmission(form) {
                 <strong>${formatRupiah(total)}</strong>
             </div>
         </div>`;
-
     window._visitConfirmInProgress = true;
     let ok = false;
     try {
@@ -1512,7 +1478,8 @@ async function confirmVisitSubmission(form) {
             maxWidth: '520px',
             html: true
         });
-    } finally {
+    }
+    finally {
         window._visitConfirmInProgress = false;
     }
     if (!ok) {
@@ -1522,16 +1489,17 @@ async function confirmVisitSubmission(form) {
     setVisitSubmitLoading(true);
     return formData;
 }
-
 async function calcVisitPrice(pointValue) {
     const priceInput = document.getElementById('visit-price-input');
     const hint = document.getElementById('price-hint');
     const freeCheckbox = document.getElementById('visit-free-checkbox');
-    if (!priceInput || !pointValue || pointValue <= 0) return;
+    if (!priceInput || !pointValue || pointValue <= 0)
+        return;
     if (freeCheckbox && freeCheckbox.checked) {
-        priceInput.value = 0;
+        priceInput.value = '0';
         priceInput.dataset.autoPrice = '0';
-        if (hint) hint.textContent = 'gratis';
+        if (hint)
+            hint.textContent = 'gratis';
         setVisitManualPriceUsed(false);
         syncVisitHerbalItems();
         return;
@@ -1539,32 +1507,34 @@ async function calcVisitPrice(pointValue) {
     const serviceSelect = document.getElementById('visit-service-select');
     const selected = serviceSelect ? serviceSelect.options[serviceSelect.selectedIndex] : null;
     const serviceName = selected ? (selected.dataset.name || selected.textContent || 'Bekam') : 'Bekam';
-    const servicePrice = selected ? parseFloat(selected.dataset.price || 0) : 0;
+    const servicePrice = selected ? parseFloat(selected.dataset.price || '0') : 0;
     if (serviceName.toLowerCase() !== 'bekam') {
         const calc = parseInt(pointValue) * servicePrice;
         const rounded = Math.round(calc);
-        priceInput.value = rounded;
+        priceInput.value = String(rounded);
         priceInput.dataset.autoPrice = String(rounded);
-        if (hint) hint.textContent = `-> ${formatRupiah(calc)} `;
+        if (hint)
+            hint.textContent = `-> ${formatRupiah(calc)} `;
         setVisitManualPriceUsed(false);
         syncVisitHerbalItems();
         return;
     }
     const calc = parseInt(pointValue) * (window._visitPricePerPoint || 10000);
-    priceInput.value = calc;
+    priceInput.value = String(calc);
     priceInput.dataset.autoPrice = String(calc);
-    if (hint) hint.textContent = `-> ${formatRupiah(calc)} `;
+    if (hint)
+        hint.textContent = `-> ${formatRupiah(calc)} `;
     setVisitManualPriceUsed(false);
     syncVisitHerbalItems();
 }
-
 function setVisitManualPriceUsed(value) {
     const manualInput = document.getElementById('visit-manual-price-used');
     const hint = document.getElementById('price-hint');
-    if (manualInput) manualInput.value = value ? 'true' : 'false';
-    if (hint && value) hint.textContent = 'harga manual';
+    if (manualInput)
+        manualInput.value = value ? 'true' : 'false';
+    if (hint && value)
+        hint.textContent = 'harga manual';
 }
-
 function onVisitManualPriceInput() {
     const priceInput = document.getElementById('visit-price-input');
     const freeCheckbox = document.getElementById('visit-free-checkbox');
@@ -1578,7 +1548,6 @@ function onVisitManualPriceInput() {
     setVisitManualPriceUsed(autoPrice > 0 && currentPrice !== autoPrice);
     syncVisitHerbalItems();
 }
-
 // ── LEGACY COMPAT (dipertahankan agar modal.js tidak error) ──────────────────
 function onVisitServiceChange() {
     const serviceSelect = document.getElementById('visit-service-select');
@@ -1586,21 +1555,22 @@ function onVisitServiceChange() {
     const serviceNameInput = document.getElementById('visit-service-name');
     const quantityLabel = document.getElementById('visit-quantity-label');
     const notesInput = document.getElementById('visit-notes-input');
-    if (!serviceSelect || !pointInput) return;
-
+    if (!serviceSelect || !pointInput)
+        return;
     const selected = serviceSelect.options[serviceSelect.selectedIndex];
     const serviceName = selected ? (selected.dataset.name || selected.textContent || 'Bekam') : 'Bekam';
     const unit = selected ? (selected.dataset.unit || 'titik') : 'titik';
-    const qty = selected ? parseInt(selected.dataset.qty || 1) : 13;
+    const qty = selected ? parseInt(selected.dataset.qty || '1') : 13;
     const notesTemplate = selected ? (selected.dataset.notes || '') : '';
-
-    if (serviceNameInput) serviceNameInput.value = serviceName;
-    if (quantityLabel) quantityLabel.textContent = 'Jumlah Layanan';
-    if (notesInput) notesInput.placeholder = notesTemplate || 'Keluhan, kondisi, dll...';
-    pointInput.value = qty || 1;
+    if (serviceNameInput)
+        serviceNameInput.value = serviceName;
+    if (quantityLabel)
+        quantityLabel.textContent = 'Jumlah Layanan';
+    if (notesInput)
+        notesInput.placeholder = notesTemplate || 'Keluhan, kondisi, dll...';
+    pointInput.value = String(qty || 1);
     calcVisitPrice(pointInput.value);
 }
-
 function onVisitFreeChange() {
     const freeCheckbox = document.getElementById('visit-free-checkbox');
     const reasonSelect = document.getElementById('visit-free-reason');
@@ -1608,25 +1578,26 @@ function onVisitFreeChange() {
     const hint = document.getElementById('price-hint');
     const pointInput = document.getElementById('visit-point-input');
     const isFree = !!(freeCheckbox && freeCheckbox.checked);
-
     if (reasonSelect) {
         reasonSelect.disabled = !isFree;
         reasonSelect.required = isFree;
     }
     if (priceInput) {
         priceInput.readOnly = isFree;
-        if (isFree) priceInput.value = 0;
+        if (isFree)
+            priceInput.value = '0';
     }
-    if (hint && isFree) hint.textContent = 'gratis';
-    if (isFree) setVisitManualPriceUsed(false);
-    if (!isFree && pointInput) calcVisitPrice(pointInput.value);
-
+    if (hint && isFree)
+        hint.textContent = 'gratis';
+    if (isFree)
+        setVisitManualPriceUsed(false);
+    if (!isFree && pointInput)
+        calcVisitPrice(pointInput.value);
     const statusSelect = document.getElementById('visit-payment-status');
     const methodSelect = document.getElementById('visit-payment-method');
     const amountInput = document.getElementById('visit-amount-paid');
     const voucherInput = document.getElementById('visit-voucher-input');
     const voucherHelp = document.getElementById('visit-voucher-help');
-
     // Kunjungan gratis harus selalu selesai/lunas karena nominalnya Rp0.
     if (isFree) {
         if (statusSelect) {
@@ -1658,8 +1629,10 @@ function onVisitFreeChange() {
             voucherInput.disabled = true;
             voucherInput.placeholder = 'Tidak berlaku untuk kunjungan gratis';
         }
-        if (voucherHelp) voucherHelp.textContent = 'Voucher dinonaktifkan karena kunjungan gratis.';
-    } else if (statusSelect) {
+        if (voucherHelp)
+            voucherHelp.textContent = 'Voucher dinonaktifkan karena kunjungan gratis.';
+    }
+    else if (statusSelect) {
         statusSelect.removeAttribute('aria-disabled');
         statusSelect.disabled = false;
         statusSelect.title = '';
@@ -1687,15 +1660,13 @@ function onVisitFreeChange() {
                 delete voucherInput.dataset.beforeFreeVoucher;
             }
         }
-        if (voucherHelp) voucherHelp.textContent = 'Voucher aktif untuk kunjungan berbayar.';
+        if (voucherHelp)
+            voucherHelp.textContent = 'Voucher aktif untuk kunjungan berbayar.';
     }
-
     onVisitPaymentStatusChange();
-
     syncVisitHerbalItems();
     syncVisitFreeControl();
 }
-
 function onVisitPaymentStatusChange() {
     const statusSelect = document.getElementById('visit-payment-status');
     const freeCheckbox = document.getElementById('visit-free-checkbox');
@@ -1709,64 +1680,68 @@ function onVisitPaymentStatusChange() {
     const methodSelect = document.getElementById('visit-payment-method');
     const paymentHint = document.getElementById('visit-payment-revenue-hint');
     const billTotal = _visitGrandTotal();
-
     if (group) {
         group.style.display = (status === 'partial') ? 'block' : 'none';
         if (isFree && amountInput) {
             amountInput.required = false;
             amountInput.value = '0';
             amountInput.disabled = true;
-        } else if (status === 'unpaid' && amountInput) {
+        }
+        else if (status === 'unpaid' && amountInput) {
             amountInput.required = false;
             amountInput.value = '0';
             amountInput.disabled = true;
-        } else if (status === 'paid' && amountInput) {
+        }
+        else if (status === 'paid' && amountInput) {
             amountInput.required = false;
             amountInput.value = String(billTotal);
             amountInput.disabled = true;
-        } else if (status === 'partial' && amountInput) {
+        }
+        else if (status === 'partial' && amountInput) {
             amountInput.required = true;
             amountInput.disabled = false;
-        } else if (amountInput) {
+        }
+        else if (amountInput) {
             amountInput.required = false;
             amountInput.value = '';
             amountInput.disabled = false;
         }
     }
-
     if (statusSelect) {
         statusSelect.disabled = isFree;
         statusSelect.toggleAttribute('aria-disabled', isFree);
     }
-
     if (methodSelect) {
         const directMethods = new Set(['cash', 'debit', 'credit_card']);
-        Array.from(methodSelect.options).forEach(option => {
+        Array.from(methodSelect.options).forEach((option) => {
             const value = option.value;
             option.disabled = false;
             option.hidden = false;
             if (isFree) {
                 option.disabled = value !== 'free';
                 option.hidden = value !== 'free';
-            } else if (value === 'free') {
+            }
+            else if (value === 'free') {
                 option.disabled = true;
                 option.hidden = true;
-            } else if (status === 'unpaid' && directMethods.has(value)) {
+            }
+            else if (status === 'unpaid' && directMethods.has(value)) {
                 option.disabled = true;
                 option.hidden = true;
             }
         });
-
         if (isFree) {
             methodSelect.value = 'free';
             methodSelect.disabled = true;
             methodSelect.setAttribute('aria-disabled', 'true');
-        } else if (status === 'unpaid') {
+        }
+        else if (status === 'unpaid') {
             methodSelect.value = 'other';
             methodSelect.disabled = true;
             methodSelect.setAttribute('aria-disabled', 'true');
             methodSelect.title = 'Belum ada metode karena pembayaran belum diterima.';
-        } else {
+        }
+        else {
             methodSelect.disabled = false;
             methodSelect.removeAttribute('aria-disabled');
             methodSelect.title = '';
@@ -1779,22 +1754,23 @@ function onVisitPaymentStatusChange() {
             }
         }
     }
-
     if (paymentHint) {
         if (isFree) {
             paymentHint.textContent = 'Kunjungan gratis tidak menambah pendapatan.';
-        } else if (status === 'paid') {
+        }
+        else if (status === 'paid') {
             paymentHint.textContent = 'Pembayaran lunas masuk pendapatan.';
-        } else if (status === 'partial') {
+        }
+        else if (status === 'partial') {
             paymentHint.textContent = 'DP masuk pendapatan sebesar jumlah bayar.';
-        } else {
+        }
+        else {
             paymentHint.textContent = 'Belum ada pembayaran. Tagihan belum masuk pendapatan.';
         }
     }
-
-    if (statusSelect) statusSelect.dataset.previousStatus = status || '';
+    if (statusSelect)
+        statusSelect.dataset.previousStatus = status || '';
 }
-
 function setVisitPaymentQuick(status, method) {
     const statusSelect = document.getElementById('visit-payment-status');
     const methodSelect = document.getElementById('visit-payment-method');
@@ -1804,8 +1780,10 @@ function setVisitPaymentQuick(status, method) {
         showToast('Kunjungan gratis otomatis memakai metode Gratis.', 'info');
         return;
     }
-    if (statusSelect) statusSelect.value = status;
-    if (methodSelect) methodSelect.value = method;
+    if (statusSelect)
+        statusSelect.value = status;
+    if (methodSelect)
+        methodSelect.value = method;
     onVisitPaymentStatusChange();
     if (status === 'paid' && amountInput) {
         amountInput.value = String(_visitGrandTotal());
@@ -1818,7 +1796,6 @@ function setVisitPaymentQuick(status, method) {
         amountInput?.select?.();
     }
 }
-
 function syncVisitFreeControl() {
     const input = document.getElementById('visit-free-checkbox');
     const control = document.getElementById('visit-free-control');
@@ -1826,7 +1803,6 @@ function syncVisitFreeControl() {
     const title = document.getElementById('visit-free-title');
     const help = document.getElementById('visit-free-help');
     const active = !!(input && input.checked);
-
     if (control) {
         control.classList.toggle('is-on', active);
         control.classList.toggle('is-off', !active);
@@ -1835,21 +1811,21 @@ function syncVisitFreeControl() {
         field.classList.toggle('is-free-active', active);
         field.classList.toggle('is-paid-active', !active);
     }
-    if (title) title.textContent = active ? 'Kunjungan Gratis Aktif' : 'Kunjungan Gratis';
+    if (title)
+        title.textContent = active ? 'Kunjungan Gratis Aktif' : 'Kunjungan Gratis';
     if (help) {
         help.textContent = active
             ? 'Harga kunjungan menjadi Rp0 dan wajib pilih alasan gratis.'
             : 'Aktifkan jika kunjungan ini gratis/promo/koreksi.';
     }
 }
-
 function showPatientVisits(idx) {
     const patients = window._patientsData || [];
     const p = patients[idx];
-    if (!p) return;
+    if (!p)
+        return;
     _dtShowVisits(p.id);
 }
-
 function filterPatients() {
     // No-op: DataTable has its own built-in search
 }
