@@ -78,9 +78,12 @@ function servicePricingFields(prefix, service) {
                 <input type="number" name="fixed_price" id="${prefix}-fixed-price" value="${fixedPrice}" min="0" step="1000">
             </div>
         </div>
-        <label style="display:flex; gap:8px; align-items:flex-start; margin:2px 0 12px; font-size:12px; color:var(--text-muted);">
-            <input type="checkbox" name="allow_manual_price" value="true" ${allowManualPrice ? 'checked' : ''} style="margin-top:2px;">
-            <span>Izinkan operator mengubah harga manual saat input kunjungan.</span>
+        <label class="service-manual-price-toggle">
+            <input type="checkbox" name="allow_manual_price" value="true" ${allowManualPrice ? 'checked' : ''}>
+            <span>
+                <strong>Harga manual saat kunjungan</strong>
+                <small>Operator boleh mengubah harga saat input kunjungan.</small>
+            </span>
         </label>
     `;
 }
