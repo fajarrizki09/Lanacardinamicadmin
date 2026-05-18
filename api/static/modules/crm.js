@@ -445,39 +445,44 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
             </div>
             <form id="crm-followup-form">
                 <input type="hidden" name="patient_id" value="${patient.id}">
-                <div class="crm-followup-layout">
-                    <div class="crm-followup-column">
-                        <div class="crm-form-row">
-                            <div class="form-group">
-                                <label>Status Kontak</label>
-                                <select name="status">
-                                    ${Object.entries(CRM_STATUSES).filter(([value]) => value).map(([value, label]) => `
-                                        <option value="${value}" ${patient.followup_status === value ? 'selected' : ''}>${escapeHtml(label)}</option>
-                                    `).join('')}
-                                </select>
+                <div class="crm-followup-form-body">
+                    <div class="crm-followup-layout">
+                        <div class="crm-followup-column crm-followup-left-column">
+                            <div class="crm-form-row">
+                                <div class="form-group">
+                                    <label>Status Kontak</label>
+                                    <select name="status">
+                                        ${Object.entries(CRM_STATUSES).filter(([value]) => value).map(([value, label]) => `
+                                            <option value="${value}" ${patient.followup_status === value ? 'selected' : ''}>${escapeHtml(label)}</option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Jadwal Follow-up Berikutnya</label>
+                                    <input type="date" name="follow_up_date" value="${escapeHtml(patient.follow_up_date || '')}">
+                                </div>
                             </div>
                             <div class="form-group">
-                                <label>Jadwal Follow-up Berikutnya</label>
-                                <input type="date" name="follow_up_date" value="${escapeHtml(patient.follow_up_date || '')}">
+                                <label>Catatan</label>
+                                <textarea name="note" rows="4" placeholder="Contoh: sudah WhatsApp, pasien akan cek jadwal...">${escapeHtml(patient.followup_note || '')}</textarea>
+                            </div>
+                            <div class="crm-history-box crm-meta-box">
+                                <h4>Tag & Izin Kontak</h4>
+                                ${renderCRMManualTagEditor(patient)}
+                                ${renderCRMContactPreferenceEditor(patient)}
+                                <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                                    <button type="button" class="crm-row-btn" onclick="saveCRMPatientMeta(${patient.id})">
+                                        <i class="fas fa-save"></i> Simpan Tag & Izin
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label>Catatan</label>
-                            <textarea name="note" rows="4" placeholder="Contoh: sudah WhatsApp, pasien akan cek jadwal...">${escapeHtml(patient.followup_note || '')}</textarea>
-                        </div>
-                        <div class="crm-history-box crm-meta-box">
-                            <h4>Tag & Izin Kontak</h4>
-                            ${renderCRMManualTagEditor(patient)}
-                            ${renderCRMContactPreferenceEditor(patient)}
-                            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-                                <button type="button" class="crm-row-btn" onclick="saveCRMPatientMeta(${patient.id})">
-                                    <i class="fas fa-save"></i> Simpan Tag & Izin
-                                </button>
+                        <div class="crm-followup-column crm-followup-right-column">
+                            <div class="crm-history-box crm-followup-history-box">
+                                <h4>Riwayat follow-up</h4>
+                                ${renderCRMFollowupHistory(history)}
                             </div>
-                        </div>
-                    </div>
-                    <div class="crm-followup-column">
-                        <div class="crm-message-box">
+                            <div class="crm-message-box">
                             <div class="crm-voucher-tools" id="crm-voucher-tools">
                                 <h4><i class="fas fa-ticket-alt"></i> Voucher Follow-up</h4>
                                 <div class="crm-voucher-row">
@@ -525,7 +530,7 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                     </button>
                                 </div>
                                 <textarea id="crm-generated-message" class="whatsapp-message-textarea" placeholder="Isi pesan akan tampil di sini. Bisa diedit manual."></textarea>
-                                <div class="whatsapp-actions">
+                                <div class="whatsapp-actions crm-followup-action-row">
                                     <button type="button" class="btn-outline" onclick="copyCRMMessage()">
                                         <i class="fas fa-copy"></i> Copy Pesan
                                     </button>
@@ -538,8 +543,8 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                 </div>
                                 <span class="crm-subtext">Hanya redirect ke WA Web/App. Tombol <b>Sudah Dihubungi</b> akan mencatat log.</span>
                             </div>
-                        </div>
-                        <div class="crm-history-box crm-log-box">
+                            </div>
+                            <div class="crm-history-box crm-log-box">
                             <h4>Riwayat WhatsApp</h4>
                             <div id="crm-message-log-list">${renderCRMMessageLogs(messageLogs)}</div>
                         </div>
@@ -555,14 +560,11 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                     <i class="fas fa-clipboard-check"></i> Simpan Hasil
                                 </button>
                             </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="crm-history-box crm-followup-history-box">
-                    <h4>Riwayat follow-up</h4>
-                    ${renderCRMFollowupHistory(history)}
-                </div>
-                <div class="crm-modal-actions">
+                <div class="crm-modal-actions crm-followup-save-row">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan Follow-up</button>
                 </div>
             </form>

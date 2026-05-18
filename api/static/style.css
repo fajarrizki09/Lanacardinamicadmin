@@ -8675,10 +8675,19 @@ body.audit-modal-open {
     flex: 1 1 auto;
     min-height: 0;
     flex-direction: column;
+    overflow: hidden;
+}
+
+.crm-followup-form-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: 18px;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-right: 6px;
-    scroll-padding-bottom: 88px;
+    padding: 24px;
+    background: #f8fafc;
 }
 
 .crm-modal-header {
@@ -8715,15 +8724,26 @@ body.audit-modal-open {
     display: grid;
     grid-template-columns: 1fr 1.2fr;
     gap: 24px;
-    padding: 24px 24px 110px;
     min-height: 0;
-    background: #f8fafc;
+    background: transparent;
 }
 
 .crm-followup-column {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    min-width: 0;
+}
+
+.crm-followup-right-column {
+    align-items: stretch;
+    gap: 16px;
+}
+
+.crm-followup-right-column > * {
+    position: static;
+    flex: 0 0 auto;
+    min-width: 0;
 }
 
 .crm-form-row {
@@ -8834,15 +8854,54 @@ body.audit-modal-open {
 }
 
 .crm-modal-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 20;
+    position: static;
+    z-index: auto;
     flex: 0 0 auto;
     padding: 16px 24px;
     border-top: 1px solid var(--border-color);
     background: white;
     text-align: right;
     border-radius: 0 0 var(--r-xl) var(--r-xl);
+}
+
+.crm-followup-save-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 0;
+}
+
+.crm-followup-save-row .btn {
+    min-height: 42px;
+}
+
+.crm-followup-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.crm-followup-action-row .btn-outline,
+.crm-followup-action-row .btn-wa {
+    position: static;
+    min-height: 40px;
+    flex: 1 1 150px;
+    justify-content: center;
+}
+
+.crm-followup-history-box {
+    flex: 0 0 auto;
+    margin: 0;
+    position: static;
+    order: 0;
+}
+
+.crm-followup-history-box .crm-history-list {
+    max-height: 180px;
 }
 
 .whatsapp-actions {
@@ -8854,7 +8913,11 @@ body.audit-modal-open {
     .crm-followup-layout {
         grid-template-columns: 1fr;
         gap: 16px;
-        padding: 16px 16px 110px;
+    }
+
+    .crm-followup-form-body {
+        gap: 16px;
+        padding: 16px;
     }
 
     .crm-modal {
@@ -8874,6 +8937,10 @@ body.audit-modal-open {
     .whatsapp-actions .btn-outline,
     .whatsapp-actions .btn-wa {
         justify-content: center;
+    }
+
+    .crm-followup-save-row .btn {
+        width: 100%;
     }
 }
 
