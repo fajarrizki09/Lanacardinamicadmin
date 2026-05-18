@@ -2795,6 +2795,110 @@ div.dataTables_processing {
     white-space: nowrap;
 }
 
+.inventory-add-form {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px 14px;
+    align-items: start;
+}
+
+.inventory-add-form .unit-help-note {
+    grid-column: 1 / -1;
+    margin: 0;
+    min-height: auto;
+}
+
+.inventory-add-form .form-group {
+    min-width: 0;
+}
+
+.inventory-add-form label {
+    min-height: 14px;
+    line-height: 1.2;
+}
+
+.inventory-add-form input,
+.inventory-add-form select,
+.inventory-add-form .btn {
+    height: 42px;
+    min-height: 42px;
+}
+
+.inventory-add-form select {
+    line-height: 1.2;
+}
+
+.inventory-item-name-field {
+    grid-column: span 3;
+}
+
+.inventory-item-type-field {
+    grid-column: span 1;
+}
+
+.inventory-base-unit-field,
+.inventory-package-unit-field,
+.inventory-package-size-field {
+    grid-column: span 1;
+}
+
+.inventory-initial-stock-field,
+.inventory-min-stock-field {
+    grid-column: span 1;
+}
+
+.inventory-save-btn {
+    grid-column: span 2;
+    align-self: end;
+    justify-content: center;
+}
+
+.inventory-add-form .unit-field-hint {
+    display: block;
+    margin-top: 5px;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    line-height: 1.25;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+@media (max-width: 1180px) {
+    .inventory-add-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .inventory-item-name-field {
+        grid-column: span 2;
+    }
+
+    .inventory-item-type-field,
+    .inventory-base-unit-field,
+    .inventory-package-unit-field,
+    .inventory-package-size-field,
+    .inventory-initial-stock-field,
+    .inventory-min-stock-field,
+    .inventory-save-btn {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 680px) {
+    .inventory-add-form {
+        grid-template-columns: 1fr;
+    }
+
+    .inventory-item-name-field,
+    .inventory-item-type-field,
+    .inventory-base-unit-field,
+    .inventory-package-unit-field,
+    .inventory-package-size-field,
+    .inventory-initial-stock-field,
+    .inventory-min-stock-field,
+    .inventory-save-btn {
+        grid-column: 1 / -1;
+    }
+}
+
 .stock-mode-picker {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -74,39 +74,39 @@ function renderInventory(data) {
                     <span>Form cepat agar admin tidak perlu scroll ke bawah.</span>
                 </div>
             </div>
-            <form action="/add_inventory" method="post" class="stock-quick-add-form">
+            <form action="/add_inventory" method="post" class="stock-quick-add-form inventory-add-form">
                 <div class="unit-help-note">
                     <strong>Satuan dasar</strong> = stok terkecil yang dihitung sistem. <strong>Satuan kemasan</strong> = bungkus besar. Contoh: dasar <b>pcs</b>, kemasan <b>box</b>, isi <b>100</b> berarti 1 box = 100 pcs.
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-item-name-field">
                     <label>Nama Alat</label>
                     <input type="text" name="item_name" required placeholder="Alkohol, kapas">
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-item-type-field">
                     <label>Jenis Item</label>
                     ${inventoryItemTypeSelect('consumable')}
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-base-unit-field">
                     <label>Satuan Dasar</label>
                     ${unitSelectHtml('unit', 'pcs')}
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-package-unit-field">
                     <label>Satuan Kemasan</label>
                     ${unitSelectHtml('package_unit', '', true)}
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-initial-stock-field">
                     <label>Stok Awal</label>
                     <input type="number" name="initial_qty" required placeholder="0" min="0">
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-min-stock-field">
                     <label>Batas Aman</label>
                     <input type="number" name="min_stock" required placeholder="10" min="0">
                 </div>
-                <div class="form-group">
+                <div class="form-group inventory-package-size-field">
                     <label>Isi per Kemasan</label>
                     <input type="number" name="package_size" required value="1" min="1">
                 </div>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan</button>
+                <button type="submit" class="btn btn-primary inventory-save-btn"><i class="fas fa-save"></i> Simpan</button>
             </form>
         </div>
 
