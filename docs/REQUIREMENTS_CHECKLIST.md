@@ -177,3 +177,27 @@
 - [x] Migrasi JS ke TS sudah dimulai (ada folder `ts/` dengan 14 file)
 - [ ] Modul kritis (`visits`, `invoices`) belum dimigrasi — jangan migrasi dulu sebelum logic stabil
 - [ ] Jalankan `tsc --noEmit` tanpa error di modul yang sudah dimigrasi
+
+---
+
+## 12. CRM WhatsApp Puppeteer Automation
+
+- [ ] Fitur disabled by default.
+- [ ] Ada setting `enable_whatsapp_puppeteer`.
+- [ ] Admin harus klik tombol **Kirim WhatsApp**.
+- [ ] Satu klik hanya mengirim ke satu pasien.
+- [ ] Tidak ada bulk send.
+- [ ] Tidak ada background send.
+- [ ] Tidak bypass QR login WhatsApp Web.
+- [ ] Nomor pasien dinormalisasi ke format `62`.
+- [ ] Pasien **JANGAN DIHUBUNGI** ditolak.
+- [ ] Template promo ditolak untuk pasien **JANGAN PROMO**.
+- [ ] Pesan kosong ditolak.
+- [ ] Send lock mencegah spam.
+- [ ] Tombol disabled saat sending.
+- [ ] Status `sending`/`sent`/`failed`/`blocked` tampil di UI.
+- [ ] Log dibuat di `crm_whatsapp_logs`.
+- [ ] Fallback **Copy Pesan** tetap tersedia.
+- [ ] Error tidak membocorkan stack trace.
+- [ ] Test mock tersedia.
+- [ ] Test real kirim hanya manual/local, bukan CI.

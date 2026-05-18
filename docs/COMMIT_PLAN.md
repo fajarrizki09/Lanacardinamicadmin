@@ -276,6 +276,81 @@ refactor: migrate helper utils to TypeScript
 
 ---
 
+## Blok 7 — CRM WhatsApp Puppeteer Automation
+
+### Commit 29
+```
+docs: update CRM WhatsApp automation requirements
+```
+**File kemungkinan berubah:** `docs/PRD.md`, `docs/REQUIREMENTS_CHECKLIST.md`, `docs/ROADMAP_REFACTOR.md`, `docs/TEST_PLAN.md`, `docs/SAFETY_PATCH_PLAN.md`, `docs/WHATSAPP_PUPPETEER_AUTOMATION.md`  
+**Tujuan:** Sinkronkan arah produk: semi-manual tetap default, Puppeteer optional dan disabled by default.  
+**Risiko:** Tidak ada — dokumentasi saja.
+
+### Commit 30
+```
+test(e2e): add stable selectors for CRM WhatsApp composer
+```
+**File kemungkinan berubah:** `api/static/modules/crm.js`, test UI/e2e  
+**Tujuan:** Tambah `data-testid` untuk modal CRM, textarea pesan, tombol copy, tombol buka WA, dan tombol kirim Puppeteer.  
+**Risiko:** Rendah — tidak mengubah logic bisnis.
+
+### Commit 31
+```
+feat(crm): add WhatsApp Puppeteer send settings
+```
+**File kemungkinan berubah:** `settings.py`, `api/routes/settings.py`, UI settings jika diperlukan  
+**Tujuan:** Tambah setting `enable_whatsapp_puppeteer=false`.  
+**Risiko:** Rendah jika default tetap false.
+
+### Commit 32
+```
+feat(crm): add mock WhatsApp Puppeteer sender
+```
+**File kemungkinan berubah:** `helpers/whatsapp_puppeteer_helper.py`, tests  
+**Tujuan:** Sender mock untuk test guardrail tanpa kirim real.  
+**Risiko:** Rendah — tidak menyentuh WhatsApp Web real.
+
+### Commit 33
+```
+feat(crm): add backend endpoint for WhatsApp Puppeteer send
+```
+**File kemungkinan berubah:** `api/routes/crm.py`, `helpers/crm_analysis_helper.py`, `helpers/whatsapp_puppeteer_helper.py`  
+**Tujuan:** Endpoint admin-triggered one-click-one-message dengan guardrail.  
+**Risiko:** Medium — wajib test contact preference, send lock, sanitized error.
+
+### Commit 34
+```
+feat(tools): add local WhatsApp Puppeteer sender prototype
+```
+**File kemungkinan berubah:** `tools/whatsapp_puppeteer/send_whatsapp.js`, `package.json`, docs setup  
+**Tujuan:** Prototype lokal dengan QR manual dan userDataDir lokal.  
+**Risiko:** Medium — hanya boleh manual/local, bukan CI.
+
+### Commit 35
+```
+feat(crm): connect follow-up modal to WhatsApp sender
+```
+**File kemungkinan berubah:** `api/static/modules/crm.js`, style jika perlu  
+**Tujuan:** Tombol **Kirim WhatsApp**, status sending/sent/failed/blocked, fallback copy.  
+**Risiko:** Medium — wajib duplicate click prevention.
+
+### Commit 36
+```
+test(crm): add WhatsApp Puppeteer guardrail tests
+```
+**File kemungkinan berubah:** `tests/test_crm_whatsapp_puppeteer.py`, e2e/mock tests  
+**Tujuan:** Test no phone, invalid phone, do-not-contact, no-promo, empty message, send lock, mock success/failure, sanitized error.  
+**Risiko:** Tidak ada — test.
+
+### Commit 37
+```
+docs: add WhatsApp Puppeteer setup and safety guide
+```
+**File kemungkinan berubah:** `docs/WHATSAPP_PUPPETEER_AUTOMATION.md`, user/admin guide jika diperlukan  
+**Tujuan:** Panduan setup QR login, troubleshooting, batasan non-bulk, dan real-send manual/local.
+
+---
+
 ## Ringkasan Jumlah Commit
 
 | Blok | Jenis | Jumlah |
@@ -286,7 +361,8 @@ refactor: migrate helper utils to TypeScript
 | Blok 4 — Tests | test | 3 |
 | Blok 5 — Service Generic | refactor | 5 |
 | Blok 6 — TypeScript | refactor | 2 |
-| **Total** | | **28** |
+| Blok 7 — CRM WhatsApp Puppeteer | docs + test + feat | 9 |
+| **Total** | | **37** |
 
 ---
 

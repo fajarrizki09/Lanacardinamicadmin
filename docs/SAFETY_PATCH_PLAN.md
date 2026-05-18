@@ -3,6 +3,8 @@
 > Setiap patch kecil, bisa di-commit terpisah, tidak rewrite besar.  
 > Urutan = urutan prioritas. P0 dulu, lalu P1.
 
+Catatan: WhatsApp Puppeteer automation bukan bagian dari Safety Patch P0 saat ini. Jangan campur rencana WhatsApp automation dengan patch stok/herbal/inventory/invoice yang sedang berjalan.
+
 ---
 
 ## Fase 1: Patch Keamanan Kritis Tambahan (P0)
@@ -31,10 +33,11 @@ if float(final_price or 0) < 0:
 
 ---
 
-## Patch 2 — Require Reason for Free Visit (di route utama)
+## Patch 2 — [DONE] Require Reason for Free Visit (di route utama)
 
 **Kenapa penting:** Validasi `free_visit_reason` hanya ada di route import data (`data.py`). Route pencatatan kunjungan biasa belum tentu memvalidasi ini.  
 **Aman dilakukan sekarang:** Ya — validasi tambahan, tidak mengubah schema.
+**Status**: [DONE] - Logic backend telah diperkuat dan test otomatis (`test_free_visit_requires_reason`) telah ditambahkan.
 
 **File yang perlu dicek:**
 - `api/routes/patients.py` (endpoint pencatatan kunjungan)
@@ -314,3 +317,26 @@ try {
 **Commit message:** `fix: prevent double submit on visit and herbal sale forms`
 
 **Potensi efek samping:** Tidak ada — ini UI guard.
+
+---
+
+## Future Safety Patch — WhatsApp Puppeteer Guardrails
+
+Patch ini wajib sebelum fitur real send Puppeteer diaktifkan untuk user. Scope ini terpisah dari Safety Patch P0/P1 transaksi bisnis saat ini.
+
+1. `enable_whatsapp_puppeteer` default `false`.
+2. Admin confirmation sebelum kirim.
+3. Send lock.
+4. Contact permission enforcement.
+5. **JANGAN DIHUBUNGI** block.
+6. **JANGAN PROMO** block.
+7. Empty message block.
+8. One-click-one-message guard.
+9. Duplicate click prevention.
+10. Log `sent`/`failed`/`blocked`.
+11. Sanitized error.
+12. Mock provider test.
+
+**Tidak boleh dicampur dengan:** patch stok herbal, rollback multi-item, inventory non-negative, invoice path traversal, atau void/Admin PIN.
+
+**Syarat sebelum real send:** semua guardrail di atas lulus unit test/mock test dan manual real-send hanya dilakukan lokal ke nomor test milik sendiri.

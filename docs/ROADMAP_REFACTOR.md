@@ -257,6 +257,129 @@ Migrasi JS ke TS bertahap. Tidak merusak logic yang sudah berjalan.
 
 ---
 
+## Fase CRM-A — WhatsApp Automation Readiness
+
+### Tujuan
+Menyiapkan modul CRM Follow-up agar aman untuk opsi WhatsApp automation tanpa mengubah mode default semi-manual.
+
+### File Utama
+- `api/static/modules/crm.js`
+- `api/static/ts/` (jika CRM mulai dimigrasi)
+- `api/routes/crm.py`
+- `helpers/crm_analysis_helper.py`
+- `tests/`
+
+### Task Detail
+1. Tambah `data-testid` stabil di composer CRM WhatsApp.
+2. Rapikan modal WhatsApp composer agar status, error, dan tombol mudah diuji.
+3. Pastikan tombol **Buka WhatsApp** tidak dobel membuka tab.
+4. Pastikan `crm_whatsapp_logs` selalu terisi untuk aktivitas WhatsApp.
+5. Pastikan contact preference (`JANGAN DIHUBUNGI`, `JANGAN PROMO`, reminder opt-out) tervalidasi di UI dan backend.
+6. Pastikan semi-manual tetap default dan fallback.
+
+### Syarat Selesai
+- UI CRM punya selector/test id stabil.
+- Tidak ada double open tab untuk flow WhatsApp semi-manual.
+- Contact preference enforceable sebelum masuk fase Puppeteer.
+
+---
+
+## Fase CRM-B — Puppeteer Mock Sender
+
+### Tujuan
+Menguji flow baru tanpa mengirim WhatsApp real.
+
+### File Utama
+- `api/routes/crm.py`
+- `helpers/whatsapp_puppeteer_helper.py` (rencana)
+- `helpers/crm_analysis_helper.py`
+- `api/static/modules/crm.js`
+- `tests/test_crm_whatsapp_puppeteer.py`
+
+### Task Detail
+1. Tambah setting `enable_whatsapp_puppeteer=false`.
+2. Tambah backend endpoint mock untuk send.
+3. Simpan log `sent_mock`/`failed_mock` atau mapping status mock yang jelas.
+4. UI tombol **Kirim WhatsApp** bisa diuji tanpa kirim real.
+5. Pastikan fallback **Copy Pesan** tetap tersedia.
+
+### Syarat Selesai
+- Semua guardrail bisa dites otomatis tanpa WhatsApp Web.
+- Tidak ada real send di CI.
+
+---
+
+## Fase CRM-C — Puppeteer Local Prototype
+
+### Tujuan
+Membuat prototype lokal yang hanya berjalan manual di mesin developer/admin dan hanya untuk nomor test sendiri.
+
+### File Utama
+- `tools/whatsapp_puppeteer/send_whatsapp.js`
+- `package.json`
+- `.local/whatsapp-profile` (runtime, tidak masuk Git/build)
+- `docs/WHATSAPP_PUPPETEER_AUTOMATION.md`
+
+### Task Detail
+1. Tambah script `tools/whatsapp_puppeteer/send_whatsapp.js`.
+2. Gunakan `userDataDir` lokal agar session WhatsApp Web tersimpan lokal.
+3. Login QR manual, tidak bypass QR.
+4. Kirim hanya ke nomor test milik sendiri saat prototype.
+5. Jangan bulk dan jangan background send.
+
+### Syarat Selesai
+- Script menerima JSON input dan mengembalikan JSON result.
+- Manual real-send hanya berjalan lokal, bukan CI.
+
+---
+
+## Fase CRM-D — Backend Integration
+
+### Tujuan
+Menghubungkan FastAPI ke sender lokal secara terkontrol.
+
+### File Utama
+- `api/routes/crm.py`
+- `helpers/whatsapp_puppeteer_helper.py`
+- `tools/whatsapp_puppeteer/send_whatsapp.js`
+- `api/static/modules/crm.js`
+
+### Task Detail
+1. FastAPI memanggil Node script via subprocess.
+2. Tangani JSON result dari Node.
+3. Simpan log `sending`, lalu update ke `sent`/`failed`/`blocked`.
+4. Tampilkan status ke UI.
+5. Sanitasi semua error yang dikirim ke frontend.
+
+### Syarat Selesai
+- Endpoint hanya aktif jika setting enabled.
+- Semua status hasil tercatat di `crm_whatsapp_logs`.
+
+---
+
+## Fase CRM-E — QA & Guardrails
+
+### Tujuan
+Memastikan automation tetap admin-triggered, tidak spam, dan patuh preferensi kontak.
+
+### Task Detail
+1. Send lock.
+2. Admin confirmation sebelum kirim.
+3. Enforcement **JANGAN DIHUBUNGI**.
+4. Enforcement **JANGAN PROMO** untuk template promo.
+5. Empty message block.
+6. One-click-one-message guard.
+7. Duplicate click prevention.
+8. Manual QA checklist.
+9. Puppeteer mock test.
+
+### Syarat Selesai
+- Semua guardrail test lulus.
+- Manual real-send hanya ke nomor test sendiri.
+- Semi-manual fallback tetap tersedia.
+
+---
+
 ## Fase 7 — QA Internal
 
 ### Tujuan

@@ -71,7 +71,8 @@ Aplikasi ini **bukan** aplikasi bekam saja. Bekam adalah salah satu jenis layana
 - Dashboard ringkasan harian/mingguan
 - Analitik (top layanan, top terapis, top produk)
 - Owner Report (pendapatan bersih, komposisi revenue)
-- CRM WhatsApp semi-manual (copy-paste atau buka WA Web)
+- CRM WhatsApp semi-manual default (generate pesan, copy-paste, buka WA Web, admin kirim manual)
+- CRM WhatsApp Puppeteer automation optional, disabled by default, admin-triggered, satu klik untuk satu pasien dan satu pesan
 - Backup / restore data lokal
 - Admin PIN untuk aksi sensitif
 - Lisensi / trial dengan limit waktu atau kunjungan
@@ -83,7 +84,8 @@ Aplikasi ini **bukan** aplikasi bekam saja. Bekam adalah salah satu jenis layana
 - Bukan Rekam Medis Elektronik (RME) resmi
 - Bukan integrasi SATUSEHAT / BPJS
 - Bukan sistem multi-cabang cloud penuh
-- Bukan WhatsApp auto-send resmi (kecuali ada provider API yang diintegrasikan)
+- Bukan WhatsApp Business API/provider resmi untuk fase ini
+- Bukan bulk WhatsApp blasting, background campaign sender, bypass QR WhatsApp Web, atau pengiriman tanpa aksi admin
 - Bukan payment gateway production penuh sebelum alur E2E diuji
 - Bukan aplikasi mobile native (Android/iOS)
 - Bukan multi-user cloud database
@@ -309,12 +311,27 @@ Pilih pasien
 
 ### Aturan wajib:
 - Nomor invoice harus unik.
+- Nomor invoice harus tetap stabil untuk transaksi yang sama; refresh PDF tidak boleh membuat nomor invoice baru.
 - Path file PDF harus aman dari path traversal (tidak boleh ada `../` atau karakter tidak aman).
 - Nama file PDF harus aman untuk Windows (tidak ada `\/:*?"<>|`).
 - Invoice void tidak dihitung dalam pendapatan aktif.
 - Kegagalan pembuatan PDF harus menghasilkan status error yang jelas, bukan silent fail.
 - Invoice tidak boleh menyebabkan transaksi dobel.
 - Invoice tidak boleh menjadi sumber double count jika visit/herbal sudah dihitung di laporan.
+- File PDF invoice adalah **snapshot** dari data transaksi saat PDF dibuat.
+- Jika `payment_status`, `payment_method`, provider, atau link pembayaran berubah setelah PDF dibuat, user harus bisa melakukan **Update / Refresh PDF Invoice** tanpa membuat transaksi baru.
+- Refresh PDF invoice harus mencatat audit log terpisah dari generate pertama.
+- Invoice yang sudah `void` tidak boleh di-refresh atau ditandai lunas.
+
+### Flow refresh PDF setelah status pembayaran berubah:
+```
+Transaksi dibuat
+  → Invoice PDF dibuat pertama kali
+  → payment_status dapat berubah
+  → sistem menawarkan Update PDF
+  → PDF di-render ulang dengan nomor invoice yang sama
+  → audit log invoice_pdf_refreshed / herbal_invoice_pdf_refreshed
+```
 
 ---
 
@@ -380,12 +397,13 @@ total_revenue   = visit_revenue + herbal_revenue
 | `unpaid` | Belum dibayar |
 | `pending` | Menunggu konfirmasi payment gateway |
 | `paid` | Lunas |
+| `partial` | Dibayar sebagian / DP |
 | `failed` | Pembayaran gagal |
 | `refunded` | Dana dikembalikan |
 | `void` | Dibatalkan |
 
 ### Standar payment_method:
-`cash`, `transfer`, `qris`, `gateway`, `manual`
+`cash`, `qris`, `transfer`, `debit`, `ewallet`, `virtual_account`, `credit_card`, `other`, `free`
 
 ### Standar payment_provider:
 `manual`, `gateway_mock`, `xendit`, `midtrans`, `duitku`
@@ -396,6 +414,9 @@ total_revenue   = visit_revenue + herbal_revenue
 - Webhook/callback harus divalidasi; tidak boleh update transaksi yang salah.
 - `payment_url` yang expired harus ditangani dengan fallback yang jelas.
 - Laporan harus mendokumentasikan status mana yang dihitung (biasanya hanya `paid`).
+- `partial` dihitung sebagai pembayaran masuk sebesar `amount_paid`, bukan seluruh tagihan.
+- Perubahan status pembayaran harus masuk audit log.
+- Jika PDF invoice sudah ada, perubahan status pembayaran harus menawarkan refresh PDF agar isi PDF tidak stale.
 
 ---
 
@@ -415,6 +436,129 @@ total_revenue   = visit_revenue + herbal_revenue
 - Pengaturan sensitif (license key, database path, secret) tidak boleh bocor ke response frontend.
 - Input dari user atau payment reference yang ditampilkan di HTML harus di-escape.
 - License key tidak boleh hardcoded di source code.
+
+---
+
+## 18A. Aturan CRM WhatsApp
+
+CRM WhatsApp mendukung dua mode. Mode semi-manual tetap menjadi default dan fallback. Mode Puppeteer hanya boleh aktif jika setting eksplisit diaktifkan oleh admin/support dan semua guardrail lulus.
+
+### Mode 1 — Semi-manual Default
+
+Flow:
+1. Sistem generate pesan follow-up berdasarkan data pasien, layanan terakhir, dan template.
+2. Admin review dan boleh edit pesan.
+3. Admin bisa copy pesan atau membuka WhatsApp/WA Web.
+4. Admin mengirim pesan secara manual.
+5. Admin klik **Sudah Dihubungi** untuk mencatat aktivitas.
+
+Aturan:
+- Selalu tersedia walaupun Puppeteer disabled atau gagal.
+- Tidak boleh mengirim otomatis tanpa admin.
+- Tetap wajib mematuhi preferensi kontak pasien.
+- Semua aktivitas penting harus masuk `crm_whatsapp_logs` dan/atau `patient_followups`.
+
+### Mode 2 — Puppeteer Automation Opsional
+
+Flow:
+1. Admin membuka composer WhatsApp di tab Follow-up Pasien.
+2. Sistem generate pesan dan admin wajib review.
+3. Admin klik tombol **Kirim WhatsApp**.
+4. Sistem menampilkan confirmation dialog.
+5. Jika dikonfirmasi, backend lokal menjalankan Puppeteer WhatsApp Web lokal.
+6. Puppeteer mengirim satu pesan ke satu pasien.
+7. Backend mencatat hasil `sending`, `sent`, `failed`, atau `blocked` di `crm_whatsapp_logs`.
+
+Aturan wajib:
+- Fitur disabled by default lewat setting `enable_whatsapp_puppeteer = false`.
+- Satu klik admin = satu pasien = satu pesan.
+- Tidak boleh ada bulk send, background send, scheduler campaign, atau queue otomatis yang mengirim tanpa aksi admin.
+- Tidak boleh bypass QR login WhatsApp Web. Login harus dilakukan manual oleh user di WhatsApp Web.
+- Tidak boleh kirim ke pasien dengan preferensi/tag **JANGAN DIHUBUNGI**.
+- Template promo tidak boleh dikirim ke pasien **JANGAN PROMO** atau `boleh_promo = false`.
+- Pesan kosong harus ditolak.
+- Nomor pasien wajib dinormalisasi ke format Indonesia `62...` dan divalidasi.
+- Wajib ada send lock untuk mencegah spam/duplikasi pesan dalam window tertentu.
+- Wajib ada duplicate click prevention di UI.
+- Wajib ada log status `sending`, `sent`, `failed`, atau `blocked`.
+- Error yang tampil ke frontend harus disanitasi dan tidak membocorkan stack trace/path lokal.
+- Jika Puppeteer gagal, fallback semi-manual tetap tersedia.
+
+### Endpoint Rencana
+
+`POST /api/crm/patient/{patient_id}/whatsapp-puppeteer-send`
+
+Body:
+```json
+{
+  "message": "...",
+  "source": "followup_modal",
+  "confirm": true
+}
+```
+
+Backend flow:
+1. Validate `X-App-Token`.
+2. Validate patient exists.
+3. Normalize phone.
+4. Check contact permission.
+5. Check message.
+6. Check send lock.
+7. Create log status `sending`.
+8. Call helper `whatsapp_puppeteer_helper.py`.
+9. Helper calls Node script `tools/whatsapp_puppeteer/send_whatsapp.js`.
+10. Node returns JSON.
+11. Backend updates log `sent`/`failed`/`blocked`.
+12. Frontend receives status.
+
+Node script input:
+```json
+{
+  "phone": "628xxxx",
+  "message": "text",
+  "profileDir": ".local/whatsapp-profile",
+  "headless": false
+}
+```
+
+Node script output success:
+```json
+{
+  "ok": true,
+  "status": "sent"
+}
+```
+
+Node script output login required:
+```json
+{
+  "ok": false,
+  "status": "login_required",
+  "message": "WhatsApp Web belum login."
+}
+```
+
+### Acceptance Criteria CRM WhatsApp Puppeteer
+
+- **Given** pasien boleh dihubungi dan nomor valid  
+  **When** admin klik **Kirim WhatsApp** dan mengonfirmasi  
+  **Then** sistem mencoba kirim via Puppeteer dan mencatat log.
+
+- **Given** pasien **JANGAN DIHUBUNGI**  
+  **When** admin klik **Kirim WhatsApp**  
+  **Then** sistem menolak dan tidak membuka/mengirim.
+
+- **Given** pesan kosong  
+  **When** admin klik **Kirim WhatsApp**  
+  **Then** sistem menolak.
+
+- **Given** WhatsApp Web belum login  
+  **When** admin klik **Kirim WhatsApp**  
+  **Then** sistem menampilkan instruksi scan QR.
+
+- **Given** pesan baru saja dikirim dalam lock window  
+  **When** admin klik **Kirim WhatsApp**  
+  **Then** sistem menolak kecuali override sesuai aturan yang disetujui.
 
 ---
 
@@ -519,6 +663,14 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
   **When** invoice PDF dibuat  
   **Then** nomor invoice unik dan nama file tidak mengandung karakter tidak aman Windows
 
+- **Given** invoice PDF sudah dibuat dengan status `unpaid`  
+  **When** status pembayaran diubah menjadi `paid`  
+  **Then** sistem menawarkan update PDF dan PDF hasil refresh memakai nomor invoice yang sama dengan status terbaru
+
+- **Given** invoice sudah `void`  
+  **When** user mencoba update PDF atau menandai lunas  
+  **Then** sistem menolak aksi tersebut
+
 - **Given** visit di-void  
   **When** owner report dijalankan  
   **Then** invoice void tersebut tidak masuk hitungan pendapatan aktif
@@ -579,6 +731,11 @@ File-file ini harus ada di `.gitignore` dan diabaikan oleh sistem build EXE.
 | Build | File runtime ikut build/installer | Sedang | P2 | Cek .gitignore dan PyInstaller spec | Review file build output |
 | Frontend | Type TS tidak cocok backend | Sedang | P2 | types.ts sebagai single source, validasi saat integrasi | Type check (tsc --noEmit) |
 | Security | Stack trace bocor ke frontend | Tinggi | P1 | Global error handler, return pesan generik | Test error endpoint |
+| CRM WhatsApp | Bulk/auto-send tidak disengaja | Tinggi | P1 | One-click-one-message, disabled by default, no background sender | Mock + manual QA |
+| CRM WhatsApp | Akun WhatsApp terkena limit | Tinggi | P1 | Send lock, manual trigger, tidak bulk, nomor test saat prototype | Manual local test |
+| CRM WhatsApp | Selector WA Web berubah | Sedang | P2 | Puppeteer sebagai optional fallback, error sanitized, semi-manual tetap ada | Mock + real local test |
+| CRM WhatsApp | Pesan terkirim dobel | Tinggi | P1 | Tombol disabled saat sending, idempotency/send lock, log status sending | UI test double submit |
+| CRM WhatsApp | Melanggar preferensi kontak pasien | Tinggi | P1 | Block JANGAN DIHUBUNGI/JANGAN PROMO di backend dan UI | Unit test guardrail |
 
 ---
 

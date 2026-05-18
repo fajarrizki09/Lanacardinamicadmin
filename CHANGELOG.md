@@ -1,5 +1,74 @@
 # Catatan Perubahan
 
+## 2026-05-18 - Patch P3 Polish Laporan
+
+- Menambahkan `top_service_categories` pada laporan owner untuk menampilkan top kategori layanan berdasarkan `service_category`.
+- Menambahkan KPI `Piutang / Pending` pada laporan owner.
+- Pending revenue dihitung konsisten dari status `unpaid`, `pending`, dan sisa tagihan `partial` untuk kunjungan dan herbal.
+- UI laporan owner menampilkan panel `Kategori Layanan` dan KPI pending receivable.
+- Memperbaiki flow transaksi herbal agar kompatibel dengan SQLAlchemy autobegin tanpa mengurangi atomic rollback/commit.
+- Menambahkan `tests/test_p3_polish.py` untuk top kategori layanan dan pending revenue summary.
+- Validasi dijalankan: `tests.test_p3_polish`, `tests.test_p2_hardening`, `tests.test_p0_regressions`, `tests.test_p1_trial_gaps`, dan `npm run build:ts` semuanya OK.
+
+## 2026-05-18 - Patch P2 Hardening Awal
+
+- Menyelesaikan sisa P2 dengan menambahkan `api/static/ts/types.ts` sebagai pusat tipe frontend umum (`AdminVisit`, `AdminServiceModel`, `AdminInventoryModel`, `PaymentStatus`, dll.).
+- Menghapus alias tipe duplikat dari `types/admin-globals.d.ts` agar `types.ts` menjadi source of truth untuk alias lintas modul.
+- Memperketat escaping render dataset pada badge pilihan inventory dan herbal.
+- Memperketat render list penjualan herbal dan option transaksi retur dengan `escapeHtml()` / coercion numerik.
+- Menambahkan test guard untuk shared `types.ts`, DOM unsafe HTML guard, dan escaping badge dataset.
+- Menambahkan alias `Visit.quantity` sebagai synonym aman untuk `Visit.point_count` tanpa mengubah kolom fisik database.
+- Menambahkan parameter `quantity` pada `Database.add_visit()` sebagai alias backward-compatible untuk `point_count`.
+- Menambahkan `VisitData.quantity` dan sinkronisasi otomatis dengan `point_count`.
+- Menyelaraskan payment status dengan PRD: `refunded` sekarang valid di `helpers/payment_rules.py`, bernilai revenue masuk 0, dan ditampilkan sebagai `Refund` di formatter UI.
+- Menambahkan guard `LancarDom.assertEscapedHtml()` untuk mendeteksi pattern HTML berbahaya pada render HTML lewat DOM helper.
+- Menambahkan `tests/test_p2_hardening.py` untuk quantity alias dan status `refunded`.
+- Validasi dijalankan: `tests.test_p2_hardening`, `tests.test_p0_regressions`, `tests.test_p1_trial_gaps`, dan `npm run build:ts` semuanya OK.
+
+## 2026-05-18 - Sisa P0 Regression Guard
+
+- Menambahkan `tests/test_p0_regressions.py` untuk mengunci gap fatal yang sudah dipatch.
+- Test P0 mencakup breakdown harga kunjungan (`original_price`, `discount_amount`, `final_price`) dan laporan owner memakai `final_price`.
+- Test P0 memastikan harga negatif ditolak, harga 0 tanpa flag gratis ditolak, dan free visit wajib alasan.
+- Test P0 memastikan herbal sale multi-item rollback total ketika salah satu item stoknya kurang.
+- Test P0 memastikan visit dengan herbal tidak double count: revenue layanan dan herbal dihitung tepat satu kali.
+- Test P0 memastikan paid/partial/free/void tidak overcount di owner report.
+- Validasi dijalankan: `tests.test_p0_regressions` OK, `tests.test_p1_trial_gaps` OK, dan `npm run build:ts` OK.
+
+## 2026-05-18 - Patch P1 Gap Trial
+
+- Menambahkan field service generic: `pricing_type`, `service_category`, `fixed_price`, dan `allow_manual_price` di ORM, DTO, migration SQLite, route add/update, dan type global TS.
+- Menambahkan `Inventory.item_type` (`consumable` / `non_consumable`) di ORM, migration SQLite, route add/edit, payload inventory, dan type global TS.
+- Mengunci auto-deduct `ServiceInventoryUsage` agar hanya memotong inventory `consumable`; item `non_consumable` tidak ikut berkurang saat kunjungan.
+- Memperketat void invoice: alasan kosong ditolak di route dan Admin PIN tetap wajib.
+- Memperkuat path invoice: output directory absolut, filename disanitasi, dan path divalidasi tetap berada di folder invoice untuk invoice layanan dan herbal.
+- Menghapus fallback unit invoice khusus Bekam menjadi fallback generik `layanan`.
+- Memverifikasi global API error handler dan `.gitignore` untuk runtime/build artifact.
+- Menjalankan compile check dan smoke test in-memory untuk service field, inventory item type, consumable-only auto-deduct, dan invoice path safety.
+
+## 2026-05-18 - Patch P0 Gap PRD
+
+- Menambahkan field `original_price`, `discount_amount`, dan `final_price` pada model `Visit`, dataclass `VisitData`, migrasi kolom SQLite, dan backfill dari `price` lama.
+- Memastikan pembuatan visit menyimpan breakdown harga asli, diskon, dan harga final secara terpisah.
+- Memperkuat validasi backend agar harga negatif ditolak dan harga 0 hanya boleh untuk kunjungan gratis dengan alasan.
+- Memperkuat herbal-only sale agar seluruh item dicek ulang sebelum stok dikurangi, memakai transaction context, dan rollback aman jika salah satu item stoknya kurang.
+- Memastikan herbal nonaktif/stok kurang ditolak dari flow pembelian herbal visit dan herbal-only sale.
+- Memperbaiki alokasi pembayaran sebagian (`partial`) pada penjualan herbal multi-item agar `amount_paid` dibagi per item, bukan diduplikasi ke semua item.
+- Mengubah formula owner report, analytics, dashboard, dan payment total agar memakai `Visit.final_price` dengan fallback ke `Visit.price` untuk data lama.
+- Menjalankan smoke test in-memory untuk migrasi/model pricing, partial revenue, dan rollback stok herbal multi-item gagal.
+- Menjalankan compile check untuk file Python yang terdampak.
+
+## 2026-05-18 - Sinkronisasi PRD, Flowchart Logic, dan Invoice Refresh PDF
+
+- Menganalisis ulang `docs/PRD.md` terhadap logic invoice/payment aktual.
+- Menyelaraskan PRD bahwa transaksi/invoice record bersifat permanen, sedangkan PDF invoice adalah snapshot yang boleh di-refresh jika status pembayaran berubah.
+- Menambahkan aturan PRD bahwa refresh PDF invoice memakai nomor invoice yang sama dan tidak membuat transaksi baru.
+- Menambahkan acceptance criteria PRD untuk update PDF setelah `payment_status` berubah dan larangan refresh invoice yang sudah void.
+- Menyelaraskan standar `payment_status` PRD dengan implementasi aktual: menambahkan `partial` untuk pembayaran sebagian/DP.
+- Menyelaraskan standar `payment_method` PRD dengan implementasi aktual: `cash`, `qris`, `transfer`, `debit`, `ewallet`, `virtual_account`, `credit_card`, `other`, dan `free`.
+- Menambahkan dokumen `docs/CHANGES_IMPLEMENTED.md` untuk mencatat perubahan yang sudah berjalan, gap yang masih tersisa, dan rekomendasi urutan berikutnya.
+- Membuat kumpulan flowchart per logic di `docs/flowcharts/`, termasuk flow invoice refresh PDF, payment status, payment gateway, CRM WhatsApp, inventory, herbal, reports, dan settings/backup/license.
+
 ## v1.7.25 - 2026-05-07
 
 - Menambahkan error handling global FastAPI agar user menerima pesan ramah, sementara detail error tersimpan di folder `logs/`.
