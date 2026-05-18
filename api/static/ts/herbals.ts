@@ -434,7 +434,7 @@ function selectHerbal(row: HTMLTableRowElement): void {
     }
     const badge = document.getElementById('herbal-selected-badge');
     if (badge) {
-        badge.innerHTML = `<i class="fas fa-leaf" style="color:#10b981;"></i> <strong>${name}</strong> <span style="color:#94a3b8;font-size:11px;">(stok: ${stock} ${unit})</span>`;
+        badge.innerHTML = `<i class="fas fa-leaf" style="color:#10b981;"></i> <strong>${escapeHtml(name)}</strong> <span style="color:#94a3b8;font-size:11px;">(stok: ${escapeHtml(stock)} ${escapeHtml(unit)})</span>`;
         badge.style.background = '#f0fdf4';
         badge.style.borderColor = '#6ee7b7';
         badge.style.color = '#059669';
@@ -628,9 +628,9 @@ function syncHerbalSaleItems(): void {
                     <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:6px;">
                         <div style="min-width:0;">
                             <div style="font-weight:700;font-size:13px;">${escapeHtml(item.name)}</div>
-                            <div style="font-size:12px;color:var(--text-muted);">${item.quantity} ${escapeHtml(item.unit)} x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}</div>
+                            <div style="font-size:12px;color:var(--text-muted);">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)} x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}</div>
                         </div>
-                        <button type="button" onclick="removeHerbalSaleItem(${item.herbal_id})" title="Hapus item" style="border:none;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:5px 7px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+                        <button type="button" onclick="removeHerbalSaleItem(${Number(item.herbal_id || 0)})" title="Hapus item" style="border:none;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:5px 7px;cursor:pointer;"><i class="fas fa-trash"></i></button>
                     </div>`;
             }).join('');
         }
@@ -789,7 +789,7 @@ async function openHerbalReturnModal(): Promise<void> {
         }
         select.innerHTML = '<option value="">- Pilih Transaksi -</option>' + rows.map((row: HerbalTransactionRow) => {
             const label = `${_formatCorrectionDate(row.date)} - ${row.herbal_name} x${row.quantity} - ${formatRupiah(row.total_price)}`;
-            return `<option value="${row.id}" data-qty="${row.quantity}" data-name="${escapeHtml(row.herbal_name)}">${escapeHtml(label)}</option>`;
+            return `<option value="${escapeHtml(row.id)}" data-qty="${escapeHtml(row.quantity)}" data-name="${escapeHtml(row.herbal_name)}">${escapeHtml(label)}</option>`;
         }).join('');
         select.onchange = () => {
             const option = select.options[select.selectedIndex];

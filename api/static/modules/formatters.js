@@ -46,6 +46,7 @@
             paid: { label: 'Lunas', tone: 'success' },
             unpaid: { label: 'Belum Bayar', tone: 'warning' },
             partial: { label: 'DP / Sebagian', tone: 'warning' },
+            refunded: { label: 'Refund', tone: 'danger' },
             void: { label: 'Void', tone: 'danger' },
             success: { label: 'Berhasil', tone: 'success' },
             error: { label: 'Error', tone: 'danger' },

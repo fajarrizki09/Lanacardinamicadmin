@@ -86,10 +86,12 @@ async function renderOwnerReport(): Promise<void> {
                 ${ownerKpiCard('fa-wallet', 'Pendapatan', formatRupiah(summary.total_revenue || 0), `Kunjungan ${formatRupiah(summary.visit_revenue || 0)} &middot; Herbal ${formatRupiah(summary.herbal_revenue || 0)}`, 'is-revenue')}
                 ${ownerKpiCard('fa-notes-medical', 'Kunjungan', Number(summary.total_visits || 0), `${Number(summary.unique_patients || 0)} pasien unik`)}
                 ${ownerKpiCard('fa-user-plus', 'Pasien Baru', Number(summary.new_patients || 0), `${Number(summary.active_patients || 0)} pasien aktif`)}
+                ${ownerKpiCard('fa-hourglass-half', 'Piutang / Pending', formatRupiah(summary.pending_revenue || 0), `Kunjungan ${formatRupiah(summary.pending_visit_revenue || 0)} &middot; Herbal ${formatRupiah(summary.pending_herbal_revenue || 0)}`)}
                 ${ownerKpiCard('fa-phone-volume', 'Perlu Follow-up', Number(summary.patients_need_followup || 0), `${Number(summary.dormant_patients || 0)} lama tidak datang`)}
             </div>
 
             <div class="owner-report-grid">
+                ${ownerReportPanel('Kategori Layanan', renderOwnerCategoryRows(data.top_service_categories || []), 'Kategori layanan dengan kontribusi revenue tertinggi.')}
                 ${ownerReportPanel('Top Layanan', renderOwnerServiceRows(data.top_services || []), 'Layanan dengan kunjungan terbanyak.')}
                 ${ownerReportPanel('Top Produk / Herbal', renderOwnerHerbalRows(data.top_herbals || []), 'Produk / herbal dengan penjualan tertinggi.')}
                 ${ownerReportPanel('Pasien Loyal', renderOwnerPatientRows(data.top_loyal_patients || []), 'Pasien dengan kunjungan dan transaksi tertinggi.')}
@@ -133,6 +135,32 @@ function renderOwnerEmptyRow(message?: string): string {
             <p>${escapeHtml(message || 'Belum ada data.')}</p>
         </div>
     `;
+}
+
+function renderOwnerCategoryRows(rows: OwnerReportRow[]): string {
+    if (!rows.length) return renderOwnerEmptyRow('Belum ada kategori layanan pada periode ini.');
+    return rows.map(row => `
+        <div class="owner-list-item">
+            <div class="owner-item-info">
+                <span class="owner-item-name">${escapeHtml(ownerCategoryLabel(row.name || row.category || 'uncategorized'))}</span>
+                <span class="owner-item-sub">${Number(row.visits || 0)} kunjungan</span>
+            </div>
+            <span class="owner-item-value">${formatRupiah(row.revenue || 0)}</span>
+        </div>
+    `).join('');
+}
+
+function ownerCategoryLabel(value: string): string {
+    const normalized = String(value || '').trim().toLowerCase();
+    const map: Record<string, string> = {
+        therapy: 'Terapi',
+        consultation: 'Konsultasi',
+        package: 'Paket',
+        product: 'Produk',
+        other: 'Lainnya',
+        uncategorized: 'Tanpa Kategori',
+    };
+    return map[normalized] || normalized.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()) || 'Tanpa Kategori';
 }
 
 function renderOwnerServiceRows(rows: OwnerReportRow[]): string {

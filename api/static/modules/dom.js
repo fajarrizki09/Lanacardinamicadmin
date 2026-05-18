@@ -1,4 +1,12 @@
 "use strict";
+const LANCAR_RAW_HTML_PATTERNS = [
+    /<script\b/i,
+    /\son[a-z]+\s*=/i,
+    /javascript\s*:/i,
+    /<iframe\b/i,
+    /<object\b/i,
+    /<embed\b/i,
+];
 (() => {
     function byId(id) {
         return document.getElementById(id);
@@ -27,7 +35,18 @@
         const element = resolveElement(elementOrId);
         if (!element)
             return false;
-        element.innerHTML = value === null || value === undefined ? '' : String(value);
+        const html = value === null || value === undefined ? '' : String(value);
+        assertEscapedHtml(html, 'LancarDom.setHtml');
+        element.innerHTML = html;
+        return true;
+    }
+    function assertEscapedHtml(html, context = 'HTML render') {
+        const text = String(html || '');
+        const unsafe = LANCAR_RAW_HTML_PATTERNS.find(pattern => pattern.test(text));
+        if (unsafe) {
+            console.warn(`${context}: possible unsafe HTML pattern blocked`, unsafe.toString());
+            throw new Error('Konten HTML tidak aman terdeteksi.');
+        }
         return true;
     }
     function show(elementOrId) {
@@ -54,6 +73,7 @@
         queryAll,
         setText,
         setHtml,
+        assertEscapedHtml,
         show,
         hide,
         getInputValue,

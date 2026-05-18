@@ -103,16 +103,25 @@ const auditLabelMap = {
 function renderAuditDetails(row) {
     const meta = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
     const entries = Object.entries(meta).filter(([, value]) => value !== null && value !== undefined && value !== '');
-    if (!entries.length)
-        return '';
+    if (!entries.length) {
+        return `<div class="audit-empty" style="text-align:center; padding: 20px; color: var(--text-muted);">Tidak ada metadata tambahan.</div>`;
+    }
     return `
-        <div class="audit-detail-grid">
-            ${entries.map(([key, value]) => `
-                <div class="audit-detail-row">
-                    <span class="audit-detail-key">${escapeHtml(formatAuditLabel(key))}</span>
-                    <span class="audit-detail-value ${isLongAuditValue(key, value) ? 'audit-detail-value-long' : ''}">${escapeHtml(formatAuditValue(key, value))}</span>
+        <div class="audit-meta-grid">
+            ${entries.map(([key, value]) => {
+        const isLong = isLongAuditValue(key, value);
+        const strValue = formatAuditValue(key, value);
+        const escapedStr = escapeHtml(strValue);
+        const escapedAttr = escapeHtml(strValue).replace(/'/g, "\\'");
+        return `
+                <div class="audit-meta-item">
+                    <span class="audit-meta-key">${escapeHtml(formatAuditLabel(key))}</span>
+                    <div class="audit-meta-value ${isLong ? 'long' : ''}">
+                        ${isLong ? `<pre>${escapedStr}</pre><button type="button" class="audit-copy-btn" onclick="copyAuditValue(this, '${escapedAttr}')" title="Copy"><i class="fas fa-copy"></i></button>` : escapedStr}
+                    </div>
                 </div>
-            `).join('')}
+                `;
+    }).join('')}
         </div>`;
 }
 function renderAuditRow(row, idx) {
@@ -124,7 +133,6 @@ function renderAuditRow(row, idx) {
             <td>${escapeHtml(row.entity_type || '-')}${row.entity_id ? `<br><small>${escapeHtml(row.entity_id)}</small>` : ''}</td>
             <td>
                 <div class="audit-description">${escapeHtml(row.description || '-')}</div>
-                ${renderAuditDetails(row)}
             </td>
             <td>
                 <button type="button" class="audit-detail-btn" onclick="showAuditDetail(${index})">Detail</button>
@@ -251,3 +259,20 @@ function closeAuditDetail(overlayEl) {
 window.renderAuditLogs = renderAuditLogs;
 window.showAuditDetail = showAuditDetail;
 window.closeAuditDetail = closeAuditDetail;
+window.copyAuditValue = async function (btn, text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-check';
+            icon.style.color = 'var(--success)';
+            setTimeout(() => {
+                icon.className = 'fas fa-copy';
+                icon.style.color = '';
+            }, 2000);
+        }
+    }
+    catch (e) {
+        console.error('Failed to copy', e);
+    }
+};

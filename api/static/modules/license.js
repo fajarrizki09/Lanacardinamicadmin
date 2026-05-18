@@ -48,6 +48,15 @@ function readError(payload, fallback) {
 function formatDate(value) {
     const text = String(value || '').trim();
     if (!text) return '-';
+    const dateOnly = text.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+        const [year, month, day] = dateOnly.split('-').map(Number);
+        return new Date(year, month - 1, day).toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+        });
+    }
     const parsed = new Date(text);
     if (Number.isNaN(parsed.getTime())) return text;
     return parsed.toLocaleDateString('id-ID', {

@@ -1,6 +1,7 @@
 type ServiceInventoryItem = {
   id: number | string;
   item_name?: string;
+  item_type?: "consumable" | "non_consumable" | string;
   quantity?: number;
   unit?: string;
 };
@@ -15,6 +16,10 @@ type ServiceUsageItem = {
 type AdminService = {
   id?: number | string;
   name?: string;
+  pricing_type?: "per_unit" | "fixed" | string;
+  service_category?: string;
+  fixed_price?: number;
+  allow_manual_price?: boolean;
   unit_label?: string;
   default_quantity?: number;
   price_per_unit?: number;
@@ -209,6 +214,7 @@ type OwnerReportRow = {
   visits?: number;
   revenue?: number;
   quantity?: number;
+  category?: string;
   last_visit?: string;
   segment?: string;
   segment_label?: string;
@@ -228,6 +234,9 @@ type OwnerReportSummary = {
   total_whatsapp_followups?: number;
   total_whatsapp_confirmed?: number;
   followup_booked?: number;
+  pending_revenue?: number;
+  pending_visit_revenue?: number;
+  pending_herbal_revenue?: number;
 };
 
 type OwnerReportPayload = {
@@ -239,6 +248,7 @@ type OwnerReportPayload = {
   };
   summary?: OwnerReportSummary;
   top_services?: OwnerReportRow[];
+  top_service_categories?: OwnerReportRow[];
   top_herbals?: OwnerReportRow[];
   top_loyal_patients?: OwnerReportRow[];
   patients_need_followup?: OwnerReportRow[];
@@ -248,6 +258,7 @@ type InventoryItem = {
   id: number | string;
   item_name?: string;
   name?: string;
+  item_type?: InventoryItemKind;
   quantity?: number | string;
   min_stock?: number | string;
   unit?: string;
@@ -268,8 +279,8 @@ type InvoiceItem = {
   invoice_status?: string;
   void_reason?: string;
   payment_provider?: string;
-  payment_method?: string;
-  payment_status?: string;
+  payment_method?: PaymentMethod;
+  payment_status?: PaymentStatus;
   payment_reference?: string;
   payment_url?: string;
 };
@@ -299,6 +310,10 @@ type Therapist = {
 type Service = {
   id: number | string;
   name?: string;
+  pricing_type?: ServicePricingMode;
+  service_category?: string;
+  fixed_price?: number;
+  allow_manual_price?: boolean;
   unit_label?: string;
   default_quantity?: number;
   price_per_unit?: number;
@@ -337,6 +352,7 @@ interface Window {
   renderServices?: (data: Service[]) => void;
   setServiceFilter?: (filter: "active" | "inactive" | "all") => void;
   setServiceUnitValue?: (inputId: string, value: string) => void;
+  syncServicePricingMode?: (prefix: string) => void;
   addServiceUsageItem?: (prefix: string) => void;
   removeServiceUsageItem?: (prefix: string, index: number) => void;
   syncServiceUsageInput?: (prefix: string) => boolean;
@@ -362,7 +378,8 @@ interface Window {
     unit: string,
     minStock: number | string,
     packageUnit?: string,
-    packageSize?: number | string
+    packageSize?: number | string,
+    itemType?: string
   ) => void;
   submitEditInventory?: (event: SubmitEvent) => Promise<void>;
   deleteInventory?: (id: number | string, name: string) => Promise<void>;

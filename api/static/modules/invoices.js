@@ -48,7 +48,7 @@ function generateInvoiceForVisit(visitId) {
         })
         .then(data => {
             if (data.status === "success") {
-                showToast("Invoice PDF berhasil dibuat!", "success");
+                showToast(data.message || "Invoice PDF berhasil dibuat!", "success");
                 // Reload the invoices tab to show the new buttons
                 window._invoicesPage = 1;
                 loadTab('invoices');
@@ -85,7 +85,7 @@ function generateInvoiceForHerbal(identifier) {
         })
         .then(data => {
             if (data.status === "success") {
-                showToast("Invoice herbal PDF berhasil dibuat!", "success");
+                showToast(data.message || "Invoice herbal PDF berhasil dibuat!", "success");
                 window._invoicesPage = 1;
                 loadTab('invoices');
             } else {
@@ -401,6 +401,26 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
             throw new Error(data.detail || 'Gagal memperbarui status pembayaran.');
         }
         closeModal();
+        const shouldRefreshPdf = await showConfirm(
+            `${data.message || 'Status pembayaran berhasil diperbarui.'}\n\nPDF invoice adalah snapshot. Update PDF sekarang agar status pembayaran di PDF ikut terbaru?`,
+            'info',
+            {
+                confirmText: 'Update PDF Sekarang',
+                cancelText: 'Nanti',
+                maxWidth: '460px'
+            }
+        );
+        if (shouldRefreshPdf) {
+            const target = _invoiceUpdateTarget(invoiceId);
+            if (target?.invoice_type === 'visit' && target.visit_id) {
+                generateInvoiceForVisit(target.visit_id);
+                return;
+            }
+            if (target?.invoice_type === 'herbal') {
+                generateInvoiceForHerbal(target.sale_group_id ? `group:${target.sale_group_id}` : target.transaction_id);
+                return;
+            }
+        }
         showToast(data.message || 'Status pembayaran berhasil diperbarui.', 'success');
         window._invoicesPage = 1;
         loadTab('invoices');
@@ -502,9 +522,11 @@ function renderInvoices(data) {
             const isVisit = strId.startsWith('v_');
             const numId = strId.replace('v_', '').replace('h_', '').replace('hg_', '');
             const isVoid = i.invoice_status === 'void';
-            const hasInvoicePath = !!i.path;
-            const fileExists = i.file_exists !== false;
-            const isMissingFile = hasInvoicePath && !fileExists;
+            const pdfStatus = String(i.pdf_status || '').toLowerCase();
+            const hasInvoicePath = !!i.path && pdfStatus !== 'not_generated';
+            const fileExists = i.file_exists !== false && pdfStatus !== 'missing';
+            const isMissingFile = pdfStatus === 'missing' || (hasInvoicePath && !fileExists);
+            const isStalePdf = pdfStatus === 'stale';
             const provider = String(i.payment_provider || 'manual').toLowerCase();
             const paymentMethod = i.payment_method || 'cash';
             const paymentStatus = String(i.payment_status || 'paid').toLowerCase();
@@ -517,6 +539,11 @@ function renderInvoices(data) {
             const missingFileNotice = isMissingFile
                 ? `<span class="invoice-missing-file-badge" title="Path invoice tersimpan, tapi file PDF tidak ditemukan di folder invoice.">
                     <i class="fas fa-exclamation-triangle"></i> File hilang
+                </span>`
+                : '';
+            const stalePdfNotice = isStalePdf
+                ? `<span class="invoice-missing-file-badge" title="Status pembayaran berubah setelah PDF dibuat.">
+                    <i class="fas fa-sync-alt"></i> PDF perlu update
                 </span>`
                 : '';
             const providerBadgeStyle = _paymentProviderBadgeStyle(provider);
@@ -572,6 +599,7 @@ function renderInvoices(data) {
             if (isHerbal) {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
+                        ${stalePdfNotice}
                         <button class="invoice-action-btn" onclick="openInvoice('${safePath}')" title="Buka PDF Herbal"
                             style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; border:none; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(99,102,241,0.3);"
                             onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(99,102,241,0.45)'"
@@ -584,6 +612,10 @@ function renderInvoices(data) {
                             onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(16,185,129,0.3)'">
                             <i class="fas fa-print"></i>
                         </button>
+                        ${isVoid ? '' : `<button class="invoice-action-btn" onclick="generateInvoiceForHerbal('${strId.startsWith('hg_') ? 'group:' + numId : numId}')" title="Update PDF dengan status pembayaran terbaru"
+                            style="background:#e0f2fe;color:#0369a1;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
+                            <i class="fas fa-file-circle-check"></i>
+                        </button>`}
                         ${isVoid ? '' : `<button class="invoice-action-btn" onclick="voidInvoice('herbal', '${voidTarget}')" title="Void Invoice Herbal"
                             style="background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
                             <i class="fas fa-ban"></i>
@@ -603,6 +635,7 @@ function renderInvoices(data) {
             } else {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
+                        ${stalePdfNotice}
                         <button class="invoice-action-btn" onclick="openInvoice('${safePath}')" title="Buka PDF"
                             style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; border:none; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(99,102,241,0.3);"
                             onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(99,102,241,0.45)'"
@@ -615,6 +648,10 @@ function renderInvoices(data) {
                             onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(16,185,129,0.3)'">
                             <i class="fas fa-print"></i>
                         </button>
+                        ${isVoid ? '' : `<button class="invoice-action-btn" onclick="generateInvoiceForVisit(${numId})" title="Update PDF dengan status pembayaran terbaru"
+                            style="background:#e0f2fe;color:#0369a1;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
+                            <i class="fas fa-file-circle-check"></i>
+                        </button>`}
                         ${isVoid ? '' : `<button class="invoice-action-btn" onclick="voidInvoice('visit', '${voidTarget}')" title="Void Invoice"
                             style="background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
                             <i class="fas fa-ban"></i>

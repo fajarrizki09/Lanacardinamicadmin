@@ -1,4 +1,10 @@
 "use strict";
+const SERVICE_CATEGORY_OPTIONS = [
+    { value: 'therapy', label: 'Terapi' },
+    { value: 'consultation', label: 'Konsultasi' },
+    { value: 'package', label: 'Paket' },
+    { value: 'general', label: 'Umum' },
+];
 window._serviceInventoryList = window._serviceInventoryList || [];
 window._serviceUsageDrafts = window._serviceUsageDrafts || {};
 window._serviceUnitPresets = window._serviceUnitPresets || ['sesi', 'titik', 'paket', 'layanan', 'area', 'menit', 'jam', 'kali', 'orang', 'item'];
@@ -32,6 +38,61 @@ function setServiceUnitValue(inputId, value) {
     if (value)
         input.value = value;
     input.classList.add('is-hidden');
+}
+function servicePricingTypeLabel(type) {
+    return type === 'fixed' ? 'Harga tetap' : 'Per satuan';
+}
+function serviceCategoryLabel(category) {
+    const value = String(category || 'general').trim().toLowerCase();
+    return SERVICE_CATEGORY_OPTIONS.find(option => option.value === value)?.label || value.replace(/_/g, ' ') || 'Umum';
+}
+function servicePricingFields(prefix, service) {
+    const pricingType = (service?.pricing_type === 'fixed' ? 'fixed' : 'per_unit');
+    const category = service?.service_category || 'general';
+    const fixedPrice = Number(service?.fixed_price || 0);
+    const allowManualPrice = service?.allow_manual_price !== false;
+    return `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="form-group">
+                <label>Mode Harga</label>
+                <select name="pricing_type" id="${prefix}-pricing-type" onchange="syncServicePricingMode('${prefix}')">
+                    <option value="per_unit" ${pricingType === 'per_unit' ? 'selected' : ''}>Per satuan</option>
+                    <option value="fixed" ${pricingType === 'fixed' ? 'selected' : ''}>Harga tetap / paket</option>
+                </select>
+                <div class="field-helper">Per satuan = qty × harga. Harga tetap = total paket.</div>
+            </div>
+            <div class="form-group">
+                <label>Kategori Layanan</label>
+                <select name="service_category">
+                    ${SERVICE_CATEGORY_OPTIONS.map(option => `<option value="${escapeHtml(option.value)}" ${option.value === category ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="form-group" id="${prefix}-price-per-unit-group">
+                <label>Harga per Satuan</label>
+                <input type="number" name="price_per_unit" id="${prefix}-price-per-unit" value="${Number(service?.price_per_unit || 0)}" min="0" step="1000">
+            </div>
+            <div class="form-group" id="${prefix}-fixed-price-group">
+                <label>Harga Tetap / Paket</label>
+                <input type="number" name="fixed_price" id="${prefix}-fixed-price" value="${fixedPrice}" min="0" step="1000">
+            </div>
+        </div>
+        <label style="display:flex; gap:8px; align-items:flex-start; margin:2px 0 12px; font-size:12px; color:var(--text-muted);">
+            <input type="checkbox" name="allow_manual_price" value="true" ${allowManualPrice ? 'checked' : ''} style="margin-top:2px;">
+            <span>Izinkan operator mengubah harga manual saat input kunjungan.</span>
+        </label>
+    `;
+}
+function syncServicePricingMode(prefix) {
+    const typeSelect = document.getElementById(`${prefix}-pricing-type`);
+    const fixedGroup = document.getElementById(`${prefix}-fixed-price-group`);
+    const perUnitGroup = document.getElementById(`${prefix}-price-per-unit-group`);
+    const pricingType = typeSelect?.value === 'fixed' ? 'fixed' : 'per_unit';
+    if (fixedGroup)
+        fixedGroup.style.display = pricingType === 'fixed' ? '' : 'none';
+    if (perUnitGroup)
+        perUnitGroup.style.display = pricingType === 'fixed' ? 'none' : '';
 }
 async function ensureServiceInventoryLoaded(servicesData) {
     if (window._serviceInventoryLoaded)
@@ -178,6 +239,7 @@ function renderServices(data) {
                         <label>Nama Layanan</label>
                         <input type="text" name="name" required placeholder="Contoh: Pijat Refleksi">
                     </div>
+                    ${servicePricingFields('add-service')}
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                         <div class="form-group">
                             <label>Satuan</label>
@@ -187,10 +249,6 @@ function renderServices(data) {
                             <label>Jumlah Default</label>
                             <input type="number" name="default_quantity" value="1" min="1" required>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Harga per Satuan</label>
-                        <input type="number" name="price_per_unit" value="0" min="0" step="1000">
                     </div>
                     <div class="form-group">
                         <label>Template Catatan</label>
@@ -236,10 +294,15 @@ function renderServices(data) {
     const displayArea = document.getElementById('display-area');
     if (displayArea)
         displayArea.innerHTML = html;
+    syncServicePricingMode('add-service');
     renderServiceUsageList('add-service');
 }
 function serviceRow(service) {
     const isActive = !!service.is_active;
+    const pricingType = service.pricing_type === 'fixed' ? 'fixed' : 'per_unit';
+    const priceLabel = pricingType === 'fixed'
+        ? `Paket Rp ${Number(service.fixed_price || 0).toLocaleString('id-ID')}`
+        : `${service.default_quantity} ${escapeHtml(service.unit_label || 'sesi')} - Rp ${Number(service.price_per_unit || 0).toLocaleString('id-ID')}`;
     return `
         <div style="display:flex; align-items:center; gap:12px; padding:13px 15px;
                     background:${isActive ? '#fafbff' : '#f9fafb'}; border-radius:12px;
@@ -253,7 +316,10 @@ function serviceRow(service) {
             <div style="flex:1; min-width:0;">
                 <div style="font-weight:700; font-size:14px;">${escapeHtml(service.name)}</div>
                 <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
-                    ${service.default_quantity} ${escapeHtml(service.unit_label || 'sesi')} - Rp ${Number(service.price_per_unit || 0).toLocaleString('id-ID')}
+                    ${priceLabel}
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+                    ${escapeHtml(servicePricingTypeLabel(service.pricing_type))} · ${escapeHtml(serviceCategoryLabel(service.service_category))}${service.allow_manual_price === false ? ' · Harga terkunci' : ''}
                 </div>
                 <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${escapeHtml(service.notes_template || '-')}</div>
                 <div class="service-usage-summary"><i class="fas fa-box-open"></i> ${serviceUsageSummary(service.inventory_usage)}</div>
@@ -328,6 +394,7 @@ function renderEditServiceModal(id) {
                 <label>Nama Layanan</label>
                 <input type="text" name="name" value="${escapeHtml(service.name)}" required>
             </div>
+            ${servicePricingFields(`edit-service-${service.id}`, service)}
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <div class="form-group">
                     <label>Satuan</label>
@@ -337,10 +404,6 @@ function renderEditServiceModal(id) {
                     <label>Jumlah Default</label>
                     <input type="number" name="default_quantity" value="${service.default_quantity || 1}" min="1" required>
                 </div>
-            </div>
-            <div class="form-group">
-                <label>Harga per Satuan</label>
-                <input type="number" name="price_per_unit" value="${service.price_per_unit || 0}" min="0" step="1000">
             </div>
             <div class="form-group">
                 <label>Template Catatan</label>
@@ -354,6 +417,7 @@ function renderEditServiceModal(id) {
         </form>
     `;
     openModal('Edit Layanan', html);
+    syncServicePricingMode(`edit-service-${service.id}`);
     renderServiceUsageList(`edit-service-${service.id}`);
 }
 async function submitEditService(event) {
@@ -400,6 +464,10 @@ async function toggleService(id, btn) {
     form.append('unit_label', service.unit_label || 'sesi');
     form.append('default_quantity', String(service.default_quantity || 1));
     form.append('price_per_unit', String(service.price_per_unit || 0));
+    form.append('pricing_type', service.pricing_type || 'per_unit');
+    form.append('service_category', service.service_category || 'general');
+    form.append('fixed_price', String(service.fixed_price || 0));
+    form.append('allow_manual_price', service.allow_manual_price === false ? 'false' : 'true');
     form.append('notes_template', service.notes_template || '');
     form.append('is_active', service.is_active ? 'false' : 'true');
     form.append('inventory_usage', JSON.stringify((service.inventory_usage || []).map(item => ({
@@ -444,6 +512,7 @@ function setServiceFilter(filter) {
 window.renderServices = renderServices;
 window.setServiceFilter = setServiceFilter;
 window.setServiceUnitValue = setServiceUnitValue;
+window.syncServicePricingMode = syncServicePricingMode;
 window.addServiceUsageItem = addServiceUsageItem;
 window.removeServiceUsageItem = removeServiceUsageItem;
 window.syncServiceUsageInput = syncServiceUsageInput;

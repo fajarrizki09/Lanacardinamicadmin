@@ -2,6 +2,25 @@
 // ─── INVENTORY ────────────────────────────────────────────────────────────────
 // Layout: Tabel klik-untuk-pilih (kiri besar) | Forms (kanan)
 const INVENTORY_UNIT_OPTIONS = ['pcs', 'unit', 'ml', 'gr', 'botol', 'saset', 'box', 'pack', 'strip', 'tablet', 'kapsul', 'dus'];
+function inventoryItemType(value) {
+    const normalized = String(value || 'consumable').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    return normalized === 'non_consumable' || normalized === 'nonconsumable' || normalized === 'asset' || normalized === 'reusable'
+        ? 'non_consumable'
+        : 'consumable';
+}
+function inventoryItemTypeLabel(value) {
+    return inventoryItemType(value) === 'non_consumable' ? 'Non-consumable' : 'Consumable';
+}
+function inventoryItemTypeSelect(value = 'consumable') {
+    const selected = inventoryItemType(value);
+    return `
+        <select name="item_type">
+            <option value="consumable" ${selected === 'consumable' ? 'selected' : ''}>Consumable - habis terpakai</option>
+            <option value="non_consumable" ${selected === 'non_consumable' ? 'selected' : ''}>Non-consumable - aset/peralatan</option>
+        </select>
+        <small class="unit-field-hint">Auto-deduct layanan hanya memotong item consumable.</small>
+    `;
+}
 function inventoryText(value, fallback = '') {
     const text = String(value ?? '').trim();
     return text || fallback;
@@ -64,6 +83,10 @@ function renderInventory(data) {
                     <input type="text" name="item_name" required placeholder="Alkohol, kapas">
                 </div>
                 <div class="form-group">
+                    <label>Jenis Item</label>
+                    ${inventoryItemTypeSelect('consumable')}
+                </div>
+                <div class="form-group">
                     <label>Satuan Dasar</label>
                     ${unitSelectHtml('unit', 'pcs')}
                 </div>
@@ -100,6 +123,7 @@ function renderInventory(data) {
                         <thead>
                             <tr style="background:#f8fafc;">
                                 <th style="padding:11px 16px; text-align:left; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Nama Peralatan</th>
+                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Jenis</th>
                                 <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Stok Tersisa</th>
                                 <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Kemasan</th>
                                 <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Batas Aman</th>
@@ -110,10 +134,11 @@ function renderInventory(data) {
                         </thead>
                         <tbody>
                             ${data.length === 0
-        ? `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Inventori masih kosong.</td></tr>`
+        ? `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Inventori masih kosong.</td></tr>`
         : data.map(i => {
             const quantity = Number(i.quantity || 0);
             const minStock = Number(i.min_stock || 0);
+            const itemType = inventoryItemType(i.item_type);
             const { unit, packageUnit, packageSize } = inventoryPackageMeta(i);
             const isLow = quantity <= minStock;
             const pct = minStock > 0 ? Math.min(100, Math.round(quantity / minStock * 100)) : 100;
@@ -122,12 +147,15 @@ function renderInventory(data) {
                 ? `<span class="badge badge-low"><i class="fas fa-exclamation-triangle"></i> Kritis</span>`
                 : `<span class="badge badge-ok"><i class="fas fa-check-circle"></i> Aman</span>`;
             return `
-                                    <tr data-id="${i.id}" data-name="${escapeHtml(i.item_name)}" data-qty="${quantity}" data-min="${minStock}" data-unit="${escapeHtml(unit)}" data-package-unit="${escapeHtml(packageUnit)}" data-package-size="${packageSize}"
+                                    <tr data-id="${i.id}" data-name="${escapeHtml(i.item_name)}" data-type="${itemType}" data-qty="${quantity}" data-min="${minStock}" data-unit="${escapeHtml(unit)}" data-package-unit="${escapeHtml(packageUnit)}" data-package-size="${packageSize}"
                                         onclick="selectInventory(this)"
                                         style="cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.15s;"
                                         onmouseover="if(!this.classList.contains('row-selected'))this.style.background='#f0f4ff'"
                                         onmouseout="if(!this.classList.contains('row-selected'))this.style.background=''">
                                         <td style="padding:11px 16px; font-weight:600;">${escapeHtml(i.item_name)}</td>
+                                        <td style="padding:11px 16px; text-align:center;">
+                                            <span class="badge ${itemType === 'consumable' ? 'badge-ok' : 'badge-low'}">${escapeHtml(inventoryItemTypeLabel(itemType))}</span>
+                                        </td>
                                         <td style="padding:11px 16px; text-align:center;">
                                             <span style="font-size:16px; font-weight:700; color:${isLow ? 'var(--danger)' : 'var(--text-main)'};">${escapeHtml(i.stock_display || i.quantity)}</span>
                                         </td>
@@ -142,7 +170,7 @@ function renderInventory(data) {
                                         <td style="padding:11px 16px; text-align:center;">${statusBadge}</td>
                                         <td style="padding:11px 16px; text-align:center;" onclick="event.stopPropagation()">
                                             <div style="display:flex; gap:6px; justify-content:center;">
-                                                <button onclick="editInventory(${i.id}, '${escapeHtml(i.item_name)}', ${quantity}, '${escapeHtml(unit)}', ${minStock}, '${escapeHtml(packageUnit)}', ${packageSize})"
+                                                <button onclick="editInventory(${i.id}, '${escapeHtml(i.item_name)}', ${quantity}, '${escapeHtml(unit)}', ${minStock}, '${escapeHtml(packageUnit)}', ${packageSize}, '${itemType}')"
                                                         title="Edit Alat"
                                                         style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:14px; padding:4px; transition:color 0.2s;"
                                                         onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='var(--primary)'">
@@ -228,6 +256,10 @@ function renderInventory(data) {
                             <input type="text" name="item_name" required placeholder="Contoh: Alkohol, kapas, sarung tangan...">
                         </div>
                         <div class="form-group">
+                            <label>Jenis Item</label>
+                            ${inventoryItemTypeSelect('consumable')}
+                        </div>
+                        <div class="form-group">
                             <label>Satuan Dasar</label>
                             ${unitSelectHtml('unit', 'pcs')}
                         </div>
@@ -275,6 +307,7 @@ function selectInventory(row) {
     const id = row.dataset.id;
     const name = row.dataset.name;
     const qty = row.dataset.qty;
+    const itemType = row.dataset.type || 'consumable';
     const unit = row.dataset.unit;
     const packageUnit = row.dataset.packageUnit || '';
     const packageSize = Math.max(1, Number(row.dataset.packageSize || 1));
@@ -290,7 +323,7 @@ function selectInventory(row) {
     }
     const badge = document.getElementById('inv-selected-badge');
     if (badge) {
-        badge.innerHTML = `<i class="fas fa-box-open" style="color:#f59e0b;"></i> <strong>${name}</strong> <span style="color:#94a3b8;font-size:11px;">(stok: ${qty} ${unit})</span>`;
+        badge.innerHTML = `<i class="fas fa-box-open" style="color:#f59e0b;"></i> <strong>${escapeHtml(name)}</strong> <span style="color:#94a3b8;font-size:11px;">(${escapeHtml(inventoryItemTypeLabel(itemType))}, stok: ${escapeHtml(qty)} ${escapeHtml(unit)})</span>`;
         badge.style.background = '#fffbeb';
         badge.style.borderColor = '#fcd34d';
         badge.style.color = '#92400e';
@@ -349,7 +382,7 @@ function prepareInventoryStockSubmit(event) {
         showToast('Isi jumlah barang terlebih dahulu.', 'warning');
     }
 }
-function editInventory(id, name, qty, unit, minStock, packageUnit = '', packageSize = 1) {
+function editInventory(id, name, qty, unit, minStock, packageUnit = '', packageSize = 1, itemType = 'consumable') {
     const html = `
         <form id="edit-inventory-form" onsubmit="submitEditInventory(event)">
             <input type="hidden" name="item_id" value="${id}">
@@ -359,6 +392,10 @@ function editInventory(id, name, qty, unit, minStock, packageUnit = '', packageS
             <div class="form-group">
                 <label>Nama Alat</label>
                 <input type="text" name="item_name" value="${escapeHtml(name)}" required>
+            </div>
+            <div class="form-group">
+                <label>Jenis Item</label>
+                ${inventoryItemTypeSelect(itemType)}
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <div class="form-group">
