@@ -1,6 +1,33 @@
 // ─── INVOICES ─────────────────────────────────────────────────────────────────
 
-function openInvoice(path) {
+type InvoiceId = string | number;
+
+type GatewayPaymentSource = {
+    source_type: 'visit' | 'herbal';
+    source_id: string;
+};
+
+type InvoiceUpdateTarget = {
+    invoice_type: 'visit' | 'herbal';
+    visit_id?: string;
+    transaction_id?: string;
+    sale_group_id?: string;
+};
+
+type BadgeStyle = {
+    bg: string;
+    color: string;
+};
+
+type InvoiceApiPayload = ApiResponse & {
+    payment?: {
+        payment_provider?: string;
+        payment_url?: string;
+    };
+    pdf_status?: string;
+};
+
+function openInvoice(path: string): void {
     fetch('/open_invoice?path=' + encodeURIComponent(path))
         .then(res => res.json())
         .then(data => {
@@ -11,7 +38,7 @@ function openInvoice(path) {
         .catch(() => showToast('Koneksi gagal saat mencoba membuka file invoice PDF.', 'error'));
 }
 
-function printInvoice(path) {
+function printInvoice(path: string): void {
     fetch('/print_invoice?path=' + encodeURIComponent(path))
         .then(res => res.json())
         .then(data => {
@@ -24,7 +51,7 @@ function printInvoice(path) {
         .catch(() => showToast('Koneksi gagal saat mencoba mencetak file invoice PDF.', 'error'));
 }
 
-function generateInvoiceForVisit(visitId) {
+function generateInvoiceForVisit(visitId: InvoiceId): void {
     showToast("Sedang mengekspor PDF...", "info");
     const formData = new FormData();
     formData.append("visit_id", String(visitId));
@@ -57,7 +84,7 @@ function generateInvoiceForVisit(visitId) {
         .catch(err => showToast("Gagal membuat invoice: " + sanitizeAppErrorMessage(err, "Gagal membuat invoice."), "error"));
 }
 
-function generateInvoiceForHerbal(identifier) {
+function generateInvoiceForHerbal(identifier: InvoiceId): void {
     showToast("Sedang mengekspor PDF herbal...", "info");
     const formData = new FormData();
     const idText = String(identifier || '');
@@ -93,8 +120,8 @@ function generateInvoiceForHerbal(identifier) {
         .catch(err => showToast("Gagal membuat invoice herbal: " + sanitizeAppErrorMessage(err, "Gagal membuat invoice herbal."), "error"));
 }
 
-function _paymentProviderLabel(provider) {
-    const labels = {
+function _paymentProviderLabel(provider: unknown): string {
+    const labels: Record<string, string> = {
         gateway_mock: 'Pembayaran Internal',
         midtrans: 'Midtrans',
         manual: 'Manual'
@@ -102,11 +129,11 @@ function _paymentProviderLabel(provider) {
     return labels[String(provider || 'manual').toLowerCase()] || 'Provider Tidak Didukung';
 }
 
-function _isSupportedGatewayProvider(provider) {
+function _isSupportedGatewayProvider(provider: unknown): boolean {
     return ['gateway_mock', 'midtrans'].includes(String(provider || '').toLowerCase());
 }
 
-function _paymentProviderBadgeStyle(provider) {
+function _paymentProviderBadgeStyle(provider: unknown): BadgeStyle {
     const normalized = String(provider || 'manual').toLowerCase();
     if (normalized === 'midtrans') return { bg: '#ede9fe', color: '#6d28d9' };
     if (normalized === 'gateway_mock') return { bg: '#dcfce7', color: '#047857' };
@@ -114,9 +141,9 @@ function _paymentProviderBadgeStyle(provider) {
     return { bg: '#fee2e2', color: '#b91c1c' };
 }
 
-function _paymentStatusLabel(status) {
+function _paymentStatusLabel(status: unknown): string {
     const normalized = String(status || '').toLowerCase();
-    const labels = {
+    const labels: Record<string, string> = {
         paid: 'Lunas',
         unpaid: 'Belum Bayar',
         partial: 'Sebagian',
@@ -124,12 +151,12 @@ function _paymentStatusLabel(status) {
         expired: 'Kedaluwarsa',
         failed: 'Gagal'
     };
-    return labels[normalized] || status || '-';
+    return labels[normalized] || String(status || '-');
 }
 
-function _paymentMethodLabel(method) {
+function _paymentMethodLabel(method: unknown): string {
     const normalized = String(method || '').toLowerCase();
-    const labels = {
+    const labels: Record<string, string> = {
         cash: 'Tunai',
         qris: 'QRIS',
         transfer: 'Transfer',
@@ -140,10 +167,10 @@ function _paymentMethodLabel(method) {
         other: 'Lainnya',
         free: 'Gratis'
     };
-    return labels[normalized] || method || '-';
+    return labels[normalized] || String(method || '-');
 }
 
-function _gatewaySourceFromInvoiceId(invoiceId) {
+function _gatewaySourceFromInvoiceId(invoiceId: InvoiceId): GatewayPaymentSource | null {
     const strId = String(invoiceId || '');
     if (strId.startsWith('v_')) return { source_type: 'visit', source_id: strId.slice(2) };
     if (strId.startsWith('hg_')) return { source_type: 'herbal', source_id: 'group:' + strId.slice(3) };
@@ -151,11 +178,11 @@ function _gatewaySourceFromInvoiceId(invoiceId) {
     return null;
 }
 
-function _canUseGateway(method) {
+function _canUseGateway(method: unknown): boolean {
     return ['qris', 'ewallet', 'virtual_account', 'credit_card'].includes(String(method || '').toLowerCase());
 }
 
-function _absolutePaymentUrl(paymentUrl) {
+function _absolutePaymentUrl(paymentUrl: unknown): string {
     const url = String(paymentUrl || '').trim();
     if (!url) return '';
     try {
@@ -165,7 +192,7 @@ function _absolutePaymentUrl(paymentUrl) {
     }
 }
 
-async function createGatewayPayment(invoiceId, amount, method, button) {
+async function createGatewayPayment(invoiceId: InvoiceId, amount: number | string, method: string, button?: HTMLButtonElement | null): Promise<void> {
     const source = _gatewaySourceFromInvoiceId(invoiceId);
     if (!source) {
         showToast('Sumber transaksi tidak valid.', 'error');
@@ -173,7 +200,7 @@ async function createGatewayPayment(invoiceId, amount, method, button) {
     }
     const actionButton = button || null;
     const originalHtml = actionButton ? actionButton.innerHTML : '';
-    let paymentWindow = null;
+    let paymentWindow: Window | null = null;
     try {
         paymentWindow = window.open('', '_blank');
         if (paymentWindow) {
@@ -195,9 +222,9 @@ async function createGatewayPayment(invoiceId, amount, method, button) {
         }
         showToast('Membuat link pembayaran...', 'info');
         const response = await fetch('/payments/gateway/create', { method: 'POST', body: form });
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch(() => ({})) as InvoiceApiPayload;
         if (!response.ok || data.status !== 'success') {
-            throw new Error(data.detail || 'Gagal membuat link pembayaran.');
+            throw new Error(String(data.detail || 'Gagal membuat link pembayaran.'));
         }
         const providerLabel = _paymentProviderLabel(data.payment?.payment_provider || 'manual');
         const paymentUrl = _absolutePaymentUrl(data.payment?.payment_url || '');
@@ -230,7 +257,7 @@ async function createGatewayPayment(invoiceId, amount, method, button) {
     }
 }
 
-function openGatewayPaymentUrl(paymentUrl) {
+function openGatewayPaymentUrl(paymentUrl: string): void {
     const url = _absolutePaymentUrl(paymentUrl);
     if (!url) {
         showToast('Link pembayaran belum tersedia.', 'warning');
@@ -239,7 +266,7 @@ function openGatewayPaymentUrl(paymentUrl) {
     window.open(url, '_blank', 'noopener');
 }
 
-async function checkGatewayStatus(paymentReference) {
+async function checkGatewayStatus(paymentReference: string): Promise<void> {
     const reference = String(paymentReference || '').trim();
     if (!reference) {
         showToast('Referensi pembayaran belum tersedia.', 'warning');
@@ -259,7 +286,7 @@ async function checkGatewayStatus(paymentReference) {
     }
 }
 
-async function voidInvoice(type, identifier) {
+async function voidInvoice(type: 'visit' | 'herbal', identifier: InvoiceId): Promise<void> {
     const idText = String(identifier || '');
     const html = `
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
@@ -279,7 +306,7 @@ async function voidInvoice(type, identifier) {
     openModal('Void / Cancel Invoice', html);
 }
 
-async function submitVoidInvoice(type, identifier) {
+async function submitVoidInvoice(type: 'visit' | 'herbal', identifier: InvoiceId): Promise<void> {
     const reasonInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('void-invoice-reason'));
     const reason = reasonInput?.value.trim() || '';
     if (reason.length < 5) {
@@ -317,7 +344,7 @@ async function submitVoidInvoice(type, identifier) {
     }
 }
 
-function _invoiceUpdateTarget(invoiceId) {
+function _invoiceUpdateTarget(invoiceId: InvoiceId): InvoiceUpdateTarget | null {
     const source = _gatewaySourceFromInvoiceId(invoiceId);
     if (!source) return null;
     if (source.source_type === 'visit') {
@@ -329,7 +356,7 @@ function _invoiceUpdateTarget(invoiceId) {
     return { invoice_type: 'herbal', transaction_id: source.source_id };
 }
 
-function manualInvoicePayment(invoiceId, status, amount, currentMethod = 'cash') {
+function manualInvoicePayment(invoiceId: InvoiceId, status: PaymentStatus, amount: number | string, currentMethod = 'cash'): void {
     const target = _invoiceUpdateTarget(invoiceId);
     if (!target) {
         showToast('Sumber transaksi tidak valid.', 'error');
@@ -370,7 +397,7 @@ function manualInvoicePayment(invoiceId, status, amount, currentMethod = 'cash')
     openModal(isPartial ? 'Catat DP Manual' : 'Tandai Lunas Manual', html);
 }
 
-async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
+async function submitManualInvoicePayment(invoiceId: InvoiceId, status: PaymentStatus, totalAmount: number | string): Promise<void> {
     const target = _invoiceUpdateTarget(invoiceId);
     const methodInput = /** @type {HTMLSelectElement | null} */ (document.getElementById('manual-payment-method'));
     const amountInput = /** @type {HTMLInputElement | null} */ (document.getElementById('manual-payment-amount'));
@@ -394,9 +421,9 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
     form.append('amount_paid', String(Math.round(amount)));
     try {
         const response = await fetch('/update_invoice_payment', { method: 'POST', body: form });
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch(() => ({})) as InvoiceApiPayload;
         if (!response.ok || data.status !== 'success') {
-            throw new Error(data.detail || 'Gagal memperbarui status pembayaran.');
+            throw new Error(String(data.detail || 'Gagal memperbarui status pembayaran.'));
         }
         closeModal();
         const shouldRefreshPdf = await showConfirm(
@@ -428,14 +455,13 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
 }
 
 
-/** @param {InvoiceItem[]} data */
-function renderInvoices(data) {
+function renderInvoices(data: InvoiceItem[]): void {
     window._invoicesPage = window._invoicesPage || 1;
     const totalIncome = data.reduce((s, i) => s + ((i.invoice_status === 'void') ? 0 : (i.price || 0)), 0);
     const totalHerbal = data.filter(i => String(i.id).startsWith('h')).length;
     const totalVisits = data.length - totalHerbal;
     const activePeriod = window._invoicesPeriod || 'all';
-    const periodMap = {
+    const periodMap: Record<string, string> = {
         '7d': '7 Hari',
         '30d': '30 Hari',
         '6m': '6 Bulan',
@@ -725,7 +751,7 @@ function renderInvoices(data) {
     }
 }
 
-async function refreshInvoicesList({ preserveSearchFocus = false } = {}) {
+async function refreshInvoicesList({ preserveSearchFocus = false }: { preserveSearchFocus?: boolean } = {}): Promise<void> {
     const period = window._invoicesPeriod || 'all';
     const page = window._invoicesPage || 1;
     const search = window._invoicesSearch || '';
@@ -742,7 +768,7 @@ async function refreshInvoicesList({ preserveSearchFocus = false } = {}) {
     }
 }
 
-function onInvoiceSearchInput(value) {
+function onInvoiceSearchInput(value: string): void {
     const input = /** @type {HTMLInputElement | null} */ (document.getElementById('invoice-search-input'));
     window._invoiceSearchCursor = input ? input.selectionStart : String(value || '').length;
     clearTimeout(window._invoiceSearchTimer);

@@ -283,6 +283,7 @@ type InvoiceItem = {
   payment_status?: PaymentStatus;
   payment_reference?: string;
   payment_url?: string;
+  pdf_status?: string;
 };
 
 type ConfirmOptions = {

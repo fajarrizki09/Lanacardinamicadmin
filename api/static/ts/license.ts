@@ -8,19 +8,19 @@ const metaClinicId = document.getElementById('meta-clinic-id');
 const metaStatus = document.getElementById('meta-status');
 const metaExpired = document.getElementById('meta-expired');
 
-function setMessage(message, type = '') {
+function setMessage(message: string, type = ''): void {
     if (!licenseMessage) return;
     licenseMessage.textContent = message || '';
     licenseMessage.className = `message ${type}`.trim();
 }
 
-function setStatus(message, type = '') {
+function setStatus(message: string, type = ''): void {
     if (!licenseStatus) return;
     licenseStatus.innerHTML = message;
     licenseStatus.className = `status-box ${type}`.trim();
 }
 
-function escapeLicenseHtml(value) {
+function escapeLicenseHtml(value: unknown): string {
     return String(value || '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;',
         '<': '&lt;',
@@ -30,7 +30,7 @@ function escapeLicenseHtml(value) {
     }[char] || char));
 }
 
-function tokenHeaders() {
+function tokenHeaders(): Headers {
     const headers = new Headers();
     if (window._appToken) {
         headers.set('X-App-Token', window._appToken);
@@ -38,12 +38,13 @@ function tokenHeaders() {
     return headers;
 }
 
-function readError(payload, fallback) {
+function readError(payload: unknown, fallback: string): string {
     if (!payload || typeof payload !== 'object') return fallback;
-    return String(payload.detail || payload.message || fallback || '').trim();
+    const record = payload as { detail?: unknown; message?: unknown };
+    return String(record.detail || record.message || fallback || '').trim();
 }
 
-function formatDate(value) {
+function formatDate(value: unknown): string {
     const text = String(value || '').trim();
     if (!text) return '-';
     const dateOnly = text.slice(0, 10);
@@ -64,7 +65,7 @@ function formatDate(value) {
     });
 }
 
-function renderSummary(data: LicenseStatusPayload = {}) {
+function renderSummary(data: LicenseStatusPayload = {}): void {
     const valid = data.valid === true && data.status !== 'expired' && data.verify_status !== 'invalid';
     const clinicId = data.clinic_id || '';
     const expiredAt = data.expired_at || '';
@@ -89,7 +90,7 @@ function renderSummary(data: LicenseStatusPayload = {}) {
     setStatus(`<i class="fas fa-exclamation-circle"></i> Lisensi belum aktif.${message}`, 'danger');
 }
 
-async function loadLicensePageStatus() {
+async function loadLicensePageStatus(): Promise<void> {
     try {
         const response = await fetch('/license_status', {
             headers: tokenHeaders(),
@@ -101,11 +102,11 @@ async function loadLicensePageStatus() {
         renderSummary(data);
     } catch (error) {
         renderSummary(window._initialLicense || {});
-        setMessage(error.message || 'Gagal memuat status lisensi.', 'error');
+        setMessage(error instanceof Error ? error.message : 'Gagal memuat status lisensi.', 'error');
     }
 }
 
-async function submitLicense(event) {
+    async function submitLicense(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     if (!licenseForm) return;
 
@@ -127,10 +128,10 @@ async function submitLicense(event) {
         }
 
         if (keyInput) keyInput.value = '';
-        setMessage(data.message || 'Lisensi berhasil diaktifkan.', 'success');
+        setMessage(String(data.message || 'Lisensi berhasil diaktifkan.'), 'success');
         renderSummary(data.license || {});
     } catch (error) {
-        setMessage(error.message || 'Lisensi tidak valid.', 'error');
+        setMessage(error instanceof Error ? error.message : 'Lisensi tidak valid.', 'error');
         await loadLicensePageStatus();
     } finally {
         if (submitButton) {

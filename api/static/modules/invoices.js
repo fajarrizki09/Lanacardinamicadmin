@@ -122,7 +122,7 @@ function _paymentStatusLabel(status) {
         expired: 'Kedaluwarsa',
         failed: 'Gagal'
     };
-    return labels[normalized] || status || '-';
+    return labels[normalized] || String(status || '-');
 }
 function _paymentMethodLabel(method) {
     const normalized = String(method || '').toLowerCase();
@@ -137,7 +137,7 @@ function _paymentMethodLabel(method) {
         other: 'Lainnya',
         free: 'Gratis'
     };
-    return labels[normalized] || method || '-';
+    return labels[normalized] || String(method || '-');
 }
 function _gatewaySourceFromInvoiceId(invoiceId) {
     const strId = String(invoiceId || '');
@@ -196,7 +196,7 @@ async function createGatewayPayment(invoiceId, amount, method, button) {
         const response = await fetch('/payments/gateway/create', { method: 'POST', body: form });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.status !== 'success') {
-            throw new Error(data.detail || 'Gagal membuat link pembayaran.');
+            throw new Error(String(data.detail || 'Gagal membuat link pembayaran.'));
         }
         const providerLabel = _paymentProviderLabel(data.payment?.payment_provider || 'manual');
         const paymentUrl = _absolutePaymentUrl(data.payment?.payment_url || '');
@@ -399,7 +399,7 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
         const response = await fetch('/update_invoice_payment', { method: 'POST', body: form });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.status !== 'success') {
-            throw new Error(data.detail || 'Gagal memperbarui status pembayaran.');
+            throw new Error(String(data.detail || 'Gagal memperbarui status pembayaran.'));
         }
         closeModal();
         const shouldRefreshPdf = await showConfirm(`${data.message || 'Status pembayaran berhasil diperbarui.'}\n\nPDF invoice adalah snapshot. Update PDF sekarang agar status pembayaran di PDF ikut terbaru?`, 'info', {
@@ -426,7 +426,6 @@ async function submitManualInvoicePayment(invoiceId, status, totalAmount) {
         showToast(sanitizeAppErrorMessage(error, 'Gagal memperbarui status pembayaran.'), 'error');
     }
 }
-/** @param {InvoiceItem[]} data */
 function renderInvoices(data) {
     window._invoicesPage = window._invoicesPage || 1;
     const totalIncome = data.reduce((s, i) => s + ((i.invoice_status === 'void') ? 0 : (i.price || 0)), 0);

@@ -39,7 +39,8 @@ function tokenHeaders() {
 function readError(payload, fallback) {
     if (!payload || typeof payload !== 'object')
         return fallback;
-    return String(payload.detail || payload.message || fallback || '').trim();
+    const record = payload;
+    return String(record.detail || record.message || fallback || '').trim();
 }
 function formatDate(value) {
     const text = String(value || '').trim();
@@ -100,7 +101,7 @@ async function loadLicensePageStatus() {
     }
     catch (error) {
         renderSummary(window._initialLicense || {});
-        setMessage(error.message || 'Gagal memuat status lisensi.', 'error');
+        setMessage(error instanceof Error ? error.message : 'Gagal memuat status lisensi.', 'error');
     }
 }
 async function submitLicense(event) {
@@ -124,11 +125,11 @@ async function submitLicense(event) {
         }
         if (keyInput)
             keyInput.value = '';
-        setMessage(data.message || 'Lisensi berhasil diaktifkan.', 'success');
+        setMessage(String(data.message || 'Lisensi berhasil diaktifkan.'), 'success');
         renderSummary(data.license || {});
     }
     catch (error) {
-        setMessage(error.message || 'Lisensi tidak valid.', 'error');
+        setMessage(error instanceof Error ? error.message : 'Lisensi tidak valid.', 'error');
         await loadLicensePageStatus();
     }
     finally {
