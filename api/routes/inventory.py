@@ -59,6 +59,7 @@ async def update_inventory(
 async def add_inventory(
     request: Request,
     item_name: str = Form(...),
+    item_type: str = Form("consumable"),
     unit: str = Form("pcs"),
     min_stock: int = Form(10),
     initial_qty: int = Form(0),
@@ -74,9 +75,10 @@ async def add_inventory(
             raise ValueError("Stok awal tidak boleh negatif.")
         if min_stock < 0:
             raise ValueError("Stok minimum tidak boleh negatif.")
-        item_id = db.add_inventory_item(item_name, unit, min_stock, initial_qty, package_unit.strip() or None, package_size)
+        item_id = db.add_inventory_item(item_name, unit, min_stock, initial_qty, package_unit.strip() or None, package_size, item_type)
         db.log_audit("inventory_created", "inventory", item_id, "Inventory baru ditambahkan.", {
             "item_name": item_name.strip(),
+            "item_type": item_type,
             "unit": unit,
             "package_unit": package_unit.strip(),
             "package_size": package_size,
@@ -94,6 +96,7 @@ async def edit_inventory(
     request: Request,
     item_id: int = Form(...),
     item_name: str = Form(...),
+    item_type: str = Form("consumable"),
     quantity: int = Form(...),
     unit: str = Form("pcs"),
     min_stock: int = Form(10),
@@ -110,12 +113,13 @@ async def edit_inventory(
         if min_stock < 0:
             raise ValueError("Stok minimum tidak boleh negatif.")
         before = _inventory_meta(item_id)
-        success = db.update_inventory_item(item_id, item_name, quantity, unit, min_stock, package_unit.strip() or None, package_size)
+        success = db.update_inventory_item(item_id, item_name, quantity, unit, min_stock, package_unit.strip() or None, package_size, item_type)
         if not success:
             raise ValueError("Inventory not found")
         db.log_audit("inventory_updated", "inventory", item_id, "Data inventory diperbarui.", {
             "item_name": item_name.strip(),
             "old_item_name": before.get("item_name"),
+            "item_type": item_type,
             "quantity": quantity,
             "quantity_before": before.get("quantity"),
             "unit": unit,

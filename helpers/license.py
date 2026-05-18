@@ -298,9 +298,24 @@ def _parse_expiry_datetime(value: object) -> datetime | None:
     if not expiry_text:
         return None
 
+    if expiry_text.endswith("Z"):
+        expiry_text = expiry_text[:-1]
+    if "+" in expiry_text:
+        expiry_text = expiry_text.split("+", 1)[0]
+
+    date_only = expiry_text[:10]
+    time_part = expiry_text[10:].strip()
     if len(expiry_text) == 10:
         try:
-            return datetime.combine(datetime.strptime(expiry_text, "%Y-%m-%d").date(), datetime_time.max)
+            return datetime.combine(datetime.strptime(date_only, "%Y-%m-%d").date(), datetime_time.max)
+        except ValueError:
+            return None
+    normalized_time_part = time_part.lstrip("T")
+    if normalized_time_part.startswith("00:00:00"):
+        time_part = "00:00:00"
+    if time_part in {"", "T00:00:00", "00:00:00"}:
+        try:
+            return datetime.combine(datetime.strptime(date_only, "%Y-%m-%d").date(), datetime_time.max)
         except ValueError:
             return None
 

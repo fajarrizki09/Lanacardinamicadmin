@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, or_, case
+from sqlalchemy import case, func, or_
 
 from database import CRMWhatsAppLog, Herbal, HerbalTransaction, Patient, PatientFollowup, Service, Visit
 from helpers.crm_analysis_helper import build_crm_patients
+from helpers.revenue_rules import active_invoice_filter, revenue_case
 
 
 def _parse_date(value):
@@ -74,23 +75,37 @@ def build_owner_report_summary(
     new_patient_source = str(new_patient_source or "first_visit").strip().lower()
     if new_patient_source not in {"registration", "first_visit"}:
         new_patient_source = "first_visit"
-    active_visit_status = or_(Visit.invoice_status.is_(None), Visit.invoice_status != "void")
-    active_herbal_status = or_(HerbalTransaction.invoice_status.is_(None), HerbalTransaction.invoice_status != "void")
+    active_visit_status = active_invoice_filter(Visit)
+    active_herbal_status = active_invoice_filter(HerbalTransaction)
+    receivable_statuses = ("unpaid", "pending", "partial")
     herbal_sale_filter = HerbalTransaction.transaction_type == "sale"
+    standalone_herbal_sale_filter = (
+        HerbalTransaction.transaction_type == "sale",
+        HerbalTransaction.visit_id.is_(None),
+    )
     herbal_return_filter = HerbalTransaction.transaction_type.in_(["return", "retur"])
 
+    linked_herbal_total_expr = (
+        session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0))
+        .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
+        .correlate(Visit)
+        .scalar_subquery()
+    )
+    linked_herbal_paid_expr = (
+        session.query(func.coalesce(func.sum(func.coalesce(HerbalTransaction.amount_paid, 0)), 0))
+        .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
+        .correlate(Visit)
+        .scalar_subquery()
+    )
+    visit_total_expr = func.coalesce(func.nullif(Visit.final_price, 0), Visit.price, 0) + linked_herbal_total_expr
+    visit_paid_expr = func.coalesce(Visit.amount_paid, 0) + linked_herbal_paid_expr
     visit_revenue_expr = case(
-        (Visit.payment_method == 'free', 0),
-        (or_(Visit.payment_status == 'paid', Visit.payment_status.is_(None)), Visit.price),
-        (Visit.payment_status == 'partial', func.coalesce(Visit.amount_paid, 0)),
-        else_=0
+        (Visit.payment_method == "free", 0),
+        (or_(Visit.payment_status == "paid", Visit.payment_status.is_(None)), visit_total_expr),
+        (Visit.payment_status == "partial", visit_paid_expr),
+        else_=0,
     )
-    herbal_revenue_expr = case(
-        (HerbalTransaction.payment_method == 'free', 0),
-        (or_(HerbalTransaction.payment_status == 'paid', HerbalTransaction.payment_status.is_(None)), HerbalTransaction.total_price),
-        (HerbalTransaction.payment_status == 'partial', func.coalesce(HerbalTransaction.amount_paid, 0)),
-        else_=0
-    )
+    herbal_revenue_expr = revenue_case(HerbalTransaction, HerbalTransaction.total_price)
     visit_query = _between(session.query(Visit), Visit.date, start, end).filter(active_visit_status)
     total_visits = int(visit_query.count() or 0)
     total_visit_revenue = _money(visit_query.with_entities(func.coalesce(func.sum(visit_revenue_expr), 0)).scalar())
@@ -121,15 +136,42 @@ def build_owner_report_summary(
         HerbalTransaction.date,
         start,
         end,
-    ).filter(herbal_sale_filter, active_herbal_status)
+    ).filter(*standalone_herbal_sale_filter, active_herbal_status)
     herbal_returns_query = _between(
         session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)),
         HerbalTransaction.date,
         start,
         end,
-    ).filter(herbal_return_filter)
+    ).filter(herbal_return_filter, HerbalTransaction.visit_id.is_(None))
     total_herbal_revenue = max(0, _money(herbal_sales_query.scalar()) - _money(herbal_returns_query.scalar()))
     total_revenue = _money(total_visit_revenue + total_herbal_revenue)
+
+    pending_visit_expr = case(
+        (Visit.payment_status == 'partial', visit_total_expr - func.coalesce(Visit.amount_paid, 0)),
+        (Visit.payment_status.in_(["unpaid", "pending"]), visit_total_expr),
+        else_=0,
+    )
+    pending_herbal_expr = case(
+        (HerbalTransaction.payment_status == 'partial', HerbalTransaction.total_price - func.coalesce(HerbalTransaction.amount_paid, 0)),
+        (HerbalTransaction.payment_status.in_(["unpaid", "pending"]), HerbalTransaction.total_price),
+        else_=0,
+    )
+    pending_visit_revenue = _money(
+        visit_query
+        .filter(Visit.payment_status.in_(receivable_statuses))
+        .with_entities(func.coalesce(func.sum(pending_visit_expr), 0))
+        .scalar()
+    )
+    pending_herbal_revenue = _money(
+        _between(
+            session.query(func.coalesce(func.sum(pending_herbal_expr), 0)),
+            HerbalTransaction.date,
+            start,
+            end,
+        )
+        .filter(*standalone_herbal_sale_filter, active_herbal_status, HerbalTransaction.payment_status.in_(receivable_statuses))
+        .scalar()
+    )
 
     crm_rows = build_crm_patients(session)
     active_segments = {"active", "loyal", "high_value", "high_value_at_risk"}
@@ -169,6 +211,31 @@ def build_owner_report_summary(
         )
     ]
 
+    top_service_categories = [
+        {
+            "name": row.category or "Tanpa Kategori",
+            "visits": int(row.visits or 0),
+            "revenue": _money(row.revenue),
+        }
+        for row in (
+            _between(
+                session.query(
+                    func.coalesce(Service.service_category, "uncategorized").label("category"),
+                    func.count(Visit.id).label("visits"),
+                    func.coalesce(func.sum(visit_revenue_expr), 0).label("revenue"),
+                ).outerjoin(Service, Service.id == Visit.service_id),
+                Visit.date,
+                start,
+                end,
+            )
+            .filter(active_visit_status)
+            .group_by("category")
+            .order_by(func.coalesce(func.sum(visit_revenue_expr), 0).desc(), func.count(Visit.id).desc())
+            .limit(5)
+            .all()
+        )
+    ]
+
     top_herbals = [
         {
             "name": row.name or "Herbal",
@@ -186,7 +253,7 @@ def build_owner_report_summary(
                 start,
                 end,
             )
-            .filter(herbal_sale_filter, active_herbal_status)
+            .filter(*standalone_herbal_sale_filter, active_herbal_status)
             .group_by(Herbal.name)
             .order_by(func.coalesce(func.sum(herbal_revenue_expr), 0).desc())
             .limit(5)
@@ -239,8 +306,12 @@ def build_owner_report_summary(
             "total_whatsapp_followups": total_whatsapp,
             "total_whatsapp_confirmed": total_whatsapp_confirmed,
             "followup_booked": total_booked,
+            "pending_revenue": _money(pending_visit_revenue + pending_herbal_revenue),
+            "pending_visit_revenue": pending_visit_revenue,
+            "pending_herbal_revenue": pending_herbal_revenue,
         },
         "top_services": top_services,
+        "top_service_categories": top_service_categories,
         "top_herbals": top_herbals,
         "top_loyal_patients": top_loyal_patients,
         "patients_need_followup": need_followup_rows[:8],

@@ -130,7 +130,8 @@ async def create_crm_patient_whatsapp_link(
     allow_general_voucher: bool = Form(False),
 ):
     try:
-        # require_admin_pin(request)  # Relaxed for operator flow
+        if override_lock:
+            require_admin_pin(request)
         with db.Session() as session:
             rows = build_crm_patients(session)
             for row in rows:
@@ -141,7 +142,7 @@ async def create_crm_patient_whatsapp_link(
                         voucher_rule_id,
                         allow_general=allow_general_voucher,
                     ) if str(voucher_rule_id or "").strip() else None
-                    return create_crm_whatsapp_log(
+                    result = create_crm_whatsapp_log(
                         session,
                         row,
                         template_type=template_type,
@@ -150,6 +151,12 @@ async def create_crm_patient_whatsapp_link(
                         mark_opened=mark_opened,
                         voucher=voucher,
                     )
+                    if override_lock:
+                        db.log_audit("crm_whatsapp_override", "patient", patient_id, "Override send lock WhatsApp CRM.", {
+                            "template_type": template_type,
+                            "log_id": result.get("log_id"),
+                        })
+                    return result
         raise HTTPException(status_code=404, detail="Pasien tidak ditemukan.")
     except HTTPException:
         raise

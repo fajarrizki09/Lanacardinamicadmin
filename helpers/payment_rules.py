@@ -3,7 +3,7 @@ from datetime import datetime
 from helpers.payment_gateway import get_available_gateway_providers
 
 
-VALID_PAYMENT_STATUSES = {"paid", "unpaid", "partial", "pending", "failed", "expired", "void"}
+VALID_PAYMENT_STATUSES = {"paid", "unpaid", "partial", "pending", "failed", "expired", "void", "refunded"}
 VALID_PAYMENT_METHODS = {
     "cash",
     "qris",
@@ -60,6 +60,17 @@ def normalize_visit_payment(
 
     if method == "free":
         raise ValueError("Metode Gratis hanya boleh digunakan untuk kunjungan gratis.")
+
+    if status == "refunded":
+        method = method or "other"
+        if method == "free":
+            raise ValueError("Metode Gratis tidak boleh digunakan untuk refund.")
+        return {
+            "payment_status": status,
+            "payment_method": method,
+            "amount_paid": 0,
+            "paid_at": None,
+        }
 
     if status == "unpaid":
         method = method or "other"

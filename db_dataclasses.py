@@ -7,8 +7,12 @@ class VisitData:
     id: Optional[int]
     date: datetime
     price: float
-    discount_applied: bool
+    original_price: float = 0
+    discount_amount: float = 0
+    final_price: float = 0
+    discount_applied: bool = False
     point_count: int = 0
+    quantity: Optional[int] = None
     therapist_id: Optional[int] = None
     service_id: Optional[int] = None
     service_name: Optional[str] = None
@@ -31,6 +35,12 @@ class VisitData:
     payment_channel: str = ""
     payment_expired_at: Optional[str] = None
     payment_gateway_status: str = ""
+
+    def __post_init__(self):
+        if self.quantity is None:
+            self.quantity = self.point_count
+        else:
+            self.point_count = int(self.quantity or 0)
 
 @dataclass
 class DiscountRuleData:
@@ -74,9 +84,13 @@ class TherapistData:
 class ServiceData:
     id: int
     name: str
-    unit_label: str
-    default_quantity: int
-    price_per_unit: float
-    notes_template: str
-    is_active: bool
+    pricing_type: str = "per_unit"
+    service_category: str = "general"
+    fixed_price: float = 0
+    allow_manual_price: bool = True
+    unit_label: str = "sesi"
+    default_quantity: int = 1
+    price_per_unit: float = 0
+    notes_template: str = ""
+    is_active: bool = True
     inventory_usage: list = field(default_factory=list)

@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey, Boolean, Numeric, Index, Text, func
 )
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, synonym
 
 Base = declarative_base()
 
@@ -35,9 +35,15 @@ class Visit(Base):
     service_name = Column(String, nullable=True)
     date = Column(DateTime, nullable=False, index=True)
     price = Column(Numeric(10, 2), nullable=False)
+    original_price = Column(Numeric(10, 2), default=0, nullable=False)
+    discount_amount = Column(Numeric(10, 2), default=0, nullable=False)
+    final_price = Column(Numeric(10, 2), default=0, nullable=False)
     discount_applied = Column(Boolean, default=False, nullable=False)
     point_count = Column(Integer, default=0, nullable=False)
+    quantity = synonym("point_count")
     invoice_path = Column(String, nullable=True)
+    pdf_generated_at = Column(DateTime, nullable=True)
+    payment_updated_at = Column(DateTime, nullable=True)
     medical_notes = Column(Text, nullable=True)
     is_free_visit = Column(Boolean, default=False, nullable=False)
     free_visit_reason = Column(String, nullable=True)
@@ -65,6 +71,7 @@ class Inventory(Base):
     __tablename__ = 'inventory'
     id = Column(Integer, primary_key=True)
     item_name = Column(String, nullable=False, unique=True)
+    item_type = Column(String, default='consumable', nullable=False, index=True)
     quantity = Column(Integer, default=0, nullable=False)
     unit = Column(String, nullable=False)
     package_unit = Column(String, nullable=True)
@@ -81,12 +88,18 @@ class InventoryTransaction(Base):
     change = Column(Integer, nullable=False)
     transaction_type = Column(String, default='adjustment', nullable=False, index=True)
     note = Column(Text, nullable=True)
+    visit_id = Column(Integer, ForeignKey('visits.id'), nullable=True, index=True)
     inventory = relationship("Inventory")
+    visit = relationship("Visit")
 
 class Service(Base):
     __tablename__ = 'services'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, unique=True, index=True)
+    pricing_type = Column(String, default='per_unit', nullable=False, index=True)
+    service_category = Column(String, default='general', nullable=False, index=True)
+    fixed_price = Column(Numeric(10, 2), default=0, nullable=False)
+    allow_manual_price = Column(Boolean, default=True, nullable=False)
     unit_label = Column(String, default='sesi', nullable=False)
     default_quantity = Column(Integer, default=1, nullable=False)
     price_per_unit = Column(Numeric(10, 2), default=0, nullable=False)
@@ -129,6 +142,8 @@ class HerbalTransaction(Base):
     total_price = Column(Numeric(10, 2), nullable=False)
     transaction_type = Column(String, default='sale', nullable=False, index=True)
     invoice_path = Column(String, nullable=True)
+    pdf_generated_at = Column(DateTime, nullable=True)
+    payment_updated_at = Column(DateTime, nullable=True)
     invoice_status = Column(String, default='active', nullable=False, index=True)
     void_reason = Column(Text, nullable=True)
     voided_at = Column(DateTime, nullable=True)

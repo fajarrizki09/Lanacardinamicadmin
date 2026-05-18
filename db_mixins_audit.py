@@ -24,23 +24,21 @@ class AuditMixin:
             logger.addHandler(handler)
         return logger
 
-    def log_audit(self, action, entity_type, entity_id=None, description="", metadata=None, actor="admin"):
+    def log_audit(self, action, entity_type, entity_id=None, description="", metadata=None, actor="admin", required=False):
         try:
-            safe_metadata = metadata if isinstance(metadata, dict) else {}
-            metadata_text = json.dumps(safe_metadata, ensure_ascii=False, default=str) if safe_metadata else None
             with self.Session() as session:
-                row = AuditLog(
-                    actor=str(actor or "admin")[:80],
-                    action=str(action or "").strip()[:80],
-                    entity_type=str(entity_type or "").strip()[:80],
-                    entity_id=str(entity_id)[:120] if entity_id is not None else None,
-                    description=str(description or "").strip()[:500],
-                    metadata_json=metadata_text,
+                row = self._add_audit_log_row(
+                    session,
+                    action,
+                    entity_type,
+                    entity_id=entity_id,
+                    description=description,
+                    metadata=metadata,
+                    actor=actor,
                 )
-                session.add(row)
                 session.commit()
                 return row.id
-        except Exception:
+        except Exception as exc:
             try:
                 self._get_audit_logger().exception(
                     "Audit log failed: action=%s entity_type=%s entity_id=%s",
@@ -50,7 +48,24 @@ class AuditMixin:
                 )
             except:
                 pass
+            if required:
+                raise RuntimeError("Audit wajib gagal dicatat.") from exc
             return None
+
+    def _add_audit_log_row(self, session, action, entity_type, entity_id=None, description="", metadata=None, actor="admin"):
+        """Add an audit row to an existing transaction without committing it."""
+        safe_metadata = metadata if isinstance(metadata, dict) else {}
+        metadata_text = json.dumps(safe_metadata, ensure_ascii=False, default=str) if safe_metadata else None
+        row = AuditLog(
+            actor=str(actor or "admin")[:80],
+            action=str(action or "").strip()[:80],
+            entity_type=str(entity_type or "").strip()[:80],
+            entity_id=str(entity_id)[:120] if entity_id is not None else None,
+            description=str(description or "").strip()[:500],
+            metadata_json=metadata_text,
+        )
+        session.add(row)
+        return row
 
     def get_audit_logs(self, action="", entity_type="", date_from=None, date_to=None, limit=100):
         with self.Session() as session:

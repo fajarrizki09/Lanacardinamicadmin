@@ -1,6 +1,8 @@
 from datetime import datetime, time
 
-from sqlalchemy import or_, case
+from sqlalchemy import case, or_
+
+from helpers.revenue_rules import active_invoice_filter, revenue_case
 
 
 def build_dashboard_stats(session, models):
@@ -14,29 +16,41 @@ def build_dashboard_stats(session, models):
     Herbal = models["Herbal"]
     HerbalTransaction = models["HerbalTransaction"]
 
-    herbal_sales_filter = HerbalTransaction.transaction_type == "sale"
+    standalone_herbal_sale_filter = (
+        HerbalTransaction.transaction_type == "sale",
+        HerbalTransaction.visit_id.is_(None),
+    )
     herbal_return_filter = HerbalTransaction.transaction_type.in_(["return", "retur"])
-    active_visit_status = or_(Visit.invoice_status.is_(None), Visit.invoice_status != "void")
-    active_herbal_status = or_(HerbalTransaction.invoice_status.is_(None), HerbalTransaction.invoice_status != "void")
+    active_visit_status = active_invoice_filter(Visit)
+    active_herbal_status = active_invoice_filter(HerbalTransaction)
     total_patients = session.query(func.count(Patient.id)).scalar() or 0
     total_visits = session.query(func.count(Visit.id)).scalar() or 0
-    total_herbal_sales = session.query(func.count(HerbalTransaction.id)).filter(herbal_sales_filter).scalar() or 0
+    total_herbal_sales = session.query(func.count(HerbalTransaction.id)).filter(*standalone_herbal_sale_filter).scalar() or 0
+    linked_herbal_total_expr = (
+        session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0))
+        .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
+        .correlate(Visit)
+        .scalar_subquery()
+    )
+    linked_herbal_paid_expr = (
+        session.query(func.coalesce(func.sum(func.coalesce(HerbalTransaction.amount_paid, 0)), 0))
+        .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
+        .correlate(Visit)
+        .scalar_subquery()
+    )
+    visit_total_expr = func.coalesce(func.nullif(Visit.final_price, 0), Visit.price, 0) + linked_herbal_total_expr
+    visit_paid_expr = func.coalesce(Visit.amount_paid, 0) + linked_herbal_paid_expr
     visit_income_expr = case(
-        (Visit.payment_method == 'free', 0),
-        (or_(Visit.payment_status == 'paid', Visit.payment_status.is_(None)), Visit.price),
-        (Visit.payment_status == 'partial', func.coalesce(Visit.amount_paid, 0)),
-        else_=0
+        (Visit.payment_method == "free", 0),
+        (or_(Visit.payment_status == "paid", Visit.payment_status.is_(None)), visit_total_expr),
+        (Visit.payment_status == "partial", visit_paid_expr),
+        else_=0,
     )
-    herbal_income_expr = case(
-        (HerbalTransaction.payment_method == 'free', 0),
-        (or_(HerbalTransaction.payment_status == 'paid', HerbalTransaction.payment_status.is_(None)), HerbalTransaction.total_price),
-        (HerbalTransaction.payment_status == 'partial', func.coalesce(HerbalTransaction.amount_paid, 0)),
-        else_=0
-    )
+    herbal_income_expr = revenue_case(HerbalTransaction, HerbalTransaction.total_price)
 
     visit_income = session.query(func.coalesce(func.sum(visit_income_expr), 0)).filter(active_visit_status).scalar() or 0
-    herbal_income = session.query(func.coalesce(func.sum(herbal_income_expr), 0)).filter(herbal_sales_filter, active_herbal_status).scalar() or 0
-    herbal_returns = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(herbal_return_filter).scalar() or 0
+    herbal_income = session.query(func.coalesce(func.sum(herbal_income_expr), 0)).filter(*standalone_herbal_sale_filter, active_herbal_status).scalar() or 0
+    herbal_returns = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(herbal_return_filter, HerbalTransaction.visit_id.is_(None)).scalar() or 0
     net_herbal_income = max(0, float(herbal_income or 0) - float(herbal_returns or 0))
     today_start = datetime.combine(datetime.now().date(), time.min)
     month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -46,9 +60,9 @@ def build_dashboard_stats(session, models):
     current_visit_income = session.query(func.coalesce(func.sum(visit_income_expr), 0))\
         .filter(Visit.date >= month_start, active_visit_status).scalar() or 0
     current_herbal_income = session.query(func.coalesce(func.sum(herbal_income_expr), 0))\
-        .filter(HerbalTransaction.date >= month_start, herbal_sales_filter, active_herbal_status).scalar() or 0
+        .filter(HerbalTransaction.date >= month_start, *standalone_herbal_sale_filter, active_herbal_status).scalar() or 0
     current_herbal_returns = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0))\
-        .filter(HerbalTransaction.date >= month_start, herbal_return_filter).scalar() or 0
+        .filter(HerbalTransaction.date >= month_start, herbal_return_filter, HerbalTransaction.visit_id.is_(None)).scalar() or 0
     current_net_herbal_income = max(0, float(current_herbal_income or 0) - float(current_herbal_returns or 0))
 
     low_stock_inventory = session.query(func.count(Inventory.id))\
@@ -91,7 +105,7 @@ def build_dashboard_stats(session, models):
         HerbalTransaction.total_price,
         Herbal.name.label("herbal_name"),
     ).outerjoin(Herbal, Herbal.id == HerbalTransaction.herbal_id)\
-     .filter(herbal_sales_filter)\
+        .filter(*standalone_herbal_sale_filter)\
      .order_by(HerbalTransaction.date.desc()).limit(5).all()
 
     for sale in recent_herbals:

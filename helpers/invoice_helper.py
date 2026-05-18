@@ -19,9 +19,18 @@ SOFT_GREEN = colors.HexColor("#ecfdf5")
 
 class InvoiceHelper:
     def __init__(self, output_dir="invoices"):
-        self.output_dir = output_dir
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        self.output_dir = os.path.abspath(output_dir)
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def _safe_output_path(self, filename):
+        safe_name = self.safe_filename(os.path.basename(str(filename or "")), fallback="Invoice")
+        if not safe_name.lower().endswith(".pdf"):
+            safe_name = f"{safe_name}.pdf"
+        output_path = os.path.abspath(os.path.join(self.output_dir, safe_name))
+        common = os.path.commonpath([self.output_dir, output_path])
+        if common != self.output_dir:
+            raise ValueError("Path invoice tidak valid.")
+        return output_path
 
     @staticmethod
     def safe_filename(value, fallback="Pasien"):
@@ -559,7 +568,7 @@ class InvoiceHelper:
         final_price = 0 if is_free_visit else max(0, float(price or 0))
         base_price = max(final_price, float(original_price if original_price is not None else final_price))
         discount_value = 0 if is_free_visit else max(0, float(discount_amount if discount_amount is not None else base_price - final_price))
-        unit = unit_label or ("titik" if service_name.strip().lower() == "bekam" else "layanan")
+        unit = unit_label or "layanan"
         unit_price = 0 if qty <= 0 else base_price / qty
         invoice_number = invoice_number or f"INV-{self.parse_date(date).strftime('%Y%m%d')}-00000"
         herbal_items = herbal_items or []
@@ -571,7 +580,7 @@ class InvoiceHelper:
         safe_patient = self.safe_filename(patient_name)
         safe_invoice = self.safe_filename(invoice_number, fallback="Invoice")
         filename = f"{safe_invoice}_{safe_patient}.pdf"
-        filepath = os.path.join(self.output_dir, filename)
+        filepath = self._safe_output_path(filename)
 
         c = canvas.Canvas(filepath, pagesize=A5)
         width, height = A5
@@ -784,7 +793,7 @@ class InvoiceHelper:
 
         safe_buyer = self.safe_filename(buyer_name, fallback="Pembeli")
         safe_invoice = self.safe_filename(invoice_number, fallback="Invoice_Herbal")
-        filepath = os.path.join(self.output_dir, f"{safe_invoice}_{safe_buyer}.pdf")
+        filepath = self._safe_output_path(f"{safe_invoice}_{safe_buyer}.pdf")
 
         c = canvas.Canvas(filepath, pagesize=A5, pageCompression=0)
         width, height = A5

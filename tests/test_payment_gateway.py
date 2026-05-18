@@ -304,8 +304,25 @@ class TestPaymentGatewayMock(unittest.TestCase):
         self.assertIn("gateway_payment_created", by_action)
         self.assertIn("gateway_status_changed", by_action)
         self.assertIn("gateway_payment_paid", by_action)
-        self.assertIn("gateway_payment_expired", by_action)
-        self.assertIn("gateway_payment_failed", by_action)
+        self.assertNotIn("gateway_payment_expired", by_action)
+        self.assertNotIn("gateway_payment_failed", by_action)
+
+    def test_gateway_final_state_duplicate_paid_is_ignored(self):
+        payment = self._create_gateway_visit(price=76000, payment_method="qris")
+        reference = payment["payment_reference"]
+
+        first = self.client.get(f"/payments/gateway/status/{reference}?simulate=paid", headers=app_headers())
+        second = self.client.get(f"/payments/gateway/status/{reference}?simulate=paid", headers=app_headers())
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json().get("ignored"))
+        self.assertEqual(second.json().get("reason"), "payment_already_final")
+        paid_logs = [
+            row for row in db.get_audit_logs(action="gateway_payment_paid", limit=100)
+            if (row.get("metadata") or {}).get("payment_reference") == reference
+        ]
+        self.assertEqual(len(paid_logs), 1)
 
     def test_manual_invoice_payment_marks_unpaid_visit_paid_qris(self):
         visit_id = self._create_visit(price=120000, payment_method="other")
@@ -794,17 +811,17 @@ class TestHerbalGatewayMock(unittest.TestCase):
         self.assertEqual(after_analytics - before_analytics, expected_revenue)
         self.assertEqual(
             after_owner_data["summary"]["visit_revenue"] - before_owner_data["summary"]["visit_revenue"],
-            240000,
+            290000,
         )
         self.assertEqual(
             after_owner_data["summary"]["herbal_revenue"] - before_owner_data["summary"]["herbal_revenue"],
-            120000,
+            70000,
         )
 
         service_row = next(row for row in after_owner_data["top_services"] if row["name"] == service_name)
         herbal_row = next(row for row in after_owner_data["top_herbals"] if row["name"] == herbal_name)
-        self.assertEqual(service_row["revenue"], 240000)
-        self.assertEqual(herbal_row["revenue"], 120000)
+        self.assertEqual(service_row["revenue"], 290000)
+        self.assertEqual(herbal_row["revenue"], 70000)
         current_month_label = datetime.now().strftime("%b %Y")
         before_monthly = dict(zip(before_analytics_data["monthly_labels"], before_analytics_data["monthly_income"]))
         after_monthly = dict(zip(after_analytics_data["monthly_labels"], after_analytics_data["monthly_income"]))

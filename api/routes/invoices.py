@@ -35,11 +35,14 @@ def _visit_original_price_and_unit(visit_data, app_settings):
             unit_label = service.unit_label or unit_label
             unit_price = float(service.price_per_unit or 0)
 
-    original_price = unit_price * quantity
-    final_price = float(visit_data.price or 0)
+    stored_final_price = float(getattr(visit_data, "final_price", None) or visit_data.price or 0)
+    stored_original_price = float(getattr(visit_data, "original_price", None) or 0)
+    stored_discount_amount = float(getattr(visit_data, "discount_amount", None) or 0)
+    original_price = stored_original_price or (unit_price * quantity)
+    final_price = stored_final_price
     if original_price <= 0 or original_price < final_price:
         original_price = final_price
-    discount_amount = max(0, original_price - final_price) if visit_data.discount_applied else 0
+    discount_amount = stored_discount_amount if stored_discount_amount > 0 else (max(0, original_price - final_price) if visit_data.discount_applied else 0)
     return original_price, discount_amount, unit_label
 
 def _parse_date_filter(value):
@@ -60,6 +63,31 @@ def _invoice_file_exists(path):
         return True
     except HTTPException:
         return False
+
+
+def _parse_datetime_value(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value))
+    except Exception:
+        return None
+
+
+def _pdf_status(invoice_status, invoice_path, file_exists, pdf_generated_at=None, payment_updated_at=None):
+    if str(invoice_status or "active").strip().lower() == "void":
+        return "void"
+    if not str(invoice_path or "").strip():
+        return "not_generated"
+    if not file_exists:
+        return "missing"
+    generated_at = _parse_datetime_value(pdf_generated_at)
+    updated_at = _parse_datetime_value(payment_updated_at)
+    if updated_at and (not generated_at or updated_at > generated_at):
+        return "stale"
+    return "fresh"
 
 
 @router.get("/invoices")
@@ -136,6 +164,8 @@ def get_invoices(
                     "path": v.invoice_path,
                     "invoice_status": getattr(v, "invoice_status", None) or "active",
                     "void_reason": getattr(v, "void_reason", None),
+                    "pdf_generated_at": getattr(v, "pdf_generated_at", None),
+                    "payment_updated_at": getattr(v, "payment_updated_at", None),
                     "payment_status": getattr(v, "payment_status", None) or "paid",
                     "payment_method": getattr(v, "payment_method", None) or "cash",
                     "amount_paid": getattr(v, "amount_paid", None),
@@ -160,6 +190,8 @@ def get_invoices(
                     "path": h.invoice_path if hasattr(h, "invoice_path") else None,
                     "invoice_status": getattr(h, "invoice_status", None) or "active",
                     "void_reason": getattr(h, "void_reason", None),
+                    "pdf_generated_at": getattr(h, "pdf_generated_at", None),
+                    "payment_updated_at": getattr(h, "payment_updated_at", None),
                     "payment_status": getattr(h, "payment_status", None) or "paid",
                     "payment_method": getattr(h, "payment_method", None) or "cash",
                     "amount_paid": getattr(h, "amount_paid", None),
@@ -176,6 +208,10 @@ def get_invoices(
                 entry["sort_id"] = max(int(entry.get("sort_id") or 0), int(h.id or 0))
                 if h.invoice_path:
                     entry["path"] = h.invoice_path
+                if getattr(h, "pdf_generated_at", None) and (not entry.get("pdf_generated_at") or h.pdf_generated_at > entry.get("pdf_generated_at")):
+                    entry["pdf_generated_at"] = h.pdf_generated_at
+                if getattr(h, "payment_updated_at", None) and (not entry.get("payment_updated_at") or h.payment_updated_at > entry.get("payment_updated_at")):
+                    entry["payment_updated_at"] = h.payment_updated_at
                 if (getattr(h, "invoice_status", None) or "active") == "void":
                     entry["invoice_status"] = "void"
                     entry["void_reason"] = getattr(h, "void_reason", None)
@@ -205,6 +241,8 @@ def get_invoices(
                     "path": h["path"],
                     "invoice_status": h["invoice_status"],
                     "void_reason": h["void_reason"],
+                    "pdf_generated_at": h.get("pdf_generated_at"),
+                    "payment_updated_at": h.get("payment_updated_at"),
                     "payment_status": h.get("payment_status", "paid"),
                     "payment_method": h.get("payment_method", "cash"),
                     "amount_paid": h.get("amount_paid"),
@@ -241,6 +279,7 @@ def get_invoices(
             path_exists_cache = {p: _invoice_file_exists(p) for p in unique_paths}
 
             for item in combined:
+                file_exists = path_exists_cache.get(item.get("path"), False)
                 d_obj = item['date_obj']
                 if hasattr(d_obj, 'strftime'):
                     date_str = d_obj.strftime("%d/%m/%Y %H:%M")
@@ -253,9 +292,12 @@ def get_invoices(
                     "name": item['name'],
                     "price": item['price'],
                     "path": item['path'],
-                    "file_exists": path_exists_cache.get(item.get("path"), False),
+                    "file_exists": file_exists,
                     "invoice_status": item.get("invoice_status", "active"),
                     "void_reason": item.get("void_reason"),
+                    "pdf_generated_at": item.get("pdf_generated_at").isoformat(timespec="seconds") if hasattr(item.get("pdf_generated_at"), "isoformat") else item.get("pdf_generated_at"),
+                    "payment_updated_at": item.get("payment_updated_at").isoformat(timespec="seconds") if hasattr(item.get("payment_updated_at"), "isoformat") else item.get("payment_updated_at"),
+                    "pdf_status": _pdf_status(item.get("invoice_status"), item.get("path"), file_exists, item.get("pdf_generated_at"), item.get("payment_updated_at")),
                     "payment_status": item.get("payment_status") or "paid",
                     "payment_method": item.get("payment_method") or "cash",
                     "amount_paid": item.get("amount_paid"),
@@ -290,6 +332,7 @@ async def generate_invoice_endpoint(visit_id: int = Form(...)):
         s = AppSettings()
         settings = s.get_clinic_profile()
 
+        existing_invoice_path = getattr(visit_data, "invoice_path", None)
         date_str = visit_data.date.strftime("%d/%m/%Y %H:%M") if hasattr(visit_data.date, 'strftime') else str(visit_data.date)
         invoice_number = _invoice_number(visit_id, visit_data.date)
         original_price, discount_amount, unit_label = _visit_original_price_and_unit(visit_data, s)
@@ -325,7 +368,9 @@ async def generate_invoice_endpoint(visit_id: int = Form(...)):
 
         # Update database with the newly generated path
         db.update_visit_invoice_path(visit_id, invoice_path)
-        db.log_audit("invoice_generated", "visit", visit_id, "Invoice kunjungan dibuat.", {
+        audit_action = "invoice_pdf_refreshed" if existing_invoice_path else "invoice_generated"
+        audit_message = "PDF invoice kunjungan diperbarui." if existing_invoice_path else "Invoice kunjungan dibuat."
+        db.log_audit(audit_action, "visit", visit_id, audit_message, {
             "invoice_number": invoice_number,
             "patient_name": patient_name,
             "service_name": visit_data.service_name or "Bekam",
@@ -335,13 +380,18 @@ async def generate_invoice_endpoint(visit_id: int = Form(...)):
             "price": float(visit_data.price or 0),
             "discount_amount": discount_amount,
             "is_free_visit": bool(visit_data.is_free_visit),
+            "payment_status": getattr(visit_data, "payment_status", None),
+            "payment_method": getattr(visit_data, "payment_method", None),
+            "previous_path": existing_invoice_path,
+            "new_path": invoice_path,
         })
 
         return {
             "status": "success",
-            "message": "Invoice berhasil dibuat.",
+            "message": "PDF invoice berhasil diperbarui." if existing_invoice_path else "Invoice berhasil dibuat.",
             "path": invoice_path,
             "invoice_number": invoice_number,
+            "refreshed": bool(existing_invoice_path),
         }
     except HTTPException:
         raise
@@ -368,6 +418,7 @@ async def generate_herbal_invoice_endpoint(transaction_id: int = Form(None), sal
         if transaction.get("invoice_status") == "void":
             raise HTTPException(status_code=400, detail="Invoice herbal sudah dibatalkan.")
 
+        existing_invoice_path = transaction.get("invoice_path")
         s = AppSettings()
         settings = s.get_clinic_profile()
         invoices_dir = os.path.join(get_app_data_dir(), "invoices")
@@ -396,24 +447,31 @@ async def generate_herbal_invoice_endpoint(transaction_id: int = Form(None), sal
             db.update_herbal_group_invoice_path(normalized_group_id, invoice_path)
         else:
             db.update_herbal_invoice_path(transaction_id, invoice_path)
+        audit_action = "herbal_invoice_pdf_refreshed" if existing_invoice_path else "herbal_invoice_generated"
+        audit_message = "PDF invoice herbal diperbarui." if existing_invoice_path else "Invoice herbal dibuat."
         db.log_audit(
-            "herbal_invoice_generated",
+            audit_action,
             "herbal_invoice",
             normalized_group_id or transaction_id,
-            "Invoice herbal dibuat.",
+            audit_message,
             {
                 "invoice_number": invoice_number,
                 "buyer_name": transaction["buyer_name"],
                 "item_count": len(transaction["items"]),
                 "total": transaction["total"],
+                "payment_status": transaction.get("payment_status"),
+                "payment_method": transaction.get("payment_method"),
+                "previous_path": existing_invoice_path,
+                "new_path": invoice_path,
             },
         )
 
         return {
             "status": "success",
-            "message": "Invoice herbal berhasil dibuat.",
+            "message": "PDF invoice herbal berhasil diperbarui." if existing_invoice_path else "Invoice herbal berhasil dibuat.",
             "path": invoice_path,
             "invoice_number": invoice_number,
+            "refreshed": bool(existing_invoice_path),
         }
     except HTTPException:
         raise
@@ -434,18 +492,15 @@ async def void_invoice_endpoint(
         require_valid_license()
         require_admin_pin(request)
         normalized_type = str(invoice_type or "").strip()
+        normalized_reason = str(reason or "").strip()
+        if not normalized_reason:
+            raise HTTPException(status_code=400, detail="Alasan void invoice wajib diisi.")
         if normalized_type == "visit":
-            db.void_visit_invoice(visit_id, reason)
-            entity_id = visit_id
+            db.void_visit_invoice(visit_id, normalized_reason)
         elif normalized_type == "herbal":
-            db.void_herbal_invoice(transaction_id=transaction_id, sale_group_id=sale_group_id, reason=reason)
-            entity_id = sale_group_id or transaction_id
+            db.void_herbal_invoice(transaction_id=transaction_id, sale_group_id=sale_group_id, reason=normalized_reason)
         else:
             raise HTTPException(status_code=400, detail="Tipe invoice tidak valid.")
-        db.log_audit("invoice_voided", "invoice", entity_id, "Invoice dibatalkan.", {
-            "invoice_type": normalized_type,
-            "reason": reason,
-        })
         return {"status": "success", "message": "Invoice berhasil dibatalkan."}
     except HTTPException:
         raise
@@ -475,19 +530,6 @@ async def update_invoice_payment_endpoint(
             payment_status=payment_status,
             payment_method=payment_method,
             amount_paid=amount_paid,
-        )
-        db.log_audit(
-            "manual_payment_updated",
-            "invoice",
-            result.get("entity_id"),
-            "Status pembayaran invoice diperbarui manual.",
-            {
-                "invoice_type": result.get("invoice_type"),
-                "payment_status": result.get("payment_status"),
-                "payment_method": result.get("payment_method"),
-                "amount_paid": result.get("amount_paid"),
-                "payment_provider": result.get("payment_provider"),
-            },
         )
         return {
             "status": "success",

@@ -34,6 +34,13 @@ def _parse_inventory_usage(value):
     return usage
 
 
+def _parse_bool_form(value, default=True):
+    text = str(value if value is not None else "").strip().lower()
+    if not text:
+        return bool(default)
+    return text in ("true", "1", "on", "yes", "y")
+
+
 @router.get("/services")
 def get_services(active_only: bool = Query(False)):
     try:
@@ -46,6 +53,10 @@ def get_services(active_only: bool = Query(False)):
 async def add_service(
     request: Request,
     name: str = Form(...),
+    pricing_type: str = Form("per_unit"),
+    service_category: str = Form("general"),
+    fixed_price: float = Form(0),
+    allow_manual_price: str = Form("true"),
     unit_label: str = Form("sesi"),
     default_quantity: int = Form(1),
     price_per_unit: float = Form(0),
@@ -61,6 +72,8 @@ async def add_service(
             raise ValueError("Jumlah default layanan minimal 1.")
         if price_per_unit < 0:
             raise ValueError("Harga layanan tidak boleh negatif.")
+        if fixed_price < 0:
+            raise ValueError("Harga tetap layanan tidak boleh negatif.")
         db.add_service(
             name.strip(),
             unit_label.strip() or "sesi",
@@ -68,6 +81,10 @@ async def add_service(
             price_per_unit,
             notes_template,
             _parse_inventory_usage(inventory_usage),
+            pricing_type.strip() or "per_unit",
+            service_category.strip() or "general",
+            fixed_price,
+            _parse_bool_form(allow_manual_price),
         )
         return {"status": "success", "message": "Layanan berhasil ditambahkan."}
     except HTTPException:
@@ -81,6 +98,10 @@ async def update_service(
     request: Request,
     service_id: int = Form(...),
     name: str = Form(...),
+    pricing_type: str = Form("per_unit"),
+    service_category: str = Form("general"),
+    fixed_price: float = Form(0),
+    allow_manual_price: str = Form("true"),
     unit_label: str = Form("sesi"),
     default_quantity: int = Form(1),
     price_per_unit: float = Form(0),
@@ -97,6 +118,8 @@ async def update_service(
             raise ValueError("Jumlah default layanan minimal 1.")
         if price_per_unit < 0:
             raise ValueError("Harga layanan tidak boleh negatif.")
+        if fixed_price < 0:
+            raise ValueError("Harga tetap layanan tidak boleh negatif.")
         active = is_active.lower() in ("true", "1", "on", "yes")
         db.update_service(
             service_id,
@@ -107,6 +130,10 @@ async def update_service(
             notes_template,
             active,
             _parse_inventory_usage(inventory_usage),
+            pricing_type.strip() or "per_unit",
+            service_category.strip() or "general",
+            fixed_price,
+            _parse_bool_form(allow_manual_price),
         )
         return {"status": "success", "message": "Layanan berhasil diperbarui."}
     except HTTPException:
@@ -132,6 +159,10 @@ async def toggle_service(request: Request, service_id: int = Form(...)):
             service.notes_template,
             not service.is_active,
             service.inventory_usage,
+            service.pricing_type,
+            service.service_category,
+            service.fixed_price,
+            service.allow_manual_price,
         )
         return {"status": "success", "is_active": not service.is_active}
     except HTTPException:

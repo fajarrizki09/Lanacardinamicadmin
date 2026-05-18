@@ -18,6 +18,8 @@ from helpers.payment_gateway import (
 
 router = APIRouter(prefix="/payments")
 
+FINAL_PAYMENT_STATUSES = {"paid", "failed", "expired", "void"}
+
 
 def _require_app_token_header(request: Request):
     if not str(request.headers.get("X-App-Token", "")).strip():
@@ -96,6 +98,45 @@ def _serialize_payment(row, source_type, source_id, amount):
         "payment_expired_at": getattr(row, "payment_expired_at", None),
         "payment_gateway_status": getattr(row, "payment_gateway_status", None) or "",
     }
+
+
+def _apply_gateway_status_update(session, rows, source_type, source_id, normalized_reference, old_status, gateway_status, payment_status, amount):
+    if str(old_status or "").strip().lower() in FINAL_PAYMENT_STATUSES:
+        return {
+            "ignored": True,
+            "reason": "payment_already_final",
+            "amount_paid": int(float(getattr(rows[0], "amount_paid", 0) or 0)),
+        }
+
+    paid_at = datetime.now().isoformat() if payment_status == "paid" else None
+    amount_paid = amount if payment_status == "paid" else 0
+    now = datetime.now()
+    for row in rows:
+        row.payment_gateway_status = gateway_status
+        row.payment_status = payment_status
+        row.amount_paid = amount_paid
+        row.paid_at = paid_at
+        row.payment_updated_at = now
+    session.commit()
+
+    if old_status != payment_status:
+        db.log_audit("gateway_status_changed", source_type, source_id, "Status gateway berubah.", {
+            "payment_reference": normalized_reference,
+            "old_status": old_status,
+            "new_status": payment_status,
+            "gateway_status": gateway_status,
+        })
+    if payment_status == "paid":
+        db.log_audit("gateway_payment_paid", source_type, source_id, "Pembayaran gateway menjadi paid.", {
+            "payment_reference": normalized_reference,
+            "amount_paid": amount_paid,
+        })
+    elif payment_status in {"expired", "failed"}:
+        db.log_audit(f"gateway_payment_{payment_status}", source_type, source_id, f"Pembayaran gateway {payment_status}.", {
+            "payment_reference": normalized_reference,
+        })
+
+    return {"ignored": False, "reason": "updated", "amount_paid": amount_paid}
 
 
 def _find_payment_source(session, source_type, source_id):
@@ -212,7 +253,7 @@ def get_gateway_status(request: Request, payment_reference: str, simulate: str =
                 .filter(HerbalTransaction.visit_id == visit.id, HerbalTransaction.transaction_type == "sale")
                 .scalar()
             )
-            amount = int(float(visit.price or 0) + float(herbal_total or 0))
+            amount = int(float(getattr(visit, "final_price", None) or visit.price or 0) + float(herbal_total or 0))
             rows = [visit]
         else:
             rows = (
@@ -241,31 +282,7 @@ def get_gateway_status(request: Request, payment_reference: str, simulate: str =
                 raise HTTPException(status_code=400, detail="Simulasi status tidak valid.")
             gateway_status = gateway_status_map[simulation]
             payment_status = map_gateway_status(provider, gateway_status)
-            paid_at = datetime.now().isoformat() if payment_status == "paid" else None
-            amount_paid = amount if payment_status == "paid" else 0
-            for row in rows:
-                row.payment_gateway_status = gateway_status
-                row.payment_status = payment_status
-                row.amount_paid = amount_paid
-                row.paid_at = paid_at
-            session.commit()
-
-            if old_status != payment_status:
-                db.log_audit("gateway_status_changed", source_type, source_id, "Status gateway berubah.", {
-                    "payment_reference": normalized_reference,
-                    "old_status": old_status,
-                    "new_status": payment_status,
-                    "gateway_status": gateway_status,
-                })
-            if payment_status == "paid":
-                db.log_audit("gateway_payment_paid", source_type, source_id, "Pembayaran gateway menjadi paid.", {
-                    "payment_reference": normalized_reference,
-                    "amount_paid": amount_paid,
-                })
-            elif payment_status in {"expired", "failed"}:
-                db.log_audit(f"gateway_payment_{payment_status}", source_type, source_id, f"Pembayaran gateway {payment_status}.", {
-                    "payment_reference": normalized_reference,
-                })
+            update_result = _apply_gateway_status_update(session, rows, source_type, source_id, normalized_reference, old_status, gateway_status, payment_status, amount)
         elif provider == "midtrans":
             try:
                 gateway_result = check_payment_status(provider, normalized_reference)
@@ -273,36 +290,15 @@ def get_gateway_status(request: Request, payment_reference: str, simulate: str =
                 raise HTTPException(status_code=400, detail=_safe_gateway_error(exc)) from exc
             gateway_status = gateway_result["payment_gateway_status"]
             payment_status = gateway_result["payment_status"]
-            paid_at = datetime.now().isoformat() if payment_status == "paid" else None
-            amount_paid = amount if payment_status == "paid" else 0
-            for row in rows:
-                row.payment_gateway_status = gateway_status
-                row.payment_status = payment_status
-                row.amount_paid = amount_paid
-                row.paid_at = paid_at
-            session.commit()
-
-            if old_status != payment_status:
-                db.log_audit("gateway_status_changed", source_type, source_id, "Status gateway berubah.", {
-                    "payment_reference": normalized_reference,
-                    "old_status": old_status,
-                    "new_status": payment_status,
-                    "gateway_status": gateway_status,
-                })
-            if payment_status == "paid":
-                db.log_audit("gateway_payment_paid", source_type, source_id, "Pembayaran gateway menjadi paid.", {
-                    "payment_reference": normalized_reference,
-                    "amount_paid": amount_paid,
-                })
-            elif payment_status in {"expired", "failed"}:
-                db.log_audit(f"gateway_payment_{payment_status}", source_type, source_id, f"Pembayaran gateway {payment_status}.", {
-                    "payment_reference": normalized_reference,
-                })
+            update_result = _apply_gateway_status_update(session, rows, source_type, source_id, normalized_reference, old_status, gateway_status, payment_status, amount)
         elif not is_available_gateway_provider(provider):
             raise HTTPException(status_code=400, detail="Provider pembayaran pada invoice ini belum didukung.")
 
         result = _serialize_payment(primary, source_type, source_id, amount)
-    return {"status": "success", "payment": result}
+    response = {"status": "success", "payment": result}
+    if 'update_result' in locals() and update_result.get("ignored"):
+        response.update({"ignored": True, "reason": update_result.get("reason")})
+    return response
 
 
 @router.get("/gateway/pay/{payment_reference}", response_class=HTMLResponse)

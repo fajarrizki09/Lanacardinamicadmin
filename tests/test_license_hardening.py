@@ -14,6 +14,7 @@ from helpers.license import (
     _extract_license_response,
     _is_offline_grace_valid,
     _is_recent_valid_check,
+    _parse_expiry_datetime,
     generate_device_id,
     generate_hardware_fingerprint_hash,
     get_or_create_device_id,
@@ -54,6 +55,16 @@ class TestLicenseParserHardening(unittest.TestCase):
         self.assertTrue(is_valid)
         self.assertEqual(data["status"], "active")
         self.assertEqual(message, "License valid.")
+
+    def test_expiry_date_only_valid_until_end_of_day(self):
+        expiry = _parse_expiry_datetime("2026-05-19")
+
+        self.assertEqual(expiry.strftime("%Y-%m-%d %H:%M:%S"), "2026-05-19 23:59:59")
+
+    def test_expiry_midnight_timestamp_treated_as_full_day(self):
+        expiry = _parse_expiry_datetime("2026-05-19T00:00:00.000Z")
+
+        self.assertEqual(expiry.strftime("%Y-%m-%d %H:%M:%S"), "2026-05-19 23:59:59")
 
     @patch("helpers.license._now", return_value=1000)
     def test_recent_cache_rejects_expired_license(self, _mock_now):

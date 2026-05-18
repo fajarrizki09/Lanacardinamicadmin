@@ -187,6 +187,7 @@ def build_report_excel(session, report_type="owner_summary", period="month", yea
                 start,
                 end,
             )
+            .filter(HerbalTransaction.visit_id.is_(None))
             .order_by(HerbalTransaction.date.desc())
             .all()
         )

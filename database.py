@@ -9,6 +9,7 @@ from sqlalchemy.exc import SAWarning
 import warnings
 import uuid
 import json
+import re
 
 warnings.filterwarnings('ignore', r"^Dialect sqlite\+pysqlite does \*not\* support Decimal objects natively.*", category=SAWarning)
 
@@ -29,7 +30,7 @@ from db_mixins_inventory import HerbalMixin, InventoryMixin
 from helpers.payment_rules import allocate_payment_amounts, normalize_visit_payment
 
 class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMixin, InventoryMixin):
-    DB_SCHEMA_VERSION = 10
+    DB_SCHEMA_VERSION = 11
 
     def __init__(self, db_url="sqlite:///data.db"):
         self.db_url = db_url
@@ -180,6 +181,28 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             session.execute(text(statement))
         return not exists
 
+    def _backfill_visit_pricing_fields(self, session):
+        if not all(
+            self._column_exists(session, "visits", column)
+            for column in ("original_price", "discount_amount", "final_price", "price")
+        ):
+            return False
+        result = session.execute(text(
+            "UPDATE visits "
+            "SET "
+            "original_price = CASE WHEN COALESCE(original_price, 0) = 0 THEN COALESCE(price, 0) ELSE original_price END, "
+            "final_price = CASE WHEN COALESCE(final_price, 0) = 0 THEN COALESCE(price, 0) ELSE final_price END, "
+            "discount_amount = CASE "
+            "WHEN COALESCE(discount_amount, 0) < 0 THEN 0 "
+            "WHEN COALESCE(discount_amount, 0) = 0 AND COALESCE(original_price, 0) > COALESCE(final_price, COALESCE(price, 0)) "
+            "THEN COALESCE(original_price, 0) - COALESCE(final_price, COALESCE(price, 0)) "
+            "ELSE COALESCE(discount_amount, 0) END "
+            "WHERE COALESCE(original_price, 0) = 0 "
+            "OR COALESCE(final_price, 0) = 0 "
+            "OR COALESCE(discount_amount, 0) < 0"
+        ))
+        return bool(result.rowcount and result.rowcount > 0)
+
     def _migrate_existing_data(self):
         with self.Session() as session:
             previous_version = self._get_db_version(session)
@@ -196,6 +219,8 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 ("therapists", "can_handle_any_gender", "ALTER TABLE therapists ADD COLUMN can_handle_any_gender BOOLEAN DEFAULT 0 NOT NULL"),
                 ("visits", "point_count", "ALTER TABLE visits ADD COLUMN point_count INTEGER DEFAULT 0 NOT NULL"),
                 ("visits", "invoice_path", "ALTER TABLE visits ADD COLUMN invoice_path TEXT"),
+                ("visits", "pdf_generated_at", "ALTER TABLE visits ADD COLUMN pdf_generated_at DATETIME"),
+                ("visits", "payment_updated_at", "ALTER TABLE visits ADD COLUMN payment_updated_at DATETIME"),
                 ("inventory", "is_active", "ALTER TABLE inventory ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"),
                 ("visits", "medical_notes", "ALTER TABLE visits ADD COLUMN medical_notes TEXT"),
                 ("visits", "is_free_visit", "ALTER TABLE visits ADD COLUMN is_free_visit BOOLEAN DEFAULT 0 NOT NULL"),
@@ -204,9 +229,17 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 ("visits", "discount_rule_name", "ALTER TABLE visits ADD COLUMN discount_rule_name TEXT"),
                 ("visits", "service_id", "ALTER TABLE visits ADD COLUMN service_id INTEGER"),
                 ("visits", "service_name", "ALTER TABLE visits ADD COLUMN service_name TEXT"),
+                ("visits", "original_price", "ALTER TABLE visits ADD COLUMN original_price NUMERIC(10, 2) DEFAULT 0 NOT NULL"),
+                ("visits", "discount_amount", "ALTER TABLE visits ADD COLUMN discount_amount NUMERIC(10, 2) DEFAULT 0 NOT NULL"),
+                ("visits", "final_price", "ALTER TABLE visits ADD COLUMN final_price NUMERIC(10, 2) DEFAULT 0 NOT NULL"),
+                ("services", "pricing_type", "ALTER TABLE services ADD COLUMN pricing_type TEXT DEFAULT 'per_unit' NOT NULL"),
+                ("services", "service_category", "ALTER TABLE services ADD COLUMN service_category TEXT DEFAULT 'general' NOT NULL"),
+                ("services", "fixed_price", "ALTER TABLE services ADD COLUMN fixed_price NUMERIC(10, 2) DEFAULT 0 NOT NULL"),
+                ("services", "allow_manual_price", "ALTER TABLE services ADD COLUMN allow_manual_price BOOLEAN DEFAULT 1 NOT NULL"),
                 ("visits", "invoice_status", "ALTER TABLE visits ADD COLUMN invoice_status TEXT DEFAULT 'active' NOT NULL"),
                 ("visits", "void_reason", "ALTER TABLE visits ADD COLUMN void_reason TEXT"),
                 ("visits", "voided_at", "ALTER TABLE visits ADD COLUMN voided_at DATETIME"),
+                ("inventory", "item_type", "ALTER TABLE inventory ADD COLUMN item_type TEXT DEFAULT 'consumable' NOT NULL"),
                 ("inventory", "package_unit", "ALTER TABLE inventory ADD COLUMN package_unit TEXT"),
                 ("inventory", "package_size", "ALTER TABLE inventory ADD COLUMN package_size INTEGER DEFAULT 1 NOT NULL"),
                 ("herbals", "cost_price", "ALTER TABLE herbals ADD COLUMN cost_price NUMERIC(10, 2) DEFAULT 0 NOT NULL"),
@@ -217,6 +250,8 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 ("herbal_transactions", "note", "ALTER TABLE herbal_transactions ADD COLUMN note TEXT"),
                 ("herbal_transactions", "visit_id", "ALTER TABLE herbal_transactions ADD COLUMN visit_id INTEGER"),
                 ("herbal_transactions", "invoice_path", "ALTER TABLE herbal_transactions ADD COLUMN invoice_path TEXT"),
+                ("herbal_transactions", "pdf_generated_at", "ALTER TABLE herbal_transactions ADD COLUMN pdf_generated_at DATETIME"),
+                ("herbal_transactions", "payment_updated_at", "ALTER TABLE herbal_transactions ADD COLUMN payment_updated_at DATETIME"),
                 ("herbal_transactions", "invoice_status", "ALTER TABLE herbal_transactions ADD COLUMN invoice_status TEXT DEFAULT 'active' NOT NULL"),
                 ("herbal_transactions", "void_reason", "ALTER TABLE herbal_transactions ADD COLUMN void_reason TEXT"),
                 ("herbal_transactions", "voided_at", "ALTER TABLE herbal_transactions ADD COLUMN voided_at DATETIME"),
@@ -244,12 +279,19 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 ("herbal_transactions", "payment_channel", "ALTER TABLE herbal_transactions ADD COLUMN payment_channel TEXT DEFAULT '' "),
                 ("herbal_transactions", "payment_expired_at", "ALTER TABLE herbal_transactions ADD COLUMN payment_expired_at TEXT DEFAULT NULL"),
                 ("herbal_transactions", "payment_gateway_status", "ALTER TABLE herbal_transactions ADD COLUMN payment_gateway_status TEXT DEFAULT '' "),
+                ("inventory_transactions", "visit_id", "ALTER TABLE inventory_transactions ADD COLUMN visit_id INTEGER"),
             ]:
                 self._run_migration(
                     session,
                     f"ensure_column:{table_name}.{column_name}",
                     lambda table_name=table_name, column_name=column_name, ddl=ddl: self._ensure_column(session, table_name, column_name, ddl),
                 )
+
+            self._run_migration(
+                session,
+                "backfill:visits.pricing_fields",
+                lambda: self._backfill_visit_pricing_fields(session),
+            )
 
             self._run_migration(
                 session,
@@ -263,6 +305,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                         "change INTEGER NOT NULL, "
                         "transaction_type TEXT DEFAULT 'adjustment' NOT NULL, "
                         "note TEXT, "
+                        "visit_id INTEGER, "
                         "FOREIGN KEY(inventory_id) REFERENCES inventory (id)"
                         ")"
                     ),
@@ -493,6 +536,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             ("ix_herbal_transactions_date", "CREATE INDEX IF NOT EXISTS ix_herbal_transactions_date ON herbal_transactions (date)"),
             ("ix_visits_invoice_status", "CREATE INDEX IF NOT EXISTS ix_visits_invoice_status ON visits (invoice_status)"),
             ("ix_herbal_transactions_invoice_status", "CREATE INDEX IF NOT EXISTS ix_herbal_transactions_invoice_status ON herbal_transactions (invoice_status)"),
+            ("ix_inventory_transactions_visit_id", "CREATE INDEX IF NOT EXISTS ix_inventory_transactions_visit_id ON inventory_transactions (visit_id)"),
             ("ix_correction_logs_created_at", "CREATE INDEX IF NOT EXISTS ix_correction_logs_created_at ON correction_logs (created_at)"),
             ("ix_service_inventory_usage_service_id", "CREATE INDEX IF NOT EXISTS ix_service_inventory_usage_service_id ON service_inventory_usage (service_id)"),
             ("ix_service_inventory_usage_inventory_id", "CREATE INDEX IF NOT EXISTS ix_service_inventory_usage_inventory_id ON service_inventory_usage (inventory_id)"),
@@ -553,6 +597,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 continue
             session.add(Service(
                 name=name,
+                pricing_type="per_unit",
+                service_category="therapy",
+                fixed_price=price_per_unit * default_quantity,
+                allow_manual_price=True,
                 unit_label=unit_label,
                 default_quantity=default_quantity,
                 price_per_unit=price_per_unit,
@@ -685,6 +733,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                         Visit(
                             date=visit.date,
                             price=visit_price,
+                            original_price=float(getattr(visit, 'original_price', None) or visit_price),
+                            discount_amount=float(getattr(visit, 'discount_amount', None) or 0),
+                            final_price=float(getattr(visit, 'final_price', None) or visit_price),
                             discount_applied=visit.discount_applied,
                             point_count=visit_points,
                             therapist_id=visit.therapist_id if hasattr(visit, 'therapist_id') else None,
@@ -728,7 +779,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     "id": v.id,
                     "date": v.date.isoformat() if v.date else None,
                     "price": float(v.price or 0),
-                    "final_price": float(v.price or 0),
+                    "original_price": float(getattr(v, "original_price", None) or v.price or 0),
+                    "discount_amount": float(getattr(v, "discount_amount", None) or 0),
+                    "final_price": float(getattr(v, "final_price", None) or v.price or 0),
                     "discount_applied": v.discount_applied,
                     "point_count": v.point_count if hasattr(v, 'point_count') else 0,
                     "quantity": v.point_count if hasattr(v, 'point_count') else 0,
@@ -761,7 +814,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 "gender": patient.gender,
                 "address": patient.address,
                 "visits_count": len(visits),
-                "total_income": sum(float(v["price"] or 0) for v in visits),
+                "total_income": sum(float(v.get("final_price") or v.get("price") or 0) for v in visits),
                 "visits": visits,
             }
 
@@ -780,8 +833,12 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                             id=visit.id,
                             date=visit.date,
                             price=float(visit.price or 0),
+                            original_price=float(getattr(visit, 'original_price', None) or visit.price or 0),
+                            discount_amount=float(getattr(visit, 'discount_amount', None) or 0),
+                            final_price=float(getattr(visit, 'final_price', None) or visit.price or 0),
                             discount_applied=visit.discount_applied,
                             point_count=visit.point_count if hasattr(visit, 'point_count') else 0,
+                            quantity=visit.point_count if hasattr(visit, 'point_count') else 0,
                             therapist_id=visit.therapist_id if hasattr(visit, 'therapist_id') else None,
                             service_id=visit.service_id if hasattr(visit, 'service_id') else None,
                             service_name=(visit.service_name if hasattr(visit, 'service_name') else None) or 'Bekam',
@@ -805,7 +862,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 session.query(
                     Visit.patient_id.label("patient_id"),
                     func.count(Visit.id).label("visits_count"),
-                    func.coalesce(func.sum(Visit.price), 0).label("total_income"),
+                    func.coalesce(func.sum(func.coalesce(Visit.final_price, Visit.price, 0)), 0).label("total_income"),
                 )
                 .group_by(Visit.patient_id)
                 .subquery()
@@ -905,30 +962,44 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
     def get_analytics_data(self, period="6m"):
         from sqlalchemy import func
         from sqlalchemy import and_, or_
+        from helpers.revenue_rules import active_invoice_filter, revenue_case
         from collections import defaultdict
         import datetime
         with self.Session() as session:
             now = datetime.datetime.now()
-            active_visit_status = or_(Visit.invoice_status.is_(None), Visit.invoice_status != "void")
+            active_visit_status = active_invoice_filter(Visit)
             void_visit_status = Visit.invoice_status == "void"
-            active_herbal_status = or_(HerbalTransaction.invoice_status.is_(None), HerbalTransaction.invoice_status != "void")
+            active_herbal_status = active_invoice_filter(HerbalTransaction)
             void_herbal_status = HerbalTransaction.invoice_status == "void"
             herbal_sale_filter = HerbalTransaction.transaction_type == "sale"
+            standalone_herbal_sale_filter = (
+                HerbalTransaction.transaction_type == "sale",
+                HerbalTransaction.visit_id.is_(None),
+            )
             herbal_return_filter = HerbalTransaction.transaction_type.in_(["return", "retur"])
 
+            linked_herbal_total_expr = (
+                session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0))
+                .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
+                .correlate(Visit)
+                .scalar_subquery()
+            )
+            linked_herbal_paid_expr = (
+                session.query(func.coalesce(func.sum(func.coalesce(HerbalTransaction.amount_paid, 0)), 0))
+                .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
+                .correlate(Visit)
+                .scalar_subquery()
+            )
+            visit_total_expr = func.coalesce(func.nullif(Visit.final_price, 0), Visit.price, 0) + linked_herbal_total_expr
+            visit_paid_expr = func.coalesce(Visit.amount_paid, 0) + linked_herbal_paid_expr
             from sqlalchemy import case
             visit_revenue_expr = case(
                 (Visit.payment_method == 'free', 0),
-                (or_(Visit.payment_status == 'paid', Visit.payment_status.is_(None)), Visit.price),
-                (Visit.payment_status == 'partial', func.coalesce(Visit.amount_paid, 0)),
-                else_=0
+                (or_(Visit.payment_status == 'paid', Visit.payment_status.is_(None)), visit_total_expr),
+                (Visit.payment_status == 'partial', visit_paid_expr),
+                else_=0,
             )
-            herbal_revenue_expr = case(
-                (HerbalTransaction.payment_method == 'free', 0),
-                (or_(HerbalTransaction.payment_status == 'paid', HerbalTransaction.payment_status.is_(None)), HerbalTransaction.total_price),
-                (HerbalTransaction.payment_status == 'partial', func.coalesce(HerbalTransaction.amount_paid, 0)),
-                else_=0
-            )
+            herbal_revenue_expr = revenue_case(HerbalTransaction, HerbalTransaction.total_price)
 
             # 1. Determine time ranges and init chart map
             chart_data = {}
@@ -990,7 +1061,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             total_visits = int(total_visits or 0)
             gross_visit_revenue = float(gross_visit_revenue or 0)
 
-            void_visit_query = session.query(func.coalesce(func.sum(Visit.price), 0)).filter(void_visit_status)
+            void_visit_query = session.query(func.coalesce(func.sum(func.coalesce(Visit.final_price, Visit.price, 0)), 0)).filter(void_visit_status)
             if start_date:
                 void_visit_query = void_visit_query.filter(Visit.date >= start_date)
             void_visit_revenue = float(void_visit_query.scalar() or 0)
@@ -999,14 +1070,14 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             herbal_sales_query = session.query(
                 func.count(HerbalTransaction.id),
                 func.coalesce(func.sum(herbal_revenue_expr), 0),
-            ).filter(herbal_sale_filter, active_herbal_status)
+            ).filter(*standalone_herbal_sale_filter, active_herbal_status)
             if start_date:
                 herbal_sales_query = herbal_sales_query.filter(HerbalTransaction.date >= start_date)
             total_herbal_sales, gross_herbal_sales = herbal_sales_query.one()
             total_herbal_sales = int(total_herbal_sales or 0)
             gross_herbal_sales = float(gross_herbal_sales or 0)
 
-            herbal_returns_query = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(herbal_return_filter)
+            herbal_returns_query = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(herbal_return_filter, HerbalTransaction.visit_id.is_(None))
             if start_date:
                 herbal_returns_query = herbal_returns_query.filter(HerbalTransaction.date >= start_date)
             herbal_returns = float(herbal_returns_query.scalar() or 0)
@@ -1015,12 +1086,12 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             herbal_cogs_query = (
                 session.query(func.coalesce(func.sum(HerbalTransaction.quantity * Herbal.cost_price), 0))
                 .join(Herbal, Herbal.id == HerbalTransaction.herbal_id)
-                .filter(herbal_sale_filter, active_herbal_status)
+                .filter(*standalone_herbal_sale_filter, active_herbal_status)
             )
             herbal_return_cogs_query = (
                 session.query(func.coalesce(func.sum(HerbalTransaction.quantity * Herbal.cost_price), 0))
                 .join(Herbal, Herbal.id == HerbalTransaction.herbal_id)
-                .filter(herbal_return_filter)
+                .filter(herbal_return_filter, HerbalTransaction.visit_id.is_(None))
             )
             if start_date:
                 herbal_cogs_query = herbal_cogs_query.filter(HerbalTransaction.date >= start_date)
@@ -1033,7 +1104,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             active_visit_invoice_total = float(active_visit_invoice_query.scalar() or 0)
 
             active_herbal_invoice_query = session.query(func.coalesce(func.sum(herbal_revenue_expr), 0)).filter(
-                herbal_sale_filter,
+                *standalone_herbal_sale_filter,
                 active_herbal_status,
             )
             if start_date:
@@ -1041,7 +1112,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             active_herbal_invoice_total = float(active_herbal_invoice_query.scalar() or 0)
 
             void_herbal_invoice_query = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(
-                herbal_sale_filter,
+                *standalone_herbal_sale_filter,
                 void_herbal_status,
             )
             if start_date:
@@ -1105,24 +1176,26 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 func.coalesce(func.sum(herbal_revenue_expr), 0)
             ).filter(
                 HerbalTransaction.date >= current_month_start,
-                herbal_sale_filter,
+                *standalone_herbal_sale_filter,
                 active_herbal_status,
             ).one()
             current_month_herbal_returns = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(
                 HerbalTransaction.date >= current_month_start,
                 herbal_return_filter,
+                HerbalTransaction.visit_id.is_(None),
             ).scalar() or 0
             prev_month_herbal_sales, prev_month_herbal_income = session.query(
                 func.count(HerbalTransaction.id),
                 func.coalesce(func.sum(herbal_revenue_expr), 0)
             ).filter(
                 and_(HerbalTransaction.date >= prev_month_start, HerbalTransaction.date < current_month_start),
-                herbal_sale_filter,
+                *standalone_herbal_sale_filter,
                 active_herbal_status,
             ).one()
             prev_month_herbal_returns = session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)).filter(
                 and_(HerbalTransaction.date >= prev_month_start, HerbalTransaction.date < current_month_start),
                 herbal_return_filter,
+                HerbalTransaction.visit_id.is_(None),
             ).scalar() or 0
 
             current_month_visits = int(current_month_visits or 0)
@@ -1191,7 +1264,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                         func.sum(herbal_revenue_expr)
                     ).filter(
                         HerbalTransaction.date >= start_date,
-                        herbal_sale_filter,
+                        *standalone_herbal_sale_filter,
                         active_herbal_status,
                     ).group_by('day').all()
 
@@ -1210,6 +1283,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     ).filter(
                         HerbalTransaction.date >= start_date,
                         herbal_return_filter,
+                        HerbalTransaction.visit_id.is_(None),
                     ).group_by('day').all()
 
                     for row in herbal_return_chart_agg:
@@ -1251,7 +1325,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 herbal_chart_agg = session.query(
                     func.strftime('%m %Y', HerbalTransaction.date).label('month'),
                     func.sum(herbal_revenue_expr)
-                ).filter(herbal_sale_filter, active_herbal_status)
+                ).filter(*standalone_herbal_sale_filter, active_herbal_status)
                 if start_date:
                     herbal_chart_agg = herbal_chart_agg.filter(HerbalTransaction.date >= start_date)
                 herbal_chart_agg = herbal_chart_agg.group_by('month').all()
@@ -1273,7 +1347,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 herbal_return_chart_agg = session.query(
                     func.strftime('%m %Y', HerbalTransaction.date).label('month'),
                     func.sum(HerbalTransaction.total_price)
-                ).filter(herbal_return_filter)
+                ).filter(herbal_return_filter, HerbalTransaction.visit_id.is_(None))
                 if start_date:
                     herbal_return_chart_agg = herbal_return_chart_agg.filter(HerbalTransaction.date >= start_date)
                 herbal_return_chart_agg = herbal_return_chart_agg.group_by('month').all()
@@ -1325,7 +1399,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
 
             # Recent transactions (last 10)
             recent_query = session.query(
-                Visit.date, Visit.price, Visit.point_count,
+                Visit.date, Visit.price, Visit.final_price, Visit.point_count,
                 Patient.name.label('patient_name'), Therapist.name.label('therapist_name'),
                 Visit.invoice_status,
                 Visit.payment_status, Visit.payment_method,
@@ -1347,7 +1421,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     "type": "visit",
                     "patient": v.patient_name or "Unknown",
                     "therapist": v.therapist_name or "-",
-                    "price": float(v.price or 0),
+                    "price": float(v.final_price or v.price or 0),
                     "point_count": v.point_count or 0,
                     "invoice_status": v.invoice_status or "active",
                     "payment_status": v.payment_status or "paid",
@@ -1777,6 +1851,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     v = existing_visits[vid]
                     v.date = data.date
                     v.price = data_price
+                    v.original_price = float(getattr(data, 'original_price', None) or data_price)
+                    v.discount_amount = float(getattr(data, 'discount_amount', None) or 0)
+                    v.final_price = float(getattr(data, 'final_price', None) or data_price)
                     v.discount_applied = data.discount_applied
                     if hasattr(data, 'point_count'):
                         v.point_count = data_points
@@ -1819,6 +1896,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     new_visit = Visit(
                         date=visit.date,
                         price=visit_price,
+                        original_price=float(getattr(visit, 'original_price', None) or visit_price),
+                        discount_amount=float(getattr(visit, 'discount_amount', None) or 0),
+                        final_price=float(getattr(visit, 'final_price', None) or visit_price),
                         discount_applied=visit.discount_applied,
                         point_count=visit_points,
                         therapist_id=visit.therapist_id if hasattr(visit, 'therapist_id') else None,
@@ -1844,8 +1924,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                   medical_notes=None, inventory_config=None, is_free_visit=False,
                   free_visit_reason=None, manual_price_used=False, voucher_code=None,
                   discount_rule_id=None, herbal_items=None, payment_status='paid',
-                  payment_method='cash', amount_paid=None, paid_at=None):
+                  payment_method='cash', amount_paid=None, paid_at=None, quantity=None):
         with self.Session() as session:
+            if quantity is not None:
+                point_count = quantity
             patient = session.get(Patient, patient_id, options=[joinedload(Patient.visits)])
             if not patient:
                 raise ValueError("Patient not found")
@@ -1942,6 +2024,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 final_price = max(0, final_price * (1 - discount_percentage / 100))
                 discount_applied = True
                 discount_rule_name = f"Diskon lama {discount_percentage}%"
+            discount_amount = round(max(0, original_price - final_price), 2)
 
             herbal_total = sum(float(item["total_price"] or 0) for item in normalized_herbal_items)
             payment_total = final_price + herbal_total
@@ -1967,6 +2050,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 service_name=normalized_service_name,
                 date=datetime.now(),
                 price=round(final_price, 2),
+                original_price=round(original_price, 2),
+                discount_amount=discount_amount,
+                final_price=round(final_price, 2),
                 discount_applied=discount_applied,
                 point_count=int(point_count or 0),
                 invoice_path=invoice_path,
@@ -1990,7 +2076,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                         patient_id=patient_id,
                         visit_id=new_visit.id,
                         voucher_code=str(matched_rule.voucher_code or voucher_code or "").strip(),
-                        discount_amount=round(max(0, original_price - final_price), 2),
+                        discount_amount=discount_amount,
                     )
                 )
 
@@ -2002,6 +2088,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     .filter(
                         ServiceInventoryUsage.service_id == service_id,
                         Inventory.is_active == True,
+                        Inventory.item_type == "consumable",
                     )
                     .all()
                 )
@@ -2020,6 +2107,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     -qty_reduction,
                     "auto_usage",
                     f"Pemakaian otomatis layanan {normalized_service_name} untuk kunjungan #{new_visit.id or ''}".strip(),
+                    visit_id=new_visit.id,
                 )
 
             for item, herbal_amount_paid in zip(normalized_herbal_items, herbal_amounts_paid):
@@ -2053,7 +2141,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 'id': v.id,
                 'date': v.date,
                 'price': float(v.price or 0),
-                'final_price': float(v.price or 0),
+                'original_price': float(getattr(v, 'original_price', None) or v.price or 0),
+                'discount_amount': float(getattr(v, 'discount_amount', None) or 0),
+                'final_price': float(getattr(v, 'final_price', None) or v.price or 0),
                 'discount_applied': v.discount_applied,
                 'point_count': v.point_count if hasattr(v, 'point_count') else 0,
                 'quantity': v.point_count if hasattr(v, 'point_count') else 0,
@@ -2252,16 +2342,28 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             for row in rows
         ]
 
-    def add_service(self, name, unit_label='sesi', default_quantity=1, price_per_unit=0, notes_template='', inventory_usage=None):
+    def add_service(self, name, unit_label='sesi', default_quantity=1, price_per_unit=0, notes_template='', inventory_usage=None,
+                    pricing_type='per_unit', service_category='general', fixed_price=0, allow_manual_price=True):
         with self.Session() as session:
             if not str(name or "").strip():
                 raise ValueError("Nama layanan wajib diisi")
+            normalized_pricing_type = self._normalize_service_pricing_type(pricing_type)
+            normalized_service_category = self._normalize_service_category(service_category)
             if int(default_quantity or 0) < 1:
                 raise ValueError("Jumlah default layanan minimal 1")
             if float(price_per_unit or 0) < 0:
                 raise ValueError("Harga layanan tidak boleh negatif")
+            if float(fixed_price or 0) < 0:
+                raise ValueError("Harga tetap layanan tidak boleh negatif")
+            resolved_fixed_price = float(fixed_price or 0)
+            if normalized_pricing_type == "fixed" and resolved_fixed_price <= 0:
+                resolved_fixed_price = float(price_per_unit or 0) * int(default_quantity or 1)
             service = Service(
                 name=str(name).strip(),
+                pricing_type=normalized_pricing_type,
+                service_category=normalized_service_category,
+                fixed_price=resolved_fixed_price,
+                allow_manual_price=bool(allow_manual_price),
                 unit_label=unit_label or 'sesi',
                 default_quantity=int(default_quantity or 1),
                 price_per_unit=float(price_per_unit or 0),
@@ -2275,18 +2377,30 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             return service.id
 
     def update_service(self, service_id, name, unit_label='sesi', default_quantity=1,
-                       price_per_unit=0, notes_template='', is_active=True, inventory_usage=None):
+                       price_per_unit=0, notes_template='', is_active=True, inventory_usage=None,
+                       pricing_type='per_unit', service_category='general', fixed_price=0, allow_manual_price=True):
         with self.Session() as session:
             if not str(name or "").strip():
                 raise ValueError("Nama layanan wajib diisi")
+            normalized_pricing_type = self._normalize_service_pricing_type(pricing_type)
+            normalized_service_category = self._normalize_service_category(service_category)
             if int(default_quantity or 0) < 1:
                 raise ValueError("Jumlah default layanan minimal 1")
             if float(price_per_unit or 0) < 0:
                 raise ValueError("Harga layanan tidak boleh negatif")
+            if float(fixed_price or 0) < 0:
+                raise ValueError("Harga tetap layanan tidak boleh negatif")
+            resolved_fixed_price = float(fixed_price or 0)
+            if normalized_pricing_type == "fixed" and resolved_fixed_price <= 0:
+                resolved_fixed_price = float(price_per_unit or 0) * int(default_quantity or 1)
             service = session.get(Service, service_id)
             if not service:
                 raise ValueError("Service not found")
             service.name = str(name).strip()
+            service.pricing_type = normalized_pricing_type
+            service.service_category = normalized_service_category
+            service.fixed_price = resolved_fixed_price
+            service.allow_manual_price = bool(allow_manual_price)
             service.unit_label = unit_label or 'sesi'
             service.default_quantity = int(default_quantity or 1)
             service.price_per_unit = float(price_per_unit or 0)
@@ -2316,6 +2430,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             return ServiceData(
                 id=service.id,
                 name=service.name,
+                pricing_type=getattr(service, "pricing_type", None) or "per_unit",
+                service_category=getattr(service, "service_category", None) or "general",
+                fixed_price=float(getattr(service, "fixed_price", None) or 0),
+                allow_manual_price=bool(getattr(service, "allow_manual_price", True)),
                 unit_label=service.unit_label,
                 default_quantity=service.default_quantity,
                 price_per_unit=float(service.price_per_unit or 0),
@@ -2334,6 +2452,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 ServiceData(
                     id=s.id,
                     name=s.name,
+                    pricing_type=getattr(s, "pricing_type", None) or "per_unit",
+                    service_category=getattr(s, "service_category", None) or "general",
+                    fixed_price=float(getattr(s, "fixed_price", None) or 0),
+                    allow_manual_price=bool(getattr(s, "allow_manual_price", True)),
                     unit_label=s.unit_label,
                     default_quantity=s.default_quantity,
                     price_per_unit=float(s.price_per_unit or 0),
@@ -2365,7 +2487,24 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             return f"{packages} {package_unit}"
         return f"{remainder} {unit}"
 
-    def _add_inventory_transaction(self, session, inventory_id, change, transaction_type="adjustment", note=None):
+    def _normalize_inventory_item_type(self, item_type):
+        normalized = str(item_type or "consumable").strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized in {"nonconsumable", "non_consumable", "asset", "reusable"}:
+            return "non_consumable"
+        return "consumable"
+
+    def _normalize_service_pricing_type(self, pricing_type):
+        normalized = str(pricing_type or "per_unit").strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized in {"fixed", "fixed_price", "flat", "package", "paket"}:
+            return "fixed"
+        return "per_unit"
+
+    def _normalize_service_category(self, service_category):
+        normalized = str(service_category or "general").strip().lower()
+        normalized = re.sub(r"[^a-z0-9_\-]+", "_", normalized).strip("_")
+        return normalized or "general"
+
+    def _add_inventory_transaction(self, session, inventory_id, change, transaction_type="adjustment", note=None, visit_id=None):
         if int(change or 0) == 0:
             return
         session.add(InventoryTransaction(
@@ -2373,6 +2512,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             change=int(change),
             transaction_type=transaction_type,
             note=note,
+            visit_id=visit_id,
         ))
 
     @staticmethod
@@ -2451,38 +2591,48 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 paid_at=paid_at,
                 payment_provider=payment_provider,
             )
+            herbal_payment_allocations = allocate_payment_amounts(
+                payment["amount_paid"],
+                [item["total_price"] for item in normalized_items],
+            )
 
-            # Use explicit transaction context so any exception will rollback
-            with session.begin():
-                for item in normalized_items:
-                    herbal = item["herbal"]
-                    quantity = item["quantity"]
-                    if int(herbal.stock or 0) < quantity:
-                        raise ValueError("Stok herbal tidak cukup. Silakan cek ulang penjualan herbal.")
-                    herbal.stock = int(herbal.stock or 0) - quantity
-                    self._add_herbal_transaction(
-                        session,
-                        herbal.id,
-                        quantity,
-                        item["total_price"],
-                        "sale",
-                        note,
-                        visit_id=None,
-                        sale_group_id=sale_group_id,
-                        payment_status=payment["payment_status"],
-                        payment_method=payment["payment_method"],
-                        amount_paid=payment["amount_paid"],
-                        paid_at=payment["paid_at"],
-                        payment_provider=payment_provider,
-                    )
-                    saved_items.append({
-                        "herbal_id": herbal.id,
-                        "name": herbal.name,
-                        "quantity": quantity,
-                        "unit": herbal.unit,
-                        "unit_price": item["unit_price"],
-                        "total_price": item["total_price"],
-                    })
+            # Session already has an implicit transaction after validation queries.
+            # Keep all stock checks and writes before a single commit so exceptions rollback atomically.
+            for item in normalized_items:
+                herbal = item["herbal"]
+                quantity = item["quantity"]
+                if not herbal.is_active:
+                    raise ValueError("Herbal tidak ditemukan atau tidak aktif.")
+                if int(herbal.stock or 0) < quantity:
+                    raise ValueError("Stok herbal tidak cukup. Silakan cek ulang penjualan herbal.")
+            for item, item_amount_paid in zip(normalized_items, herbal_payment_allocations):
+                herbal = item["herbal"]
+                quantity = item["quantity"]
+                herbal.stock = int(herbal.stock or 0) - quantity
+                self._add_herbal_transaction(
+                    session,
+                    herbal.id,
+                    quantity,
+                    item["total_price"],
+                    "sale",
+                    note,
+                    visit_id=None,
+                    sale_group_id=sale_group_id,
+                    payment_status=payment["payment_status"],
+                    payment_method=payment["payment_method"],
+                    amount_paid=item_amount_paid,
+                    paid_at=payment["paid_at"],
+                    payment_provider=payment_provider,
+                )
+                saved_items.append({
+                    "herbal_id": herbal.id,
+                    "name": herbal.name,
+                    "quantity": quantity,
+                    "unit": herbal.unit,
+                    "unit_price": item["unit_price"],
+                    "total_price": item["total_price"],
+                })
+            session.commit()
 
             return {
                 "buyer_name": buyer_note,
@@ -2824,6 +2974,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 {
                     "id": item.id,
                     "item_name": item.item_name,
+                    "item_type": getattr(item, "item_type", None) or "consumable",
                     "quantity": item.quantity,
                     "stock_display": self._stock_label(item.quantity, item.unit, item.package_unit, item.package_size),
                     "unit": item.unit,
@@ -2855,9 +3006,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 return True
             return False
 
-    def add_inventory_item(self, name, unit, min_stock, initial_qty=0, package_unit=None, package_size=1):
+    def add_inventory_item(self, name, unit, min_stock, initial_qty=0, package_unit=None, package_size=1, item_type="consumable"):
         with self.Session() as session:
             normalized_name = str(name or "").strip()
+            normalized_item_type = self._normalize_inventory_item_type(item_type)
             normalized_unit = self._normalize_unit(unit)
             normalized_package_unit = self._normalize_unit(package_unit) if package_unit else None
             normalized_package_size = self._normalize_package_size(package_size)
@@ -2873,6 +3025,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 if item.is_active:
                     raise ValueError("Nama inventory sudah terdaftar")
                 old_quantity = int(item.quantity or 0)
+                item.item_type = normalized_item_type
                 item.unit = normalized_unit
                 item.package_unit = normalized_package_unit
                 item.package_size = normalized_package_size
@@ -2885,6 +3038,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 return item.id
             item = Inventory(
                 item_name=normalized_name,
+                item_type=normalized_item_type,
                 unit=normalized_unit,
                 package_unit=normalized_package_unit,
                 package_size=normalized_package_size,
@@ -2898,9 +3052,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             session.commit()
             return item.id
 
-    def update_inventory_item(self, item_id, name, quantity, unit, min_stock, package_unit=None, package_size=1):
+    def update_inventory_item(self, item_id, name, quantity, unit, min_stock, package_unit=None, package_size=1, item_type="consumable"):
         with self.Session() as session:
             normalized_name = str(name or "").strip()
+            normalized_item_type = self._normalize_inventory_item_type(item_type)
             normalized_unit = self._normalize_unit(unit)
             normalized_package_unit = self._normalize_unit(package_unit) if package_unit else None
             normalized_package_size = self._normalize_package_size(package_size)
@@ -2918,6 +3073,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             if item:
                 old_quantity = int(item.quantity or 0)
                 item.item_name = normalized_name
+                item.item_type = normalized_item_type
                 item.quantity = new_quantity
                 item.unit = normalized_unit
                 item.package_unit = normalized_package_unit
@@ -2957,8 +3113,12 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 id=visit.id,
                 date=visit.date,
                 price=float(visit.price or 0),
+                original_price=float(getattr(visit, "original_price", None) or visit.price or 0),
+                discount_amount=float(getattr(visit, "discount_amount", None) or 0),
+                final_price=float(getattr(visit, "final_price", None) or visit.price or 0),
                 discount_applied=visit.discount_applied,
                 point_count=visit.point_count,
+                quantity=visit.point_count,
                 therapist_id=visit.therapist_id,
                 service_id=visit.service_id if hasattr(visit, 'service_id') else None,
                 service_name=(visit.service_name if hasattr(visit, 'service_name') else None) or "Bekam",
@@ -3107,6 +3267,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             row = session.get(HerbalTransaction, transaction_id)
             if row:
                 row.invoice_path = invoice_path
+                row.pdf_generated_at = datetime.now()
                 session.commit()
                 return True
             return False
@@ -3124,8 +3285,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             )
             if not rows:
                 return False
+            now = datetime.now()
             for row in rows:
                 row.invoice_path = invoice_path
+                row.pdf_generated_at = now
             session.commit()
             return True
 
@@ -3148,6 +3311,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 reference_type="visit_invoice",
                 reference_id=visit.id,
             )
+            self._add_audit_log_row(session, "invoice_voided", "invoice", visit.id, "Invoice dibatalkan.", {
+                "invoice_type": "visit",
+                "reason": reason,
+            })
             session.commit()
             return True
 
@@ -3187,6 +3354,10 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 reference_type="herbal_invoice_group" if group else "herbal_invoice",
                 reference_id=reference_id,
             )
+            self._add_audit_log_row(session, "invoice_voided", "invoice", reference_id, "Invoice dibatalkan.", {
+                "invoice_type": "herbal",
+                "reason": reason,
+            })
             session.commit()
             return True
 
@@ -3224,7 +3395,8 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     .order_by(HerbalTransaction.id.asc())
                     .all()
                 )
-                total_amount = float(visit.price or 0) + sum(float(row.total_price or 0) for row in linked_herbals)
+                visit_total = float(getattr(visit, "final_price", None) or visit.price or 0)
+                total_amount = visit_total + sum(float(row.total_price or 0) for row in linked_herbals)
                 payment = normalize_visit_payment(
                     total_amount,
                     payment_status=normalized_status,
@@ -3235,12 +3407,13 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 )
                 allocations = allocate_payment_amounts(
                     payment["amount_paid"],
-                    [visit.price] + [row.total_price for row in linked_herbals],
+                    [visit_total] + [row.total_price for row in linked_herbals],
                 )
                 visit.payment_status = payment["payment_status"]
                 visit.payment_method = payment["payment_method"]
                 visit.amount_paid = allocations[0] if allocations else 0
                 visit.paid_at = payment["paid_at"]
+                visit.payment_updated_at = datetime.now()
                 visit.payment_provider = "gateway_mock"
                 visit.payment_reference = ""
                 visit.payment_url = ""
@@ -3252,12 +3425,27 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     row.payment_method = payment["payment_method"]
                     row.amount_paid = paid_amount
                     row.paid_at = payment["paid_at"]
+                    row.payment_updated_at = datetime.now()
                     row.payment_provider = "gateway_mock"
                     row.payment_reference = ""
                     row.payment_url = ""
                     row.payment_channel = normalized_method
                     row.payment_expired_at = None
                     row.payment_gateway_status = ""
+                self._add_audit_log_row(
+                    session,
+                    "manual_payment_updated",
+                    "invoice",
+                    visit.id,
+                    "Status pembayaran invoice diperbarui manual.",
+                    {
+                        "invoice_type": "visit",
+                        "payment_status": payment.get("payment_status"),
+                        "payment_method": payment.get("payment_method"),
+                        "amount_paid": payment.get("amount_paid"),
+                        "payment_provider": "gateway_mock",
+                    },
+                )
                 session.commit()
                 return {
                     "invoice_type": "visit",
@@ -3299,17 +3487,33 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     payment_provider="gateway_mock",
                 )
                 allocations = allocate_payment_amounts(payment["amount_paid"], [row.total_price for row in rows])
+                now = datetime.now()
                 for row, paid_amount in zip(rows, allocations):
                     row.payment_status = payment["payment_status"]
                     row.payment_method = payment["payment_method"]
                     row.amount_paid = paid_amount
                     row.paid_at = payment["paid_at"]
+                    row.payment_updated_at = now
                     row.payment_provider = "gateway_mock"
                     row.payment_reference = ""
                     row.payment_url = ""
                     row.payment_channel = normalized_method
                     row.payment_expired_at = None
                     row.payment_gateway_status = ""
+                self._add_audit_log_row(
+                    session,
+                    "manual_payment_updated",
+                    "invoice",
+                    reference_id,
+                    "Status pembayaran invoice diperbarui manual.",
+                    {
+                        "invoice_type": "herbal",
+                        "payment_status": payment.get("payment_status"),
+                        "payment_method": payment.get("payment_method"),
+                        "amount_paid": payment.get("amount_paid"),
+                        "payment_provider": "gateway_mock",
+                    },
+                )
                 session.commit()
                 return {
                     "invoice_type": "herbal",
@@ -3328,6 +3532,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             visit = session.get(Visit, visit_id)
             if visit:
                 visit.invoice_path = invoice_path
+                visit.pdf_generated_at = datetime.now()
                 session.commit()
                 return True
             return False

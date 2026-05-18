@@ -122,6 +122,12 @@ WHATSAPP_TEMPLATE_LABELS = {
 }
 
 WHATSAPP_LOCK_DAYS = {
+    "routine": 7,
+    "routine_polite": 7,
+    "routine_warm": 7,
+    "routine_short": 7,
+    "routine_neutral": 7,
+    "routine_friendly": 7,
     "reactivation": 7,
     "reactivation_polite": 7,
     "reactivation_neutral": 7,
@@ -134,6 +140,8 @@ WHATSAPP_LOG_STATUSES = {
     "drafted": "Draft",
     "opened": "Dibuka",
     "confirmed_sent": "Terkonfirmasi terkirim",
+    "skipped_preference": "Diblokir preferensi",
+    "skipped_send_lock": "Diblokir jeda kirim",
     "failed": "Gagal",
 }
 
@@ -1130,6 +1138,18 @@ def check_contact_warning(row, template_type):
     return warnings
 
 
+def _contact_block_reason(row, template_type):
+    template_type = WHATSAPP_TEMPLATE_ALIASES.get(str(template_type or "").strip(), "routine")
+    pref = row.get("contact_preference") or {}
+    tags = row.get("tags") or []
+    tag_values = {tag.get("value") for tag in tags if tag.get("type") == "manual"}
+    if pref.get("jangan_dihubungi") or "jangan-dihubungi" in tag_values:
+        return "Pasien ditandai jangan dihubungi."
+    if template_type.startswith("promo") and (pref.get("boleh_promo") is False or "jangan-promo" in tag_values):
+        return "Pasien tidak mengizinkan pesan promo."
+    return ""
+
+
 def create_crm_whatsapp_log(
     session,
     row,
@@ -1157,6 +1177,59 @@ def create_crm_whatsapp_log(
     recent_log = _recent_confirmed_whatsapp_log(session, patient_id, template_type, lock_days)
     lock_warning = _build_lock_warning(recent_log, template_type, lock_days)
     contact_warnings = check_contact_warning(row, template_type)
+    preference_block = _contact_block_reason(row, template_type)
+    if preference_block:
+        log = CRMWhatsAppLog(
+            patient_id=patient_id,
+            phone=link_data["phone"],
+            message_type=template_type,
+            message=link_data["message"],
+            whatsapp_url="",
+            status="skipped_preference",
+            note=preference_block,
+        )
+        session.add(log)
+        session.commit()
+        link_data.update({
+            "whatsapp_url": "",
+            "log_id": log.id,
+            "status": log.status,
+            "status_label": WHATSAPP_LOG_STATUSES.get(log.status, log.status),
+            "blocked": True,
+            "block_reason": "preference",
+            "lock_warning": preference_block,
+            "contact_warnings": contact_warnings,
+            "lock_active": True,
+            "lock_days": lock_days,
+            "override_lock": False,
+        })
+        return link_data
+    if lock_warning and not override_lock:
+        log = CRMWhatsAppLog(
+            patient_id=patient_id,
+            phone=link_data["phone"],
+            message_type=template_type,
+            message=link_data["message"],
+            whatsapp_url="",
+            status="skipped_send_lock",
+            note=lock_warning,
+        )
+        session.add(log)
+        session.commit()
+        link_data.update({
+            "whatsapp_url": "",
+            "log_id": log.id,
+            "status": log.status,
+            "status_label": WHATSAPP_LOG_STATUSES.get(log.status, log.status),
+            "blocked": True,
+            "block_reason": "send_lock",
+            "lock_warning": lock_warning,
+            "contact_warnings": contact_warnings,
+            "lock_active": True,
+            "lock_days": lock_days,
+            "override_lock": False,
+        })
+        return link_data
     all_warnings = ([lock_warning] if lock_warning else []) + contact_warnings
     status = "opened" if mark_opened else "drafted"
     note = "Dibuka manual via wa.me" if mark_opened else "Draft link WhatsApp dibuat"

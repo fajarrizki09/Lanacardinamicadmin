@@ -5,13 +5,14 @@ import re
 import tempfile
 import time
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import openpyxl
 from reportlab.lib.units import mm
 from sqlalchemy import text
 
-from database import Database, Visit
+from database import CRMWhatsAppLog, Database, HerbalTransaction, InventoryTransaction, PatientContactPreference, Visit
+from helpers.revenue_rules import calculate_revenue_amount
 from helpers.backup_helper import BackupHelper
 from helpers.crm_analysis_helper import build_crm_patients, create_crm_whatsapp_log, get_voucher_for_crm_message
 from helpers.invoice_helper import InvoiceHelper
@@ -20,6 +21,7 @@ from helpers.report_excel_helper import build_report_excel, safe_excel_filename
 from helpers.support_helper import get_support_app_info, folder_path_for_kind
 from api.routes.data import _build_operational_export
 from api.routes.patients import _resolve_patient_update_phone
+from db_models import AuditLog
 
 
 class IsolatedDatabaseTestCase(unittest.TestCase):
@@ -134,6 +136,105 @@ class TestAuditLogFlows(IsolatedDatabaseTestCase):
 
         rows = self.db.get_audit_logs(action="patient_created", entity_type="patient")
         self.assertTrue(any(row["entity_id"] == str(patient_id) for row in rows))
+
+    def test_required_audit_failure_raises(self):
+        original_session = self.db.Session
+
+        def broken_session():
+            raise RuntimeError("audit db unavailable")
+
+        self.db.Session = broken_session
+        try:
+            with self.assertRaises(RuntimeError):
+                self.db.log_audit("broken", "audit", required=True)
+        finally:
+            self.db.Session = original_session
+
+
+class TestFlowchartSyncRegressions(IsolatedDatabaseTestCase):
+    def test_invoice_pdf_status_becomes_stale_after_payment_update(self):
+        from api.routes.invoices import _pdf_status
+
+        generated_at = datetime.now()
+        updated_at = generated_at + timedelta(minutes=5)
+
+        self.assertEqual(_pdf_status("active", "invoice.pdf", True, generated_at, None), "fresh")
+        self.assertEqual(_pdf_status("active", "invoice.pdf", True, generated_at, updated_at), "stale")
+        self.assertEqual(_pdf_status("active", "", False, None, None), "not_generated")
+        self.assertEqual(_pdf_status("active", "invoice.pdf", False, generated_at, None), "missing")
+        self.assertEqual(_pdf_status("void", "invoice.pdf", True, generated_at, updated_at), "void")
+
+    def test_revenue_rule_statuses(self):
+        self.assertEqual(calculate_revenue_amount(100000, 0, "paid", "active"), 100000)
+        self.assertEqual(calculate_revenue_amount(100000, 40000, "partial", "active"), 40000)
+        self.assertEqual(calculate_revenue_amount(100000, 0, "pending", "active"), 0)
+        self.assertEqual(calculate_revenue_amount(100000, 0, "unpaid", "active"), 0)
+        self.assertEqual(calculate_revenue_amount(100000, 100000, "paid", "void"), 0)
+
+    def test_herbal_visit_link_not_counted_as_standalone_revenue(self):
+        patient_id = self.db.add_patient("Pasien Revenue", f"08{time.time_ns() % 10_000_000_000:010d}")
+        herbal_id = self.db.add_herbal("Herbal Revenue", "pcs", price=50000, stock=10)
+        self.db.add_visit(
+            patient_id,
+            price=150000,
+            point_count=1,
+            service_name="Layanan + Herbal",
+            herbal_items=[{"herbal_id": herbal_id, "quantity": 1}],
+        )
+        self.db.add_herbal_sale([{"herbal_id": herbal_id, "quantity": 1}], buyer_name="Umum")
+
+        with self.db.Session() as session:
+            report = build_owner_report_summary(session)
+
+        self.assertEqual(report["summary"]["visit_revenue"], 200000)
+        self.assertEqual(report["summary"]["herbal_revenue"], 50000)
+        self.assertEqual(report["summary"]["total_revenue"], 250000)
+
+    def test_inventory_transaction_records_visit_id_for_service_usage(self):
+        inventory_id = self.db.add_inventory_item("Kasa Visit Link", "pcs", min_stock=1, initial_qty=10)
+        service_id = self.db.add_service(
+            "Layanan Inventory Link",
+            price_per_unit=100000,
+            inventory_usage=[{"inventory_id": inventory_id, "quantity": 2}],
+        )
+        patient_id = self.db.add_patient("Pasien Inventory Link", f"08{time.time_ns() % 10_000_000_000:010d}")
+        self.db.add_visit(patient_id, price=100000, point_count=1, service_id=service_id)
+
+        with self.db.Session() as session:
+            tx = session.query(InventoryTransaction).filter(InventoryTransaction.inventory_id == inventory_id).order_by(InventoryTransaction.id.desc()).first()
+
+        self.assertIsNotNone(tx)
+        self.assertEqual(tx.transaction_type, "auto_usage")
+        self.assertIsNotNone(tx.visit_id)
+
+    def test_crm_preference_and_send_lock_skip_logs(self):
+        patient_id = self.db.add_patient("Pasien Jangan Dihubungi", f"08{time.time_ns() % 10_000_000_000:010d}")
+        with self.db.Session() as session:
+            session.add(PatientContactPreference(patient_id=patient_id, jangan_dihubungi=True, updated_at=datetime.now()))
+            session.commit()
+            row = next(item for item in build_crm_patients(session) if item["id"] == patient_id)
+            result = create_crm_whatsapp_log(session, row, template_type="routine")
+            self.assertTrue(result["blocked"])
+            self.assertEqual(result["status"], "skipped_preference")
+            self.assertFalse(result["whatsapp_url"])
+
+        patient_id_2 = self.db.add_patient("Pasien Lock", f"08{time.time_ns() % 10_000_000_000:010d}")
+        with self.db.Session() as session:
+            session.add(CRMWhatsAppLog(
+                patient_id=patient_id_2,
+                phone="628111111111",
+                message_type="routine",
+                message="halo",
+                whatsapp_url="https://wa.me/628111111111",
+                status="confirmed_sent",
+                confirmed_at=datetime.now(),
+            ))
+            session.commit()
+            row = next(item for item in build_crm_patients(session) if item["id"] == patient_id_2)
+            result = create_crm_whatsapp_log(session, row, template_type="routine")
+            self.assertTrue(result["blocked"])
+            self.assertEqual(result["status"], "skipped_send_lock")
+            self.assertFalse(result["whatsapp_url"])
 
 
 class TestDemoDataFlows(IsolatedDatabaseTestCase):
@@ -596,6 +697,56 @@ class TestInvoiceAndDiscountFlows(IsolatedDatabaseTestCase):
         self.assertEqual(helper._payment_status_label("pending"), "Menunggu")
         self.assertEqual(helper._payment_method_label("qris"), "QRIS")
 
+    def test_void_invoice_rolls_back_when_required_audit_fails(self):
+        visit = self.create_visit_for_invoice(patient_name="Pasien Audit Void", price=100000)
+        original_add_audit = self.db._add_audit_log_row
+
+        def broken_add_audit(session, *args, **kwargs):
+            raise RuntimeError("audit unavailable")
+
+        self.db._add_audit_log_row = broken_add_audit
+        try:
+            with self.assertRaises(RuntimeError):
+                self.db.void_visit_invoice(visit["id"], "Alasan audit gagal")
+        finally:
+            self.db._add_audit_log_row = original_add_audit
+
+        with self.db.Session() as session:
+            refreshed = session.get(Visit, visit["id"])
+            audit_count = session.query(AuditLog).filter(AuditLog.action == "invoice_voided").count()
+
+        self.assertEqual(refreshed.invoice_status, "active")
+        self.assertEqual(refreshed.payment_status, "paid")
+        self.assertEqual(audit_count, 0)
+
+    def test_manual_payment_rolls_back_when_required_audit_fails(self):
+        visit = self.create_visit_for_invoice(patient_name="Pasien Audit Payment", price=100000, payment_status="unpaid", payment_method="qris", amount_paid=0)
+        original_add_audit = self.db._add_audit_log_row
+
+        def broken_add_audit(session, *args, **kwargs):
+            raise RuntimeError("audit unavailable")
+
+        self.db._add_audit_log_row = broken_add_audit
+        try:
+            with self.assertRaises(RuntimeError):
+                self.db.update_invoice_manual_payment(
+                    "visit",
+                    visit_id=visit["id"],
+                    payment_status="paid",
+                    payment_method="transfer",
+                    amount_paid=100000,
+                )
+        finally:
+            self.db._add_audit_log_row = original_add_audit
+
+        with self.db.Session() as session:
+            refreshed = session.get(Visit, visit["id"])
+            audit_count = session.query(AuditLog).filter(AuditLog.action == "manual_payment_updated").count()
+
+        self.assertEqual(refreshed.payment_status, "unpaid")
+        self.assertEqual(refreshed.amount_paid or 0, 0)
+        self.assertEqual(audit_count, 0)
+
     def test_discount_does_not_make_total_negative(self):
         rule_id = self.db.add_discount_rule({
             "name": "Diskon Besar Test",
@@ -616,6 +767,45 @@ class TestInvoiceAndDiscountFlows(IsolatedDatabaseTestCase):
         self.assertEqual(visit["price"], 0)
         self.assertTrue(visit["discount_applied"])
         self.assertEqual(visit["discount_rule_name"], "Diskon Besar Test")
+
+    def test_negative_price_creates_validation_error(self):
+        patient_id = self.db.add_patient("Harga Minus", "081122334455")
+        
+        with self.assertRaises(ValueError) as context:
+            self.db.add_visit(patient_id, -50000, point_count=1)
+        self.assertIn("Harga kunjungan tidak boleh kurang dari 0", str(context.exception))
+        
+        rule_id = self.db.add_discount_rule({
+            "name": "Diskon Valid",
+            "type": "period",
+            "discount_type": "fixed",
+            "discount_value": 0,
+            "is_active": True
+        })
+        with self.assertRaises(ValueError) as context:
+            self.db.add_visit(patient_id, -100, point_count=1, discount_rule_id=rule_id)
+        self.assertIn("Harga kunjungan tidak boleh kurang dari 0", str(context.exception))
+
+    def test_free_visit_requires_reason(self):
+        patient_id = self.db.add_patient("Pasien Gratis Tanpa Alasan", "081122334466")
+        
+        with self.assertRaises(ValueError) as context:
+            self.db.add_visit(patient_id, 0, point_count=1, is_free_visit=True, free_visit_reason="")
+        self.assertIn("Alasan kunjungan gratis wajib diisi", str(context.exception))
+
+        with self.assertRaises(ValueError) as context:
+            self.db.add_visit(patient_id, 0, point_count=1, is_free_visit=True, free_visit_reason="   ")
+        self.assertIn("Alasan kunjungan gratis wajib diisi", str(context.exception))
+
+    def test_free_visit_with_reason_allowed(self):
+        patient_id = self.db.add_patient("Pasien Gratis Valid", "081122334477")
+        
+        price, _, _ = self.db.add_visit(patient_id, 0, point_count=1, is_free_visit=True, free_visit_reason="Bonus tahun baru")
+        self.assertEqual(price, 0)
+        
+        visits = self.db.get_visits(patient_id)
+        self.assertTrue(visits[0]["is_free_visit"])
+        self.assertEqual(visits[0]["free_visit_reason"], "Bonus tahun baru")
 
     def test_voucher_total_usage_limit_is_enforced(self):
         self.db.add_discount_rule({
