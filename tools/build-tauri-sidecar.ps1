@@ -46,6 +46,9 @@ try {
         --hidden-import uvicorn.lifespan.on `
         --hidden-import uvicorn.lifespan.off `
         --hidden-import sqlalchemy.sql.default_comparator `
+        --hidden-import jinja2 `
+        --hidden-import jinja2.ext `
+        --copy-metadata jinja2 `
         sidecar_main.py
 
     if ($LASTEXITCODE -ne 0) {

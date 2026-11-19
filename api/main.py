@@ -195,8 +195,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-app.mount("/static", StaticFiles(directory=os.path.join(current_dir, "static")), name="static")
-templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
+
+# Handle PyInstaller bundle: templates are extracted to sys._MEIPASS/api/templates
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    template_dir = os.path.join(sys._MEIPASS, "api", "templates")
+    static_dir = os.path.join(sys._MEIPASS, "api", "static")
+else:
+    template_dir = os.path.join(current_dir, "templates")
+    static_dir = os.path.join(current_dir, "static")
+
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+templates = Jinja2Templates(directory=template_dir)
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request, _license=Depends(require_valid_license)):
