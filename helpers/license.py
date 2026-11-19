@@ -15,7 +15,11 @@ import urllib.error
 import urllib.request
 from datetime import datetime, time as datetime_time
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+try:
+    from PySide6.QtWidgets import QApplication, QMessageBox
+except ImportError:
+    QApplication = None
+    QMessageBox = None
 
 from helpers.secure_settings import load_settings, save_settings
 from utils.app_paths import get_app_data_dir
@@ -50,6 +54,8 @@ POPUP_COOLDOWN_SECONDS = 5 * 60
 LICENSE_STATUS_OK = "ok"
 LICENSE_STATUS_INVALID = "invalid"
 LICENSE_STATUS_NETWORK_ERROR = "network_error"
+PIN_RESET_TOKEN_SETTING = "admin_pin_reset_token"
+PIN_RESET_REQUEST_ID_SETTING = "admin_pin_reset_request_id"
 last_popup_time = 0.0
 license_invalid = False
 last_license_message = ""
@@ -324,7 +330,11 @@ def _parse_expiry_datetime(value: object) -> datetime | None:
 
 def _is_cached_license_unexpired(settings: dict) -> bool:
     expiry = _parse_expiry_datetime(settings.get("license_expired_at"))
-    return expiry is not None and datetime.now() <= expiry
+    if expiry is not None:
+        return datetime.now() <= expiry
+
+    status = str(settings.get("license_status") or "").lower().strip()
+    return status in {"active", "ok", "valid"}
 
 def _is_local_time_before_last_server_time(settings: dict) -> bool:
     last_server_time = _parse_server_time(settings.get("last_server_time"))
@@ -342,6 +352,10 @@ def _show_blocking_popup(message: str = LICENSE_ERROR_MESSAGE) -> None:
         if now - last_popup_time < POPUP_COOLDOWN_SECONDS:
             return
         last_popup_time = now
+
+    if QApplication is None or QMessageBox is None:
+        logging.error("License access blocked: %s", message)
+        return
 
     if QApplication.instance() is None:
         QApplication(sys.argv)
@@ -410,7 +424,7 @@ def _license_identity_payload(settings: dict, action: str) -> dict:
 
 def _parse_pin_reset_response(result: dict) -> tuple[bool, str, dict]:
     if not isinstance(result, dict):
-        return False, "Respons server lisensi tidak valid.", {}
+        return False, "Respons pusat lisensi tidak valid.", {}
 
     data = result.get("data")
     if not isinstance(data, dict):
@@ -429,9 +443,25 @@ def _parse_pin_reset_response(result: dict) -> tuple[bool, str, dict]:
         or str(data.get("message") or "").strip()
         or str(result.get("error") or "").strip()
         or str(data.get("error") or "").strip()
-        or ("Reset PIN disetujui server lisensi." if success else "Reset PIN belum disetujui server lisensi.")
+        or ("Reset PIN disetujui pusat lisensi." if success else "Reset PIN belum disetujui pusat lisensi.")
     )
     return success, message, data
+
+
+def _sanitize_pin_reset_message(message: str) -> str:
+    return _sanitize_feedback_text(message, max_length=240) or "Respons pusat lisensi tidak valid."
+
+
+def _save_pin_reset_token(settings: dict, token: str, request_id: str) -> None:
+    settings[PIN_RESET_TOKEN_SETTING] = token
+    settings[PIN_RESET_REQUEST_ID_SETTING] = request_id
+    _save_runtime_settings(settings)
+
+
+def _clear_pin_reset_token(settings: dict) -> None:
+    settings.pop(PIN_RESET_TOKEN_SETTING, None)
+    settings.pop(PIN_RESET_REQUEST_ID_SETTING, None)
+    _save_runtime_settings(settings)
 
 
 def request_admin_pin_reset() -> dict:
@@ -449,30 +479,35 @@ def request_admin_pin_reset() -> dict:
         try:
             result = json.loads(exc.read().decode("utf-8"))
         except (OSError, json.JSONDecodeError) as parse_exc:
-            raise LicenseNetworkError("Server lisensi menolak permintaan reset PIN.") from parse_exc
+            raise LicenseNetworkError("Pusat lisensi menolak permintaan reset PIN.") from parse_exc
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        raise LicenseNetworkError("Server lisensi tidak dapat dihubungi untuk meminta reset PIN.") from exc
+        raise LicenseNetworkError("Pusat lisensi tidak dapat dihubungi untuk meminta reset PIN.") from exc
 
     success, message, data = _parse_pin_reset_response(result)
+    message = _sanitize_pin_reset_message(message)
     if not success:
         raise ValueError(message)
+    reset_token = str(data.get("reset_token") or result.get("reset_token") or "").strip()
+    if not reset_token:
+        raise ValueError("Pusat lisensi tidak mengirim token reset yang valid.")
+    reset_request_id = str(data.get("reset_request_id") or data.get("id") or result.get("reset_request_id") or result.get("id") or "").strip()
+    _save_pin_reset_token(settings, reset_token, reset_request_id)
     return {
         "status": "success",
         "message": message,
-        "reset_request_id": str(data.get("reset_request_id") or data.get("id") or result.get("reset_request_id") or result.get("id") or "").strip(),
-        "reset_token": str(data.get("reset_token") or result.get("reset_token") or "").strip(),
+        "reset_request_id": reset_request_id,
     }
 
 
 def confirm_admin_pin_reset(reset_token: str, reset_pin: str = "") -> dict:
-    token = str(reset_token or "").strip()
     pin_code = str(reset_pin or "").strip()
-    if not token:
-        raise ValueError("Token reset PIN belum tersedia. Klik Minta Kode Reset ulang.")
     if not pin_code:
-        raise ValueError("Kode reset dari server lisensi wajib diisi.")
+        raise ValueError("Kode reset lisensi wajib diisi.")
 
     settings = _load_settings()
+    token = str(settings.get(PIN_RESET_TOKEN_SETTING) or reset_token or "").strip()
+    if not token:
+        raise ValueError("Kode reset belum siap. Klik Minta Kode Reset ulang.")
     api_url = str(settings.get("license_api_url", DEFAULT_LICENSE_API_URL)).strip() or DEFAULT_LICENSE_API_URL
     payload = _license_identity_payload(settings, "confirm_admin_pin_reset")
     payload["reset_token"] = token
@@ -488,13 +523,15 @@ def confirm_admin_pin_reset(reset_token: str, reset_pin: str = "") -> dict:
         try:
             result = json.loads(exc.read().decode("utf-8"))
         except (OSError, json.JSONDecodeError) as parse_exc:
-            raise LicenseNetworkError("Server lisensi menolak kode reset PIN.") from parse_exc
+            raise LicenseNetworkError("Pusat lisensi menolak kode reset PIN.") from parse_exc
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        raise LicenseNetworkError("Server lisensi tidak dapat dihubungi untuk memverifikasi kode reset.") from exc
+        raise LicenseNetworkError("Pusat lisensi tidak dapat dihubungi untuk memverifikasi kode reset.") from exc
 
     success, message, data = _parse_pin_reset_response(result)
+    message = _sanitize_pin_reset_message(message)
     if not success:
         raise ValueError(message)
+    _clear_pin_reset_token(settings)
     return {
         "status": "success",
         "message": message,
@@ -729,6 +766,7 @@ def verify_license(
         if raise_network_errors:
             raise LicenseNetworkError("License API tidak dapat dihubungi.")
         if not force_online_verify and _is_offline_grace_valid(settings):
+            _set_last_license_message("Lisensi aktif dari cache offline.")
             return LICENSE_STATUS_OK
         if settings.get("last_license_valid"):
             if show_message:

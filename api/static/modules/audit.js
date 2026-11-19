@@ -1,4 +1,33 @@
 "use strict";
+let auditDelegationReady = false;
+function ensureAuditEventDelegation() {
+    if (auditDelegationReady)
+        return;
+    auditDelegationReady = true;
+    document.addEventListener('click', (event) => {
+        const actionElement = event.target?.closest('[data-audit-action]');
+        if (!actionElement)
+            return;
+        const action = actionElement.dataset.auditAction || '';
+        if (!action)
+            return;
+        event.preventDefault();
+        switch (action) {
+            case 'refresh':
+                renderAuditLogs();
+                break;
+            case 'detail':
+                showAuditDetail(Number(actionElement.dataset.auditIndex || 0));
+                break;
+            case 'close-detail':
+                closeAuditDetail(actionElement.closest('.audit-modal-overlay'));
+                break;
+            case 'copy-value':
+                copyAuditValue(actionElement, Number(actionElement.dataset.auditIndex || 0), actionElement.dataset.auditKey || '');
+                break;
+        }
+    });
+}
 function formatAuditTimestamp(value) {
     if (!value)
         return '-';
@@ -100,7 +129,7 @@ const auditLabelMap = {
     created_services: 'Layanan dibuat',
     path: 'File',
 };
-function renderAuditDetails(row) {
+function renderAuditDetails(row, idx) {
     const meta = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
     const entries = Object.entries(meta).filter(([, value]) => value !== null && value !== undefined && value !== '');
     if (!entries.length) {
@@ -112,12 +141,11 @@ function renderAuditDetails(row) {
         const isLong = isLongAuditValue(key, value);
         const strValue = formatAuditValue(key, value);
         const escapedStr = escapeHtml(strValue);
-        const escapedAttr = escapeHtml(strValue).replace(/'/g, "\\'");
         return `
                 <div class="audit-meta-item">
                     <span class="audit-meta-key">${escapeHtml(formatAuditLabel(key))}</span>
                     <div class="audit-meta-value ${isLong ? 'long' : ''}">
-                        ${isLong ? `<pre>${escapedStr}</pre><button type="button" class="audit-copy-btn" onclick="copyAuditValue(this, '${escapedAttr}')" title="Copy"><i class="fas fa-copy"></i></button>` : escapedStr}
+                        ${isLong ? `<pre>${escapedStr}</pre><button type="button" class="audit-copy-btn" data-audit-action="copy-value" data-audit-index="${idx}" data-audit-key="${escapeHtml(key)}" title="Copy"><i class="fas fa-copy"></i></button>` : escapedStr}
                     </div>
                 </div>
                 `;
@@ -135,12 +163,13 @@ function renderAuditRow(row, idx) {
                 <div class="audit-description">${escapeHtml(row.description || '-')}</div>
             </td>
             <td>
-                <button type="button" class="audit-detail-btn" onclick="showAuditDetail(${index})">Detail</button>
+                <button type="button" class="audit-detail-btn" data-audit-action="detail" data-audit-index="${index}">Detail</button>
             </td>
         </tr>
     `;
 }
 async function renderAuditLogs() {
+    ensureAuditEventDelegation();
     const rows = await apiGetJson('/audit_logs?limit=100');
     const arr = Array.isArray(rows) ? rows : [];
     // expose rows for modal detail rendering
@@ -156,7 +185,7 @@ async function renderAuditLogs() {
                     <h3><i class="fas fa-history"></i> Log Aktivitas</h3>
                     <p>Riwayat perubahan data dan aksi sensitif di aplikasi lokal.</p>
                 </div>
-                <button type="button" class="btn btn-secondary" onclick="renderAuditLogs()" style="width:auto;">
+                <button type="button" class="btn btn-secondary" data-audit-action="refresh" style="width:auto;">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
             </div>
@@ -187,7 +216,7 @@ function renderAuditCard(row, idx) {
                     <div class="audit-card-summary">${escapeHtml(row.description || '-')}</div>
                 </div>
                 <div class="audit-card-actions">
-                    <button type="button" class="audit-detail-btn" onclick="showAuditDetail(${idx})">Detail</button>
+                    <button type="button" class="audit-detail-btn" data-audit-action="detail" data-audit-index="${idx}">Detail</button>
                 </div>
             </div>
         </div>
@@ -220,10 +249,10 @@ function showAuditDetail(idx) {
                 </div>
             </div>
             <div class="audit-modal-body">
-                ${renderAuditDetails(row)}
+                ${renderAuditDetails(row, idx)}
             </div>
             <div class="audit-modal-footer">
-                <button type="button" class="btn" onclick="closeAuditDetail(this.closest('.audit-modal-overlay'))">Tutup</button>
+                <button type="button" class="btn" data-audit-action="close-detail">Tutup</button>
             </div>
         `;
         overlay.appendChild(modal);
@@ -259,8 +288,11 @@ function closeAuditDetail(overlayEl) {
 window.renderAuditLogs = renderAuditLogs;
 window.showAuditDetail = showAuditDetail;
 window.closeAuditDetail = closeAuditDetail;
-window.copyAuditValue = async function (btn, text) {
+async function copyAuditValue(btn, idx, key) {
     try {
+        const rows = window._audit_rows || [];
+        const meta = rows[idx]?.metadata && typeof rows[idx].metadata === 'object' ? rows[idx].metadata : {};
+        const text = formatAuditValue(key, meta[key]);
         await navigator.clipboard.writeText(text);
         const icon = btn.querySelector('i');
         if (icon) {
@@ -275,4 +307,5 @@ window.copyAuditValue = async function (btn, text) {
     catch (e) {
         console.error('Failed to copy', e);
     }
-};
+}
+window.copyAuditValue = copyAuditValue;

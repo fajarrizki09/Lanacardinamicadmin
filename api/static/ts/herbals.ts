@@ -1,6 +1,5 @@
 // ─── HERBALS ──────────────────────────────────────────────────────────────────
-// Layout: Form Add (atas) | Update Stok dengan selected badge (bawah-kiri)
-//         Tabel klik untuk pilih (kanan)
+// Action-based workspace: table-first selection with focused modal workflows.
 
 const HERBAL_UNIT_OPTIONS = ['botol', 'pcs', 'box', 'saset', 'pack', 'strip', 'tablet', 'kapsul', 'dus'];
 
@@ -42,6 +41,7 @@ type CorrectionLogRow = {
 
 type HerbalTransactionRow = {
     id: number | string;
+    herbal_id?: number | string;
     date?: string | null;
     herbal_name?: string;
     quantity?: number;
@@ -53,14 +53,25 @@ type HerbalTransactionPayload = {
     detail?: string;
 };
 
+let herbalDelegationReady = false;
+
 interface Window {
     _herbalCatalog?: HerbalCatalogItem[];
     _herbalSaleItems?: HerbalSaleItem[];
+    _herbalReturnRows?: HerbalTransactionRow[];
+    _selectedHerbalId?: number | null;
     renderHerbals?: (data: HerbalCatalogItem[]) => void;
     selectHerbal?: (row: HTMLTableRowElement) => void;
+    goToHerbalPage?: (page: number) => void;
     setHerbalStockMode?: (mode: HerbalStockMode | string) => void;
     updateHerbalStockPreview?: () => void;
     prepareHerbalStockSubmit?: (event: SubmitEvent) => void;
+    openAddHerbalModal?: () => void;
+    submitAddHerbal?: (event: SubmitEvent) => Promise<void>;
+    openHerbalStockModal?: () => void;
+    submitHerbalStock?: (event: SubmitEvent) => Promise<void>;
+    filterHerbalPicker?: (context: string) => void;
+    selectHerbalPickerItem?: (context: string) => void;
     openHerbalSaleModal?: () => void;
     onHerbalSaleSelectChange?: () => void;
     onHerbalSaleQtyInput?: () => void;
@@ -68,6 +79,8 @@ interface Window {
     removeHerbalSaleItem?: (herbalId: number) => void;
     submitHerbalSale?: () => Promise<void>;
     openHerbalReturnModal?: () => Promise<void>;
+    filterHerbalReturnPicker?: () => void;
+    syncHerbalReturnInfo?: () => void;
     submitHerbalReturn?: () => Promise<void>;
     editHerbal?: (
         id: number | string,
@@ -119,7 +132,153 @@ function herbalPackageLabel(item: Pick<HerbalCatalogItem, 'package_unit' | 'pack
     return `1 ${item.package_unit} = ${item.package_size} ${item.unit}`;
 }
 
+function herbalStatus(item: Pick<HerbalCatalogItem, 'stock' | 'min_stock'>): string {
+    if (item.stock <= 0) return 'Habis';
+    if (item.stock <= item.min_stock) return 'Menipis';
+    return 'Tersedia';
+}
+
+function selectedHerbal(): HerbalCatalogItem | null {
+    const selectedId = Number(window._selectedHerbalId || 0);
+    return (window._herbalCatalog || []).find(item => item.id === selectedId) || null;
+}
+
+function herbalById(id: number | string): HerbalCatalogItem | null {
+    const herbalId = Number(id || 0);
+    return (window._herbalCatalog || []).find(item => item.id === herbalId) || null;
+}
+
+function ensureHerbalEventDelegation(): void {
+    if (herbalDelegationReady) return;
+    herbalDelegationReady = true;
+
+    document.addEventListener('click', (event) => {
+        const actionElement = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-herbal-action]');
+        if (!actionElement) return;
+        const action = actionElement.dataset.herbalAction || '';
+        if (!action) return;
+        event.preventDefault();
+
+        switch (action) {
+            case 'open-add':
+                openAddHerbalModal();
+                break;
+            case 'open-sale':
+                openHerbalSaleModal();
+                break;
+            case 'open-stock':
+                openHerbalStockModal();
+                break;
+            case 'open-return':
+                openHerbalReturnModal();
+                break;
+            case 'select-row':
+                selectHerbal(actionElement as HTMLTableRowElement);
+                break;
+            case 'edit':
+                editHerbalFromCache(actionElement.dataset.id || '');
+                break;
+            case 'delete':
+                deleteHerbalFromCache(actionElement.dataset.id || '');
+                break;
+            case 'page':
+                goToHerbalPage(Number(actionElement.dataset.page || 1));
+                break;
+            case 'close-modal':
+                closeModal();
+                break;
+            case 'stock-mode':
+                setHerbalStockMode(actionElement.dataset.mode || 'in');
+                break;
+            case 'sale-add':
+                addHerbalSaleItem();
+                break;
+            case 'sale-submit':
+                submitHerbalSale();
+                break;
+            case 'sale-remove':
+                removeHerbalSaleItem(Number(actionElement.dataset.id || 0));
+                break;
+            case 'return-submit':
+                submitHerbalReturn();
+                break;
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const target = event.target as HTMLInputElement | null;
+        const action = target?.dataset?.herbalAction || '';
+        if (!action) return;
+        if (action === 'picker-filter') filterHerbalPicker(target.dataset.context || '');
+        if (action === 'stock-preview') updateHerbalStockPreview();
+        if (action === 'sale-qty') onHerbalSaleQtyInput();
+        if (action === 'return-filter') filterHerbalReturnPicker();
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target as HTMLElement | null;
+        const action = target?.dataset?.herbalAction || '';
+        if (!action) return;
+        if (action === 'picker-select') selectHerbalPickerItem(target.dataset.context || '');
+        if (action === 'stock-preview') updateHerbalStockPreview();
+        if (action === 'return-sync') syncHerbalReturnInfo();
+    });
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target as HTMLFormElement | null;
+        const action = form?.dataset?.herbalFormAction || '';
+        if (!action) return;
+        if (action === 'add') submitAddHerbal(event);
+        if (action === 'stock') submitHerbalStock(event);
+        if (action === 'edit') submitEditHerbal(event);
+    });
+}
+
+function herbalPickerOptions(items: HerbalCatalogItem[], selectedId?: number | null): string {
+    if (!items.length) return '<option value="">Belum ada produk/peralatan tersedia.</option>';
+    const prompt = selectedId ? '' : '<option value="" selected>Pilih produk / herbal</option>';
+    return prompt + items.map(item => {
+        const selected = item.id === selectedId ? ' selected' : '';
+        const label = `${item.name} | ${herbalStatus(item)} | stok ${item.stock} ${item.unit} | ${formatRupiah(item.price)}`;
+        return `<option value="${item.id}"${selected}>${escapeHtml(label)}</option>`;
+    }).join('');
+}
+
+function herbalPickerHtml(context: string, selectedId?: number | null): string {
+    const items = window._herbalCatalog || [];
+    return `
+        <div class="action-picker" data-picker="${context}">
+            <label for="${context}-search">Cari Produk / Herbal</label>
+            <div class="action-picker-search">
+                <i class="fas fa-search"></i>
+                <input type="search" id="${context}-search" autocomplete="off"
+                    placeholder="Nama, status, stok, satuan, atau harga"
+                    data-herbal-action="picker-filter" data-context="${escapeHtml(context)}">
+            </div>
+            <select id="${context}-select" class="action-picker-results" size="4"
+                data-herbal-action="picker-select" data-context="${escapeHtml(context)}">
+                ${herbalPickerOptions(items, selectedId)}
+            </select>
+            <div id="${context}-empty" class="action-picker-empty ${items.length ? 'hidden' : ''}">Belum ada produk/peralatan tersedia.</div>
+            <div id="${context}-info" class="selected-item-summary"></div>
+        </div>`;
+}
+
+function updateHerbalSelectionSummary(): void {
+    const item = selectedHerbal();
+    const summary = document.getElementById('herbal-row-selection');
+    if (!summary) return;
+    if (!item) {
+        summary.innerHTML = '<i class="fas fa-hand-pointer"></i> Pilih row untuk mengisi action secara otomatis, atau buka action dan cari produk.';
+        summary.classList.remove('has-selection');
+        return;
+    }
+    summary.innerHTML = `<i class="fas fa-check-circle"></i> <strong>${escapeHtml(item.name)}</strong><span>Stok ${item.stock} ${escapeHtml(item.unit)} &middot; ${formatRupiah(item.price)} &middot; ${escapeHtml(herbalStatus(item))}</span>`;
+    summary.classList.add('has-selection');
+}
+
 function renderHerbals(data: HerbalCatalogItem[]): void {
+    ensureHerbalEventDelegation();
     window._herbalCatalog = (data || []).map((h: HerbalCatalogItem) => ({
         id: Number(h.id),
         name: h.name || '',
@@ -131,151 +290,110 @@ function renderHerbals(data: HerbalCatalogItem[]): void {
         package_size: Number(h.package_size || 1),
         min_stock: Number(h.min_stock || 5)
     }));
+    if (window._selectedHerbalId && !selectedHerbal()) window._selectedHerbalId = null;
     window._herbalSaleItems = [];
     const outOfStock = data.filter((h: HerbalCatalogItem) => h.stock <= 0).length;
     const lowStockHerb = data.filter((h: HerbalCatalogItem) => h.stock > 0 && h.stock <= (h.min_stock || 5)).length;
     const goodStock = data.length - outOfStock - lowStockHerb;
 
+    // Pagination
+    const currentPage = (window as any)._herbalPage || 1;
+    const itemsPerPage = 10;
+    const totalPages = Math.ceil(data.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = data.slice(startIndex, endIndex);
+
     const html = `
         <!-- ── Stat Cards ── -->
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px;">
-            <div class="stat-card" style="padding:14px; margin-bottom:0; border-left:3px solid var(--success);">
-                <div class="stat-icon green" style="width:34px;height:34px;font-size:14px;"><i class="fas fa-leaf"></i></div>
+        <div class="herbal-stats-grid">
+            <div class="stat-card border-success">
+                <div class="stat-icon green"><i class="fas fa-leaf"></i></div>
                 <div class="stat-details"><h4>Tersedia</h4><h2>${goodStock}</h2></div>
             </div>
-            <div class="stat-card" style="padding:14px; margin-bottom:0; border-left:3px solid var(--warning);">
-                <div class="stat-icon orange" style="width:34px;height:34px;font-size:14px;"><i class="fas fa-exclamation"></i></div>
+            <div class="stat-card border-warning">
+                <div class="stat-icon orange"><i class="fas fa-exclamation"></i></div>
                 <div class="stat-details"><h4>Menipis</h4><h2 style="color:${lowStockHerb > 0 ? 'var(--warning)' : 'var(--text-main)'}">${lowStockHerb}</h2></div>
             </div>
-            <div class="stat-card" style="padding:14px; margin-bottom:0; border-left:3px solid var(--danger);">
-                <div class="stat-icon red" style="width:34px;height:34px;font-size:14px;"><i class="fas fa-times"></i></div>
+            <div class="stat-card border-danger">
+                <div class="stat-icon red"><i class="fas fa-times"></i></div>
                 <div class="stat-details"><h4>Habis</h4><h2 style="color:${outOfStock > 0 ? 'var(--danger)' : 'var(--text-main)'}">${outOfStock}</h2></div>
             </div>
         </div>
 
-        <!-- ── Main: Table kiri-besar | Forms kanan ── -->
-        <div class="card stock-quick-add-card herbal">
-            <div class="stock-quick-add-head">
-                <div>
-                    <h3><i class="fas fa-plus-circle"></i> Tambah Produk / Herbal Baru</h3>
-                    <span>Form cepat agar admin tidak perlu scroll ke bawah.</span>
-                </div>
-                <button type="button" class="btn btn-primary" onclick="openHerbalSaleModal()" style="background:linear-gradient(135deg,#10b981,#059669); box-shadow:0 4px 12px rgba(16,185,129,0.3);">
-                    <i class="fas fa-cash-register"></i> Jual Produk / Herbal
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="openHerbalReturnModal()" style="width:auto;">
-                    <i class="fas fa-undo"></i> Retur Penjualan
-                </button>
-            </div>
-            <form action="/add_herbal" method="post" class="stock-quick-add-form">
-                <div class="unit-help-note">
-                    <strong>Satuan dasar</strong> = stok terkecil yang dihitung sistem. <strong>Satuan kemasan</strong> = bungkus besar. Contoh: dasar <b>botol</b>, kemasan <b>box</b>, isi <b>12</b> berarti 1 box = 12 botol.
-                </div>
-                <div class="form-group">
-                    <label>Nama Produk / Herbal</label>
-                    <input type="text" name="name" required placeholder="Nama produk">
-                </div>
-                <div class="form-group">
-                    <label>Satuan Dasar</label>
-                    ${herbalUnitSelectHtml('unit', 'botol')}
-                </div>
-                <div class="form-group">
-                    <label>Satuan Kemasan</label>
-                    ${herbalUnitSelectHtml('package_unit', '', true)}
-                </div>
-                <div class="form-group">
-                    <label>Stok Awal</label>
-                    <input type="number" name="stock" required placeholder="0" min="0">
-                </div>
-                <div class="form-group">
-                    <label>Isi per Kemasan</label>
-                    <input type="number" name="package_size" required value="1" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Harga Modal (Rp)</label>
-                    <input type="number" name="cost_price" required placeholder="0" min="0">
-                </div>
-                <div class="form-group">
-                    <label>Harga (Rp)</label>
-                    <input type="number" name="price" required placeholder="100000" min="0">
-                </div>
-                <div class="form-group">
-                    <label>Batas Aman</label>
-                    <input type="number" name="min_stock" required placeholder="5" min="0">
-                </div>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan</button>
-            </form>
+        <!-- ── Action Buttons ── -->
+        <div class="stock-action-bar">
+            <button type="button" class="btn btn-primary" data-herbal-action="open-add">
+                <i class="fas fa-plus"></i> Tambah Produk
+            </button>
+            <button type="button" class="btn btn-primary btn-herbal-sale" data-herbal-action="open-sale">
+                <i class="fas fa-cash-register"></i> Jual Produk
+            </button>
+            <button type="button" class="btn btn-secondary btn-secondary-auto" data-herbal-action="open-stock">
+                <i class="fas fa-sliders-h"></i> Koreksi Stok
+            </button>
+            <button type="button" class="btn btn-secondary btn-secondary-auto" data-herbal-action="open-return">
+                <i class="fas fa-undo"></i> Retur
+            </button>
         </div>
+        <div id="herbal-row-selection" class="table-selection-summary" aria-live="polite"></div>
 
-        <div class="herbal-workspace">
-
-            <!-- KIRI: Tabel Produk / Herbal (klik untuk pilih) -->
-            <div class="card" style="padding:0; min-width:0;">
-                <div class="card-header" style="padding:16px 20px 12px;">
-                    <h3><i class="fas fa-mortar-pestle"></i> Katalog Produk / Herbal (${data.length} produk)</h3>
-                    <span style="font-size:12px; color:var(--primary); font-weight:500;"><i class="fas fa-hand-pointer"></i> Klik baris untuk pilih</span>
-                </div>
-                <div class="herbal-table-wrap">
-                    <table id="herbals-table" class="herbal-stock-table" style="width:100%; border-collapse:collapse; font-size:13px;">
-                        <thead>
-                            <tr style="background:#f8fafc;">
-                                <th>Produk</th>
-                                <th>Stok</th>
-                                <th>Harga</th>
-                                <th>Margin</th>
-                                <th>Status</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.length === 0
-            ? `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">Belum ada produk / herbal.</td></tr>`
-            : data.map((h: HerbalCatalogItem) => {
+        <!-- ── Tabel Monitoring Produk/Herbal (DI ATAS) ── -->
+        <div class="card herbal-table-card">
+            <div class="card-header">
+                <h3><i class="fas fa-mortar-pestle"></i> Monitoring Produk / Herbal (${data.length} produk)</h3>
+                <span class="table-hint-text"><i class="fas fa-hand-pointer"></i> Klik baris untuk pilih</span>
+            </div>
+            <div class="herbal-table-wrapper">
+                <table id="herbals-table" class="herbal-table">
+                    <thead>
+                        <tr>
+                            <th class="text-left">Produk</th>
+                            <th class="text-center">Stok / Kemasan</th>
+                            <th class="text-right">Harga</th>
+                            <th class="text-right">Margin</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${paginatedData.length === 0
+            ? `<tr><td colspan="6" class="table-empty-state">Belum ada produk / herbal.</td></tr>`
+            : paginatedData.map((h: HerbalCatalogItem) => {
                 const isEmpty = h.stock <= 0;
                 const isLow = !isEmpty && h.stock <= (h.min_stock || 5);
                 const stockColor = isEmpty ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)';
-                const rowBg = isEmpty ? '#fef2f2' : isLow ? '#fffbeb' : '';
+                const rowBg = isEmpty ? 'bg-red-50' : isLow ? 'bg-amber-50' : '';
                 const statusBadge = isEmpty
-                    ? `<span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">HABIS</span>`
+                    ? `<span class="herbal-status-badge empty">HABIS</span>`
                     : isLow
-                        ? `<span style="background:#fef3c7;color:#d97706;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">MENIPIS</span>`
-                        : `<span style="background:#ecfdf5;color:#059669;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">OK</span>`;
+                        ? `<span class="herbal-status-badge low">MENIPIS</span>`
+                        : `<span class="herbal-status-badge ok">OK</span>`;
                 return `
                                     <tr data-id="${h.id}" data-name="${escapeHtml(h.name)}" data-stock="${h.stock}" data-price="${h.price}" data-unit="${escapeHtml(h.unit)}" data-package-unit="${escapeHtml(h.package_unit || '')}" data-package-size="${Number(h.package_size || 1)}"
-                                        onclick="selectHerbal(this)"
-                                        style="cursor:pointer; border-bottom:1px solid #f1f5f9; ${rowBg ? 'background:' + rowBg + ';' : ''} transition:background 0.15s;"
-                                        onmouseover="if(!this.classList.contains('row-selected'))this.style.background='#f0f4ff'"
-                                        onmouseout="if(!this.classList.contains('row-selected'))this.style.background='${rowBg}'">
-                                        <td class="herbal-product-cell" style="padding:11px 16px;">
-                                            <div class="herbal-product-name-wrap">
-                                                <div style="width:32px;height:32px;border-radius:8px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;color:#10b981;font-size:14px;flex-shrink:0;">
-                                                    <i class="fas fa-leaf"></i>
-                                                </div>
-                                                <span class="herbal-product-name">
-                                                    ${escapeHtml(h.name)}
-                                                    <small>${escapeHtml(h.unit || '-')} · ${escapeHtml(herbalPackageLabel(h))}</small>
-                                                </span>
-                                            </div>
+                                        data-herbal-action="select-row"
+                                        class="${rowBg} ${window._selectedHerbalId === h.id ? 'row-selected' : ''}" data-rowbg="${rowBg}">
+                                        <td class="table-cell-name" title="${escapeHtml(h.name)}">${escapeHtml(h.name)}</td>
+                                        <td class="table-cell-center">
+                                            <span class="stock-display-main" style="color:${stockColor}">${escapeHtml(h.stock_display || h.stock)}</span>
+                                            <span class="stock-display-sub" title="${escapeHtml(herbalPackageLabel(h))}">${escapeHtml(herbalPackageLabel(h))}</span>
                                         </td>
-                                        <td style="padding:11px 16px; text-align:center; font-size:16px; font-weight:700; color:${stockColor};">${escapeHtml(h.stock_display || h.stock)}</td>
-                                        <td style="padding:11px 16px; text-align:right; font-weight:600; color:var(--success);">
-                                            ${formatRupiah(h.price)}
-                                            <small class="herbal-cell-muted">Modal ${formatRupiah(h.cost_price || 0)}</small>
+                                        <td class="table-cell-right">
+                                            <span class="price-display-main">${formatRupiah(h.price)}</span>
+                                            <span class="price-display-sub">Modal ${formatRupiah(h.cost_price || 0)}</span>
                                         </td>
-                                        <td style="padding:11px 16px; text-align:right; font-weight:600; color:${Number(h.margin || 0) >= 0 ? 'var(--primary)' : 'var(--danger)'};">${formatRupiah(h.margin || 0)}</td>
-                                        <td style="padding:11px 16px; text-align:center;">${statusBadge}</td>
-                                        <td style="padding:11px 16px; text-align:center;" onclick="event.stopPropagation()">
-                                            <div style="display:flex; gap:6px; justify-content:center;">
-                                                <button onclick="editHerbal(${h.id}, '${escapeHtml(h.name)}', '${escapeHtml(h.unit)}', ${h.price}, ${h.stock}, ${Number(h.cost_price || 0)}, '${escapeHtml(h.package_unit || '')}', ${Number(h.package_size || 1)}, ${Number(h.min_stock || 5)})" 
+                                        <td class="table-cell-right font-semibold" style="color:${Number(h.margin || 0) >= 0 ? 'var(--primary)' : 'var(--danger)'}">${formatRupiah(h.margin || 0)}</td>
+                                        <td class="table-cell-center">${statusBadge}</td>
+                                        <td class="table-cell-center">
+                                            <div class="table-action-buttons">
+                                                <button type="button" data-herbal-action="edit" data-id="${h.id}"
                                                         title="Edit Produk / Herbal"
-                                                        style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:14px; padding:4px; transition:color 0.2s;"
-                                                        onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='var(--primary)'">
+                                                        class="table-icon-btn edit">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button onclick="deleteHerbal(${h.id}, '${escapeHtml(h.name)}')" 
+                                                <button type="button" data-herbal-action="delete" data-id="${h.id}"
                                                         title="Hapus Produk / Herbal"
-                                                        style="background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:14px; padding:4px; transition:color 0.2s;"
-                                                        onmouseover="this.style.color='#b91c1c'" onmouseout="this.style.color='var(--danger)'">
+                                                        class="table-icon-btn delete">
                                                     <i class="fas fa-trash-alt"></i>
                                                 </button>
                                             </div>
@@ -283,124 +401,37 @@ function renderHerbals(data: HerbalCatalogItem[]): void {
                                     </tr>`;
             }).join('')
         }
-                        </tbody>
-                    </table>
+                    </tbody>
+                </table>
+            </div>
+            ${totalPages > 1 ? `
+            <div class="table-pagination">
+                <span class="pagination-info">Halaman ${currentPage} dari ${totalPages}</span>
+                <div class="pagination-buttons">
+                    <button type="button" class="btn btn-secondary btn-secondary-auto" ${currentPage <= 1 ? 'disabled' : ''} data-herbal-action="page" data-page="${currentPage - 1}">
+                        <i class="fas fa-chevron-left"></i> Sebelumnya
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-secondary-auto" ${currentPage >= totalPages ? 'disabled' : ''} data-herbal-action="page" data-page="${currentPage + 1}">
+                        Selanjutnya <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
-
-            <!-- KANAN: Forms -->
-            <div style="display:flex; flex-direction:column; gap:18px; width:320px; flex-shrink:0;">
-
-                <!-- Form Koreksi Stok (klik baris untuk pilih) -->
-                <div class="card" style="height:fit-content; border-top:3px solid #8b5cf6;">
-                    <div class="card-header">
-                        <h3><i class="fas fa-exchange-alt" style="color:#8b5cf6;"></i> Koreksi Stok Produk / Herbal</h3>
-                    </div>
-                    <div class="stock-workflow-note">
-                        Gunakan untuk stok opname, barang rusak, hilang, sampel, atau koreksi input. Untuk transaksi berbayar gunakan tombol Jual Produk / Herbal.
-                    </div>
-                    <form action="/update_herbal" method="post" onsubmit="prepareHerbalStockSubmit(event)">
-                        <input type="hidden" name="herbal_id" id="herbal-selected-id">
-                        <input type="hidden" name="change" id="herbal-change-input" value="">
-                        <div class="form-group">
-                            <label>Produk / Herbal Terpilih</label>
-                            <div id="herbal-selected-badge" style="padding:9px 12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;font-size:13px;color:#7c3aed;font-weight:500;min-height:38px;">
-                                <i class="fas fa-arrow-left"></i> Klik baris produk/herbal di tabel
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Jenis Koreksi Stok</label>
-                            <div class="stock-mode-picker" data-target="herbal">
-                                <button type="button" class="active" data-mode="in" onclick="setHerbalStockMode('in')"><i class="fas fa-arrow-down"></i> Stok Bertambah</button>
-                                <button type="button" data-mode="out" onclick="setHerbalStockMode('out')"><i class="fas fa-arrow-up"></i> Stok Berkurang</button>
-                            </div>
-                            <input type="hidden" id="herbal-stock-mode" value="in">
-                        </div>
-                        <div class="form-group">
-                            <label>Jumlah</label>
-                            <input type="number" required placeholder="Contoh: 5" id="herbal-change-amount" min="1" oninput="updateHerbalStockPreview()">
-                            <div id="herbal-stock-preview" class="stock-preview">Pilih produk/herbal, jenis koreksi stok, dan jumlah.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Satuan Transaksi</label>
-                            <select name="multiplier" id="herbal-multiplier" onchange="updateHerbalStockPreview()">
-                                <option value="1">Satuan dasar</option>
-                            </select>
-                            <small class="unit-field-hint">Pilih kemasan jika stok masuk/keluar berupa box, pack, dus, atau botol isi banyak.</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Alasan Koreksi</label>
-                            <textarea name="reason" id="herbal-stock-reason" required minlength="5" rows="3" placeholder="Contoh: Stok opname, barang rusak, hilang, sampel"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed); box-shadow:0 4px 12px rgba(139,92,246,0.35);"
-                            onclick="if(!document.getElementById('herbal-selected-id').value){ showToast('Pilih produk/herbal di tabel terlebih dahulu!', 'warning'); return false; }">
-                            <i class="fas fa-check"></i> Simpan Koreksi Stok
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Form Registrasi Produk / Herbal Baru -->
-                <div class="card" style="display:none; height:fit-content; border-top:3px solid #10b981;">
-                    <div class="card-header">
-                        <h3><i class="fas fa-plus-circle" style="color:#10b981;"></i> Registrasi Produk / Herbal</h3>
-                    </div>
-                    <form action="/add_herbal" method="post">
-                        <div class="unit-help-note compact">
-                            Dasar = stok terkecil. Kemasan = bungkus besar. Contoh: 1 box = 12 botol.
-                        </div>
-                        <div class="form-group">
-                            <label>Nama Produk / Herbal</label>
-                            <input type="text" name="name" required placeholder="Ketik nama produk...">
-                        </div>
-                        <div class="form-group">
-                            <label>Satuan Dasar</label>
-                            ${herbalUnitSelectHtml('unit', 'botol')}
-                        </div>
-                        <div class="form-group">
-                            <label>Satuan Kemasan</label>
-                            ${herbalUnitSelectHtml('package_unit', '', true)}
-                        </div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                            <div class="form-group">
-                                <label>Stok Awal</label>
-                                <input type="number" name="stock" required placeholder="0" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Isi/Kemasan</label>
-                                <input type="number" name="package_size" required value="1" min="1">
-                            </div>
-                            <div class="form-group">
-                                <label>Modal (Rp)</label>
-                                <input type="number" name="cost_price" required placeholder="0" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Harga (Rp)</label>
-                                <input type="number" name="price" required placeholder="100000" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Batas Aman</label>
-                                <input type="number" name="min_stock" required placeholder="5" min="0">
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#10b981,#059669); box-shadow:0 4px 12px rgba(16,185,129,0.35);">
-                            <i class="fas fa-save"></i> Simpan Produk / Herbal Baru
-                        </button>
-                    </form>
-                </div>
-            </div>
+            ` : ''}
         </div>
-        <div class="card" style="margin-top:18px;padding:0;">
-            <div class="card-header" style="padding:16px 20px 12px;">
+
+        <div class="card correction-history-card">
+            <div class="card-header">
                 <h3><i class="fas fa-history"></i> Riwayat Koreksi</h3>
-                <span style="font-size:12px;color:var(--text-muted);">Koreksi stok, retur, dan void invoice terakhir.</span>
+                <span>Koreksi stok, retur, dan void invoice terakhir.</span>
             </div>
-            <div id="correction-history-panel" style="padding:12px 20px 18px;color:var(--text-muted);font-size:13px;">
+            <div id="correction-history-panel" class="correction-history-panel">
                 Memuat riwayat koreksi...
             </div>
         </div>`;
 
     const displayArea = document.getElementById('display-area');
     if (displayArea) displayArea.innerHTML = html;
+    updateHerbalSelectionSummary();
     loadCorrectionHistory();
 }
 
@@ -409,43 +440,172 @@ function selectHerbal(row: HTMLTableRowElement): void {
     // Deselect all
     document.querySelectorAll<HTMLTableRowElement>('#herbals-table tbody tr').forEach(r => {
         r.classList.remove('row-selected');
-        r.style.background = r.dataset.rowbg || '';
+        r.style.background = '';
     });
     // Select clicked
     row.classList.add('row-selected');
-    row.style.background = '#ede9fe';
 
-    // Fill form
-    const id = row.dataset.id;
-    const name = row.dataset.name;
-    const stock = row.dataset.stock;
-    const unit = row.dataset.unit || 'pcs';
-    const packageUnit = row.dataset.packageUnit || '';
-    const packageSize = Math.max(1, Number(row.dataset.packageSize || 1));
-
-    const selectedId = herbalInput('herbal-selected-id');
-    if (selectedId) selectedId.value = id || '';
-    const multiplier = herbalSelect('herbal-multiplier');
-    if (multiplier) {
-        multiplier.innerHTML = `<option value="1">${escapeHtml(unit)}</option>`;
-        if (packageUnit && packageUnit !== unit && packageSize > 1) {
-            multiplier.innerHTML += `<option value="${packageSize}">${escapeHtml(packageUnit)} (1 = ${packageSize} ${escapeHtml(unit)})</option>`;
-        }
-    }
-    const badge = document.getElementById('herbal-selected-badge');
-    if (badge) {
-        badge.innerHTML = `<i class="fas fa-leaf" style="color:#10b981;"></i> <strong>${escapeHtml(name)}</strong> <span style="color:#94a3b8;font-size:11px;">(stok: ${escapeHtml(stock)} ${escapeHtml(unit)})</span>`;
-        badge.style.background = '#f0fdf4';
-        badge.style.borderColor = '#6ee7b7';
-        badge.style.color = '#059669';
-    }
-    // Focus change input
-    updateHerbalStockPreview();
-    const inp = document.getElementById('herbal-change-amount');
-    if (inp) inp.focus();
+    window._selectedHerbalId = Number(row.dataset.id || 0) || null;
+    updateHerbalSelectionSummary();
 }
 
 // ── CRUD ACTIONS ─────────────────────────────────────────────────────────────
+
+async function submitHerbalActionForm(event: SubmitEvent, endpoint: string): Promise<void> {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const originalText = submit?.innerHTML || '';
+    if (submit) {
+        submit.disabled = true;
+        submit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
+    try {
+        const response = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+        const data = await response.json() as ApiResponse;
+        if (!response.ok || data.status !== 'success') {
+            throw new Error(herbalText(data.detail || data.message, 'Gagal menyimpan perubahan produk/herbal.'));
+        }
+        closeModal();
+        showToast(data.message || 'Perubahan produk/herbal berhasil disimpan.', 'success');
+        loadTab('herbals');
+    } catch (error) {
+        showToast(herbalErrorMessage(error), 'error');
+        if (submit) {
+            submit.disabled = false;
+            submit.innerHTML = originalText;
+        }
+    }
+}
+
+function openAddHerbalModal(): void {
+    const html = `
+        <form class="action-modal-form" data-herbal-form-action="add">
+            <div class="unit-help-note compact">Form ini selalu membuat produk baru. Gunakan satuan dasar untuk stok terkecil.</div>
+            <div class="form-group">
+                <label>Nama Produk / Herbal</label>
+                <input type="text" name="name" required placeholder="Nama produk">
+            </div>
+            <div class="action-form-grid">
+                <div class="form-group"><label>Satuan Dasar</label>${herbalUnitSelectHtml('unit', 'botol')}</div>
+                <div class="form-group"><label>Satuan Kemasan</label>${herbalUnitSelectHtml('package_unit', '', true)}</div>
+                <div class="form-group"><label>Stok Awal</label><input type="number" name="stock" required value="0" min="0"></div>
+                <div class="form-group"><label>Isi per Kemasan</label><input type="number" name="package_size" required value="1" min="1"></div>
+                <div class="form-group"><label>Harga Modal (Rp)</label><input type="number" name="cost_price" required value="0" min="0"></div>
+                <div class="form-group"><label>Harga Jual (Rp)</label><input type="number" name="price" required placeholder="0" min="0"></div>
+                <div class="form-group"><label>Batas Aman</label><input type="number" name="min_stock" required value="5" min="0"></div>
+            </div>
+            <div class="sale-modal-actions">
+                <button type="button" class="btn btn-modal-cancel" data-herbal-action="close-modal">Batal</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan Produk</button>
+            </div>
+        </form>`;
+    openModal('Tambah Produk', html);
+}
+
+async function submitAddHerbal(event: SubmitEvent): Promise<void> {
+    await submitHerbalActionForm(event, '/add_herbal');
+}
+
+function filterHerbalPicker(context: string): void {
+    const query = herbalText(herbalInput(`${context}-search`)?.value).toLowerCase();
+    const select = herbalSelect(`${context}-select`);
+    if (!select) return;
+    const selectedId = Number(select.value || 0);
+    const items = (window._herbalCatalog || []).filter(item => {
+        const searchable = `${item.name} ${item.unit} ${item.stock} ${herbalStatus(item)} ${item.price}`.toLowerCase();
+        return !query || searchable.includes(query);
+    });
+    select.innerHTML = herbalPickerOptions(items, selectedId);
+    const empty = document.getElementById(`${context}-empty`);
+    if (empty) {
+        empty.textContent = items.length ? '' : 'Belum ada produk/peralatan tersedia.';
+        empty.classList.toggle('hidden', items.length > 0);
+    }
+    if (!items.some(item => item.id === selectedId)) {
+        const hidden = herbalInput(context === 'herbal-correction' ? 'herbal-selected-id' : `${context}-selected-id`);
+        if (hidden) hidden.value = '';
+    }
+    selectHerbalPickerItem(context);
+}
+
+function selectHerbalPickerItem(context: string): void {
+    const select = herbalSelect(`${context}-select`);
+    const itemId = Number(select?.value || 0);
+    const item = (window._herbalCatalog || []).find(candidate => candidate.id === itemId) || null;
+    const info = document.getElementById(`${context}-info`);
+    if (info) {
+        info.innerHTML = item
+            ? `<strong>${escapeHtml(item.name)}</strong><span>Stok ${item.stock} ${escapeHtml(item.unit)} &middot; ${formatRupiah(item.price)} &middot; ${escapeHtml(herbalStatus(item))}</span>`
+            : 'Pilih produk untuk melihat stok, satuan, harga, dan status.';
+        info.classList.toggle('has-selection', Boolean(item));
+    }
+    if (context === 'herbal-correction') {
+        const selectedId = herbalInput('herbal-selected-id');
+        if (selectedId) selectedId.value = item ? String(item.id) : '';
+        const multiplier = herbalSelect('herbal-multiplier');
+        if (multiplier) {
+            multiplier.innerHTML = item ? `<option value="1">${escapeHtml(item.unit)}</option>` : '<option value="1">Satuan dasar</option>';
+            if (item && item.package_unit && item.package_unit !== item.unit && item.package_size > 1) {
+                multiplier.innerHTML += `<option value="${item.package_size}">${escapeHtml(item.package_unit)} (1 = ${item.package_size} ${escapeHtml(item.unit)})</option>`;
+            }
+        }
+        updateHerbalStockPreview();
+    } else if (context === 'herbal-sale') {
+        onHerbalSaleSelectChange();
+    }
+}
+
+function openHerbalStockModal(): void {
+    const selectedId = selectedHerbal()?.id || null;
+    const html = `
+        <form class="action-modal-form" data-herbal-form-action="stock">
+            ${herbalPickerHtml('herbal-correction', selectedId)}
+            <input type="hidden" name="herbal_id" id="herbal-selected-id">
+            <input type="hidden" name="change" id="herbal-change-input">
+            <div class="form-group">
+                <label>Jenis Pergerakan</label>
+                <div class="stock-mode-picker" data-target="herbal">
+                    <button type="button" class="active" data-mode="in" data-herbal-action="stock-mode"><i class="fas fa-arrow-down"></i> Tambah Stok</button>
+                    <button type="button" data-mode="out" data-herbal-action="stock-mode"><i class="fas fa-arrow-up"></i> Koreksi Keluar</button>
+                </div>
+                <input type="hidden" id="herbal-stock-mode" value="in">
+                <small class="unit-field-hint">Koreksi keluar hanya untuk penyesuaian fisik, bukan penjualan.</small>
+            </div>
+            <div class="action-form-grid">
+                <div class="form-group">
+                    <label>Jumlah</label>
+                    <input type="number" required id="herbal-change-amount" min="1" data-herbal-action="stock-preview" placeholder="Contoh: 10">
+                </div>
+                <div class="form-group">
+                    <label>Satuan Transaksi</label>
+                    <select name="multiplier" id="herbal-multiplier" data-herbal-action="stock-preview"><option value="1">Satuan dasar</option></select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Alasan Koreksi</label>
+                <textarea name="reason" id="herbal-stock-reason" required minlength="5" rows="3" placeholder="Contoh: Stok opname atau barang rusak"></textarea>
+            </div>
+            <div id="herbal-stock-preview" class="stock-preview hidden"></div>
+            <div class="sale-modal-actions">
+                <button type="button" class="btn btn-modal-cancel" data-herbal-action="close-modal">Batal</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Terapkan Koreksi</button>
+            </div>
+        </form>`;
+    openModal('Koreksi Stok Produk', html);
+    selectHerbalPickerItem('herbal-correction');
+}
+
+async function submitHerbalStock(event: SubmitEvent): Promise<void> {
+    prepareHerbalStockSubmit(event);
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    if (!herbalInput('herbal-selected-id')?.value) {
+        showToast('Pilih produk/herbal terlebih dahulu.', 'warning');
+        return;
+    }
+    await submitHerbalActionForm(event, '/update_herbal');
+}
 
 function setHerbalStockMode(mode: HerbalStockMode | string): void {
     const cleanMode = mode === 'out' ? 'out' : 'in';
@@ -468,10 +628,14 @@ function updateHerbalStockPreview(): void {
     const action = mode === 'out' ? 'berkurang (bukan penjualan)' : 'bertambah';
     const total = amount * multiplier;
     const selectedUnit = herbalSelect('herbal-multiplier')?.selectedOptions?.[0]?.textContent || 'item';
-    preview.classList.toggle('danger', mode === 'out');
-    preview.textContent = selected && amount > 0
-        ? `Stok produk/herbal akan ${action}: ${amount} ${selectedUnit} = ${total} satuan dasar.`
-        : 'Pilih produk/herbal, jenis koreksi stok, dan jumlah.';
+    
+    if (selected && amount > 0) {
+        preview.classList.remove('hidden');
+        preview.classList.toggle('danger', mode === 'out');
+        preview.textContent = `Stok produk/herbal akan ${action}: ${amount} ${selectedUnit} = ${total} satuan dasar.`;
+    } else {
+        preview.classList.add('hidden');
+    }
 }
 
 function prepareHerbalStockSubmit(event: SubmitEvent): void {
@@ -491,16 +655,6 @@ function prepareHerbalStockSubmit(event: SubmitEvent): void {
     }
 }
 
-function _herbalSaleOptions(): string {
-    const items = window._herbalCatalog || [];
-    if (!items.length) return '<option value="">Belum ada produk/herbal aktif</option>';
-    let opts = '<option value="">- Pilih Produk / Herbal -</option>';
-    items.forEach((h: HerbalCatalogItem) => {
-        opts += `<option value="${h.id}">${escapeHtml(h.name)} - stok ${h.stock} ${escapeHtml(h.unit)} - ${formatRupiah(h.price)}</option>`;
-    });
-    return opts;
-}
-
 function _selectedHerbalSaleItem(): HerbalCatalogItem | null {
     const id = Number(herbalSelect('herbal-sale-select')?.value || 0);
     return (window._herbalCatalog || []).find((h: HerbalCatalogItem) => h.id === id) || null;
@@ -514,32 +668,31 @@ function _herbalSaleUsedQty(herbalId: number): number {
 
 function openHerbalSaleModal(): void {
     window._herbalSaleItems = [];
+    const selectedId = selectedHerbal()?.id || null;
     const html = `
         <div class="form-group">
-            <label>Nama Pembeli <span style="color:#94a3b8;font-size:10px;text-transform:none;">(opsional)</span></label>
+            <label>Nama Pembeli <span class="text-slate-400 text-[10px] normal-case">(opsional)</span></label>
             <input type="text" id="herbal-sale-buyer" placeholder="Nama pembeli / umum">
         </div>
-        <div class="form-group">
-            <label>Pilih Produk / Herbal</label>
-            <select id="herbal-sale-select" onchange="onHerbalSaleSelectChange()">${_herbalSaleOptions()}</select>
-            <div id="herbal-sale-info" style="font-size:12px;color:var(--text-muted);margin-top:6px;">Pilih produk/herbal untuk melihat stok dan harga.</div>
+        ${herbalPickerHtml('herbal-sale', selectedId)}
+        <div id="herbal-sale-info" class="unit-field-hint">Pilih produk/herbal untuk melihat stok dan harga.</div>
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <input type="number" id="herbal-sale-qty" min="1" placeholder="Jumlah" data-herbal-action="sale-qty">
+            <button type="button" class="btn btn-primary px-3 py-2 bg-green-600" data-herbal-action="sale-add"><i class="fas fa-plus"></i> Tambah</button>
         </div>
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;">
-            <input type="number" id="herbal-sale-qty" min="1" placeholder="Jumlah" oninput="onHerbalSaleQtyInput()">
-            <button type="button" class="btn btn-primary" onclick="addHerbalSaleItem()" style="padding:8px 12px;background:#10b981;"><i class="fas fa-plus"></i> Tambah</button>
-        </div>
-        <div id="herbal-sale-warning" style="display:none;margin-top:8px;color:#b91c1c;font-size:12px;font-weight:600;"></div>
-        <div id="herbal-sale-list" style="margin-top:12px;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">
-            <span style="color:var(--text-muted);font-size:13px;">Total penjualan</span>
+        <div id="herbal-sale-warning" class="sale-warning hidden"></div>
+        <div id="herbal-sale-list" class="mt-3"></div>
+        <div class="sale-total-row">
+            <span class="sale-total-label">Total penjualan</span>
             <strong id="herbal-sale-total">Rp0</strong>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
-            <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
-            <button type="button" class="btn btn-primary" onclick="submitHerbalSale()" style="background:#10b981;"><i class="fas fa-save"></i> Simpan Penjualan</button>
+        <div class="sale-modal-actions">
+            <button type="button" class="btn btn-modal-cancel" data-herbal-action="close-modal">Batal</button>
+            <button type="button" class="btn btn-primary btn-modal-save" data-herbal-action="sale-submit"><i class="fas fa-save"></i> Simpan Penjualan</button>
         </div>
     `;
     openModal('Penjualan Produk / Herbal', html);
+    selectHerbalPickerItem('herbal-sale');
     syncHerbalSaleItems();
 }
 
@@ -560,13 +713,13 @@ function onHerbalSaleQtyInput(): void {
     const qty = Number(herbalInput('herbal-sale-qty')?.value || 0);
     const warning = document.getElementById('herbal-sale-warning');
     if (!warning) return;
-    warning.style.display = 'none';
+    warning.classList.add('hidden');
     warning.textContent = '';
     if (!herbal || qty <= 0) return;
     const used = _herbalSaleUsedQty(herbal.id);
     if (used + qty > herbal.stock) {
         warning.textContent = `Stok ${herbal.name} tidak cukup. Tersedia ${herbal.stock}, sudah dipilih ${used}.`;
-        warning.style.display = 'block';
+        warning.classList.remove('hidden');
     }
 }
 
@@ -620,17 +773,17 @@ function syncHerbalSaleItems(): void {
     const items = window._herbalSaleItems || [];
     if (list) {
         if (!items.length) {
-            list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:10px;background:#f8fafc;border-radius:6px;">Belum ada item penjualan.</div>';
+            list.innerHTML = '<div class="text-xs text-app-muted p-2.5 bg-slate-50 rounded-md">Belum ada item penjualan.</div>';
         } else {
             list.innerHTML = items.map((item: HerbalSaleItem) => {
                 const subtotal = Number(item.price || 0) * Number(item.quantity || 0);
                 return `
-                    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:6px;">
-                        <div style="min-width:0;">
-                            <div style="font-weight:700;font-size:13px;">${escapeHtml(item.name)}</div>
-                            <div style="font-size:12px;color:var(--text-muted);">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)} x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}</div>
+                    <div class="sale-item-grid">
+                        <div class="min-w-0">
+                            <div class="sale-item-name">${escapeHtml(item.name)}</div>
+                            <div class="sale-item-details">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)} x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}</div>
                         </div>
-                        <button type="button" onclick="removeHerbalSaleItem(${Number(item.herbal_id || 0)})" title="Hapus item" style="border:none;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:5px 7px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+                        <button type="button" data-herbal-action="sale-remove" data-id="${Number(item.herbal_id || 0)}" title="Hapus item" class="border-0 bg-red-100 text-red-800 rounded px-[7px] py-[5px] cursor-pointer"><i class="fas fa-trash"></i></button>
                     </div>`;
             }).join('');
         }
@@ -710,7 +863,7 @@ async function loadCorrectionHistory(): Promise<void> {
         if (!response.ok) throw new Error(herbalText(Array.isArray(rows) ? '' : rows.detail, 'Gagal memuat riwayat koreksi.'));
         if (!Array.isArray(rows)) throw new Error('Gagal memuat riwayat koreksi.');
         if (!rows.length) {
-            panel.innerHTML = '<div style="padding:12px;background:#f8fafc;border-radius:6px;">Belum ada riwayat koreksi.</div>';
+            panel.innerHTML = '<div class="p-3 bg-slate-50 rounded-md">Belum ada riwayat koreksi.</div>';
             return;
         }
         const labelMap = {
@@ -719,15 +872,15 @@ async function loadCorrectionHistory(): Promise<void> {
             void_invoice: 'Void Invoice'
         } as Record<string, string>;
         panel.innerHTML = `
-            <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-xs">
                     <thead>
-                        <tr style="background:#f8fafc;">
-                            <th style="text-align:left;padding:9px;">Tanggal</th>
-                            <th style="text-align:left;padding:9px;">Tipe</th>
-                            <th style="text-align:left;padding:9px;">Objek</th>
-                            <th style="text-align:center;padding:9px;">Stok</th>
-                            <th style="text-align:left;padding:9px;">Alasan</th>
+                        <tr class="bg-slate-50">
+                            <th class="text-left p-[9px]">Tanggal</th>
+                            <th class="text-left p-[9px]">Tipe</th>
+                            <th class="text-left p-[9px]">Objek</th>
+                            <th class="text-center p-[9px]">Stok</th>
+                            <th class="text-left p-[9px]">Alasan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -737,30 +890,36 @@ async function loadCorrectionHistory(): Promise<void> {
                                 : `${row.stock_before} -> ${row.stock_after}`;
                             const objectText = row.herbal_name || `${row.reference_type || '-'} #${row.reference_id || '-'}`;
                             return `
-                                <tr style="border-bottom:1px solid #eef2f7;">
-                                    <td style="padding:9px;color:var(--text-muted);">${escapeHtml(_formatCorrectionDate(row.created_at))}</td>
-                                    <td style="padding:9px;font-weight:700;">${escapeHtml(labelMap[row.action_type || ''] || row.action_type || '-')}</td>
-                                    <td style="padding:9px;">${escapeHtml(objectText)}</td>
-                                    <td style="padding:9px;text-align:center;">${escapeHtml(stockText)}</td>
-                                    <td style="padding:9px;color:var(--text-muted);">${escapeHtml(row.reason || '-')}</td>
+                                <tr class="border-b border-slate-100">
+                                    <td class="p-[9px] text-app-muted">${escapeHtml(_formatCorrectionDate(row.created_at))}</td>
+                                    <td class="p-[9px] font-bold">${escapeHtml(labelMap[row.action_type || ''] || row.action_type || '-')}</td>
+                                    <td class="p-[9px]">${escapeHtml(objectText)}</td>
+                                    <td class="p-[9px] text-center">${escapeHtml(stockText)}</td>
+                                    <td class="p-[9px] text-app-muted">${escapeHtml(row.reason || '-')}</td>
                                 </tr>`;
                         }).join('')}
                     </tbody>
                 </table>
             </div>`;
     } catch (error) {
-        panel.innerHTML = `<div style="padding:12px;background:#fef2f2;color:#b91c1c;border-radius:6px;">${escapeHtml(herbalErrorMessage(error))}</div>`;
+        panel.innerHTML = `<div class="p-3 bg-red-50 text-red-800 rounded-md">${escapeHtml(herbalErrorMessage(error))}</div>`;
     }
 }
 
 async function openHerbalReturnModal(): Promise<void> {
+    const initialSearch = selectedHerbal()?.name || '';
     const html = `
-        <div class="form-group">
+        <div class="action-picker">
             <label>Transaksi Penjualan</label>
-            <select id="herbal-return-transaction">
+            <div class="action-picker-search">
+                <i class="fas fa-search"></i>
+                <input type="search" id="herbal-return-search" value="${escapeHtml(initialSearch)}"
+                    placeholder="Cari produk atau tanggal transaksi" data-herbal-action="return-filter">
+            </div>
+            <select id="herbal-return-transaction" class="action-picker-results" size="4" data-herbal-action="return-sync">
                 <option value="">Memuat transaksi...</option>
             </select>
-            <div id="herbal-return-info" style="font-size:12px;color:var(--text-muted);margin-top:6px;">Pilih transaksi yang akan diretur.</div>
+            <div id="herbal-return-info" class="unit-field-hint">Pilih transaksi yang akan diretur.</div>
         </div>
         <div class="form-group">
             <label>Jumlah Retur</label>
@@ -770,9 +929,9 @@ async function openHerbalReturnModal(): Promise<void> {
             <label>Alasan Retur</label>
             <textarea id="herbal-return-reason" rows="3" minlength="5" required placeholder="Contoh: Barang dikembalikan pelanggan"></textarea>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
-            <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
-            <button type="button" class="btn btn-primary" onclick="submitHerbalReturn()" style="background:#f59e0b;"><i class="fas fa-undo"></i> Catat Retur</button>
+        <div class="sale-modal-actions">
+            <button type="button" class="btn btn-modal-cancel" data-herbal-action="close-modal">Batal</button>
+            <button type="button" class="btn btn-primary bg-amber-600" data-herbal-action="return-submit"><i class="fas fa-undo"></i> Catat Retur</button>
         </div>
     `;
     openModal('Retur Penjualan Produk / Herbal', html);
@@ -782,25 +941,46 @@ async function openHerbalReturnModal(): Promise<void> {
         if (!response.ok) throw new Error(payload.detail || 'Gagal memuat transaksi penjualan.');
         const select = herbalSelect('herbal-return-transaction');
         const rows = payload.data || [];
+        window._herbalReturnRows = rows;
         if (!select) return;
-        if (!rows.length) {
-            select.innerHTML = '<option value="">Belum ada transaksi penjualan</option>';
-            return;
-        }
-        select.innerHTML = '<option value="">- Pilih Transaksi -</option>' + rows.map((row: HerbalTransactionRow) => {
-            const label = `${_formatCorrectionDate(row.date)} - ${row.herbal_name} x${row.quantity} - ${formatRupiah(row.total_price)}`;
-            return `<option value="${escapeHtml(row.id)}" data-qty="${escapeHtml(row.quantity)}" data-name="${escapeHtml(row.herbal_name)}">${escapeHtml(label)}</option>`;
-        }).join('');
-        select.onchange = () => {
-            const option = select.options[select.selectedIndex];
-            const info = document.getElementById('herbal-return-info');
-            const qty = option?.dataset?.qty || '';
-            if (info) info.textContent = qty ? `Maksimal retur awal: ${qty} item. Sistem tetap mengecek sisa retur di backend.` : 'Pilih transaksi yang akan diretur.';
-        };
+        filterHerbalReturnPicker();
     } catch (error) {
         const select = herbalSelect('herbal-return-transaction');
         if (select) select.innerHTML = `<option value="">${escapeHtml(herbalErrorMessage(error))}</option>`;
     }
+}
+
+function filterHerbalReturnPicker(): void {
+    const query = herbalText(herbalInput('herbal-return-search')?.value).toLowerCase();
+    const select = herbalSelect('herbal-return-transaction');
+    if (!select) return;
+    const rows = (window._herbalReturnRows || []).filter(row => {
+        const searchable = `${row.herbal_name || ''} ${_formatCorrectionDate(row.date)} ${row.quantity || ''} ${row.total_price || ''}`.toLowerCase();
+        return !query || searchable.includes(query);
+    });
+    select.innerHTML = rows.length ? rows.map((row: HerbalTransactionRow) => {
+        const label = `${_formatCorrectionDate(row.date)} - ${row.herbal_name} x${row.quantity} - ${formatRupiah(row.total_price)}`;
+        return `<option value="${escapeHtml(row.id)}" data-herbal-id="${escapeHtml(row.herbal_id)}" data-qty="${escapeHtml(row.quantity)}" data-name="${escapeHtml(row.herbal_name)}">${escapeHtml(label)}</option>`;
+    }).join('') : '<option value="">Belum ada transaksi/produk tersedia.</option>';
+    syncHerbalReturnInfo();
+}
+
+function syncHerbalReturnInfo(): void {
+    const select = herbalSelect('herbal-return-transaction');
+    const option = select?.options[select.selectedIndex];
+    const info = document.getElementById('herbal-return-info');
+    const qty = option?.dataset?.qty || '';
+    const productId = Number(option?.dataset?.herbalId || 0);
+    const product = (window._herbalCatalog || []).find(item => item.id === productId);
+    if (!info) return;
+    if (!qty) {
+        info.textContent = 'Belum ada transaksi/produk tersedia.';
+        return;
+    }
+    const stockDetail = product
+        ? ` Stok saat ini ${product.stock} ${product.unit} (${herbalStatus(product)}).`
+        : '';
+    info.textContent = `Maksimal retur awal: ${qty} item.${stockDetail} Sistem tetap mengecek sisa retur di backend.`;
 }
 
 async function submitHerbalReturn(): Promise<void> {
@@ -855,7 +1035,7 @@ function editHerbal(
     minStock: number | string = 5
 ): void {
     const html = `
-        <form id="edit-herbal-form" onsubmit="submitEditHerbal(event)">
+        <form id="edit-herbal-form" data-herbal-form-action="edit">
             <input type="hidden" name="herbal_id" value="${id}">
             <div class="unit-help-note compact">
                 <strong>Satuan dasar</strong> adalah stok terkecil. <strong>Satuan kemasan</strong> adalah bungkus besar. Contoh: dasar botol, kemasan box, isi 12.
@@ -868,7 +1048,7 @@ function editHerbal(
                 <label>Satuan Dasar</label>
                 ${herbalUnitSelectHtml('unit', unit)}
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="grid grid-cols-2 gap-2.5">
                 <div class="form-group">
                     <label>Satuan Kemasan</label>
                     ${herbalUnitSelectHtml('package_unit', packageUnit, true)}
@@ -878,7 +1058,7 @@ function editHerbal(
                     <input type="number" name="package_size" value="${Number(packageSize || 1)}" required min="1">
                 </div>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="grid grid-cols-2 gap-2.5">
                 <div class="form-group">
                     <label>Stok</label>
                     <input type="number" name="stock" value="${stock}" required min="0">
@@ -896,13 +1076,32 @@ function editHerbal(
                     <input type="number" name="min_stock" value="${Number(minStock || 5)}" required min="0">
                 </div>
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-                <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
+            <div class="sale-modal-actions">
+                <button type="button" class="btn btn-modal-cancel" data-herbal-action="close-modal">Batal</button>
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan</button>
             </div>
         </form>
     `;
     openModal('Edit Produk / Herbal', html);
+}
+
+function editHerbalFromCache(id: number | string): void {
+    const item = herbalById(id);
+    if (!item) {
+        showToast('Produk/herbal tidak ditemukan. Muat ulang data lalu coba lagi.', 'error');
+        return;
+    }
+    editHerbal(
+        item.id,
+        item.name,
+        item.unit,
+        item.price,
+        item.stock,
+        item.cost_price,
+        item.package_unit || '',
+        item.package_size || 1,
+        item.min_stock || 5
+    );
 }
 
 async function submitEditHerbal(event: SubmitEvent): Promise<void> {
@@ -963,8 +1162,19 @@ async function deleteHerbal(id: number | string, name: string): Promise<void> {
     }
 }
 
+async function deleteHerbalFromCache(id: number | string): Promise<void> {
+    const item = herbalById(id);
+    await deleteHerbal(id, item?.name || 'produk/herbal');
+}
+
+function goToHerbalPage(page: number): void {
+    (window as any)._herbalPage = page;
+    loadTab('herbals');
+}
+
 window.renderHerbals = renderHerbals;
 window.selectHerbal = selectHerbal;
+window.goToHerbalPage = goToHerbalPage;
 window.setHerbalStockMode = setHerbalStockMode;
 window.updateHerbalStockPreview = updateHerbalStockPreview;
 window.prepareHerbalStockSubmit = prepareHerbalStockSubmit;
@@ -975,7 +1185,15 @@ window.addHerbalSaleItem = addHerbalSaleItem;
 window.removeHerbalSaleItem = removeHerbalSaleItem;
 window.submitHerbalSale = submitHerbalSale;
 window.openHerbalReturnModal = openHerbalReturnModal;
+window.filterHerbalReturnPicker = filterHerbalReturnPicker;
+window.syncHerbalReturnInfo = syncHerbalReturnInfo;
 window.submitHerbalReturn = submitHerbalReturn;
 window.editHerbal = editHerbal;
 window.submitEditHerbal = submitEditHerbal;
 window.deleteHerbal = deleteHerbal;
+window.openAddHerbalModal = openAddHerbalModal;
+window.submitAddHerbal = submitAddHerbal;
+window.openHerbalStockModal = openHerbalStockModal;
+window.submitHerbalStock = submitHerbalStock;
+window.filterHerbalPicker = filterHerbalPicker;
+window.selectHerbalPickerItem = selectHerbalPickerItem;

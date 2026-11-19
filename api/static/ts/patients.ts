@@ -15,7 +15,8 @@ function _cacheTherapists(payload) {
         gender: t.gender || '',
         specialization: t.specialization || '',
         is_active: t.is_active !== false,
-        can_handle_any_gender: t.can_handle_any_gender === true
+        can_handle_any_gender: t.can_handle_any_gender === true,
+        service_capabilities: Array.isArray(t.service_capabilities) ? t.service_capabilities : []
     }));
     window._therapistMap = {};
     window._therapistsList.forEach(t => { window._therapistMap[t.id] = t.name; });
@@ -70,6 +71,77 @@ window._visitDiscountRulesLoaded = window._visitDiscountRulesLoaded || false;
 window._visitDiscountRuleMap = window._visitDiscountRuleMap || {};
 window._visitConfirmInProgress = window._visitConfirmInProgress || false;
 window._visitSubmitInProgress = window._visitSubmitInProgress || false;
+
+let patientsDelegationReady = false;
+
+function ensurePatientsEventDelegation() {
+    if (patientsDelegationReady) return;
+    patientsDelegationReady = true;
+
+    document.addEventListener('click', (event) => {
+        const actionElement = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-patient-action]');
+        if (!actionElement) return;
+        const action = actionElement.dataset.patientAction || '';
+        if (!action) return;
+        event.preventDefault();
+
+        switch (action) {
+            case 'new-patient-tab':
+                document.querySelector<HTMLElement>('[data-tab="patients"]')?.click();
+                break;
+            case 'clear-visit-search':
+                clearVisitPatientSearch(actionElement.dataset.focus === 'true');
+                break;
+            case 'add-visit-herbal':
+                addVisitHerbalItem();
+                break;
+            case 'payment-quick':
+                setVisitPaymentQuick(actionElement.dataset.status || 'unpaid', actionElement.dataset.method || 'other');
+                break;
+            case 'edit':
+                _dtEditPatient(Number(actionElement.dataset.id || 0));
+                break;
+            case 'visits':
+                _dtShowVisits(Number(actionElement.dataset.id || 0));
+                break;
+            case 'remove-visit-herbal':
+                removeVisitHerbalItem(Number(actionElement.dataset.id || 0));
+                break;
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const target = event.target as HTMLInputElement | null;
+        const action = target?.dataset?.patientAction || '';
+        if (action === 'visit-search') onVisitPatientSearchInput(target.value);
+        if (action === 'visit-price') calcVisitPrice(target.value);
+        if (action === 'visit-manual-price') onVisitManualPriceInput();
+        if (action === 'visit-herbal-qty') onVisitHerbalQtyInput();
+    });
+
+    document.addEventListener('focusin', (event) => {
+        const target = event.target as HTMLInputElement | null;
+        if (target?.dataset?.patientAction === 'visit-search') {
+            onVisitPatientSearchInput(target.value);
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target as HTMLElement | null;
+        const action = target?.dataset?.patientAction || '';
+        if (action === 'visit-therapist') onVisitTherapistChange();
+        if (action === 'visit-service') onVisitServiceChange();
+        if (action === 'visit-herbal-select') onVisitHerbalSelectChange();
+        if (action === 'visit-free') onVisitFreeChange();
+        if (action === 'visit-payment-status') onVisitPaymentStatusChange();
+    });
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target as HTMLFormElement | null;
+        if (form?.dataset?.patientFormAction !== 'add-visit') return;
+        validateVisitPatientSelected(event);
+    });
+}
 
 function setVisitSubmitLoading(isLoading) {
     window._visitSubmitInProgress = !!isLoading;
@@ -245,6 +317,7 @@ function _refreshVisitTherapistSelect(gender = '') {
         therapistSelect.innerHTML = _buildTherapistOptions(gender);
         therapistSelect.disabled = !state.canSelect;
         therapistSelect.setAttribute('aria-describedby', 'visit-therapist-helper');
+        therapistSelect.onchange = () => onVisitTherapistChange();
     }
     if (helper) {
         helper.textContent = state.helper;
@@ -255,6 +328,7 @@ function _refreshVisitTherapistSelect(gender = '') {
         submitButton.style.opacity = state.canSelect ? '1' : '0.65';
         submitButton.style.cursor = state.canSelect ? 'pointer' : 'not-allowed';
     }
+    onVisitTherapistChange(false);
 }
 
 function validateVisitTherapistSelected(event = null) {
@@ -293,6 +367,7 @@ function validateVisitPatientSelected(event = null) {
 }
 
 async function renderPatients() {
+    ensurePatientsEventDelegation();
     window._patientsTableMode = 'patients';
     try {
         const r = await fetch('/therapists?active_only=true');
@@ -306,7 +381,7 @@ async function renderPatients() {
 
     const html = `
         <div class="patients-page">
-            <div class="card patient-form-card">
+            <div class="card patient-form-card is-visible">
                 <div class="card-header">
                     <h3><i class="fas fa-user-plus"></i> Registrasi Pasien Baru</h3>
                 </div>
@@ -344,14 +419,14 @@ async function renderPatients() {
                     </div>
                     <span id="dt-total-badge">Memuat...</span>
                 </div>
-                <table id="patients-dt" class="patient-table display" style="width:100%;">
+                <table id="patients-dt" class="patient-table display">
                     <thead>
                         <tr>
                             <th>Identitas Pasien</th>
                             <th>Gender</th>
                             <th>Kontak</th>
-                            <th style="text-align:center;">Kunjungan</th>
-                            <th style="text-align:center;">Aksi</th>
+                            <th class="text-center">Kunjungan</th>
+                            <th class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -365,6 +440,7 @@ async function renderPatients() {
 }
 
 async function renderVisits() {
+    ensurePatientsEventDelegation();
     window._patientsTableMode = 'visits';
     await ensureVisitDiscountRulesLoaded();
     // 1. Fetch therapists list for form dropdowns (separate from main DT data)
@@ -393,9 +469,7 @@ async function renderVisits() {
         const services = options.services || [];
         window._servicesList = services;
         window._visitPricePerPoint = parseFloat(options.price_per_point || 10000);
-        serviceOpts = services.map(s =>
-            `<option value="${s.id}" data-name="${escapeHtml(s.name)}" data-unit="${escapeHtml(s.unit_label || 'sesi')}" data-qty="${s.default_quantity || 1}" data-price="${s.price_per_unit || 0}" data-notes="${escapeHtml(s.notes_template || '')}">${escapeHtml(s.name)}</option>`
-        ).join('') || '<option value="" data-name="Bekam" data-unit="titik" data-qty="13" data-price="0">Layanan Terapi</option>';
+        serviceOpts = _buildVisitServiceOptions();
         freeReasonOpts = (options.free_visit_reasons || ['promo', 'keluarga', 'koreksi', 'gratis lain-lain'])
             .map(reason => `<option value="${escapeHtml(reason)}">${escapeHtml(reason)}</option>`)
             .join('');
@@ -419,21 +493,21 @@ async function renderVisits() {
 
     // 2. Build static layout HTML
     const html = `
-        <div class="visit-page">
+        <div class="visit-page" data-ui-revision="phase3d-r3-reopened">
             <section class="visit-quick-picker">
                 <div class="visit-quick-head">
                     <div>
                         <h3><i class="fas fa-search"></i> Cari Pasien untuk Kunjungan</h3>
                         <p>Cari pasien langsung dari sini, lalu form kunjungan siap diisi.</p>
                     </div>
-                    <button type="button" class="visit-new-patient-btn" onclick="document.querySelector('[data-tab=&quot;patients&quot;]')?.click()">
+                    <button type="button" class="visit-new-patient-btn" data-patient-action="new-patient-tab">
                         <i class="fas fa-user-plus"></i> Pasien Baru
                     </button>
                 </div>
                 <div class="visit-patient-search-wrap">
                     <i class="fas fa-search"></i>
-                    <input type="text" id="visit-patient-search" class="visit-patient-search" placeholder="Cari nama / nomor HP pasien..." autocomplete="off" oninput="onVisitPatientSearchInput(this.value)" onfocus="onVisitPatientSearchInput(this.value)">
-                    <button type="button" id="visit-patient-search-clear" class="visit-search-clear" onclick="clearVisitPatientSearch()" aria-label="Bersihkan pencarian"><i class="fas fa-times"></i></button>
+                    <input type="text" id="visit-patient-search" class="visit-patient-search" placeholder="Cari nama / nomor HP pasien..." autocomplete="off" data-patient-action="visit-search">
+                    <button type="button" id="visit-patient-search-clear" class="visit-search-clear" data-patient-action="clear-visit-search" aria-label="Bersihkan pencarian"><i class="fas fa-times"></i></button>
                     <div id="visit-patient-results" class="visit-patient-results" hidden></div>
                 </div>
                 <div id="visit-selected-patient-card" class="visit-selected-patient is-empty">
@@ -445,47 +519,18 @@ async function renderVisits() {
             </section>
 
             <section class="visit-main-layout">
-            <!-- Form Registrasi Pasien -->
-            <div class="card" style="display:none; height:fit-content; border-top:3px solid var(--primary);">
-                <div class="card-header">
-                    <h3><i class="fas fa-user-plus"></i> Registrasi Pasien</h3>
-                </div>
-                <form action="/add_patient" method="post">
-                    <div class="form-group">
-                        <label>Nama Pasien</label>
-                        <input type="text" name="name" required placeholder="Nama lengkap...">
-                    </div>
-                    <div class="form-group">
-                        <label>Telepon <span style="color:#aaa;font-size:10px;text-transform:none;">(opsional)</span></label>
-                        <input type="text" name="phone" placeholder="08xx... (kosong = nomor sementara)">
-                    </div>
-                    <div class="form-group">
-                        <label>Alamat</label>
-                        <input type="text" name="address" placeholder="Alamat domisili...">
-                    </div>
-                    <div class="form-group">
-                        <label>Jenis Kelamin</label>
-                        <select name="gender">
-                            <option value="Laki-laki">Laki-laki</option>
-                            <option value="Perempuan">Perempuan</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Tambah Pasien</button>
-                </form>
-            </div>
-
             <!-- Form Catat Kunjungan -->
-            <div class="card" style="height:fit-content; border-top:3px solid var(--success);">
+            <div class="card visit-form-card">
                 <div class="card-header">
-                    <h3><i class="fas fa-notes-medical" style="color:var(--success);"></i> Catat Kunjungan Baru</h3>
+                    <h3><i class="fas fa-notes-medical"></i> Catat Kunjungan Baru</h3>
                 </div>
-                <form action="/add_visit" method="post" class="visit-form-grid" onsubmit="return validateVisitPatientSelected(event)">
+                <form action="/add_visit" method="post" class="visit-form-grid" data-patient-form-action="add-visit">
                     <input type="hidden" name="patient_id" id="visit_patient_id" required>
                     <div class="visit-form-section visit-patient-section">
                         <div class="visit-section-title"><i class="fas fa-user-check"></i> Pasien Terpilih</div>
                         <div class="form-group">
                             <label>Pasien</label>
-                            <div id="selected-patient-badge" style="padding:8px 12px; background:#f0f4ff; border:1px solid #c7d2fe; border-radius:6px; font-size:13px; color:#4338ca; font-weight:500; min-height:37px;">
+                            <div id="selected-patient-badge" class="selected-patient-badge">
                                 <i class="fas fa-info-circle"></i> Cari pasien di bagian atas form
                             </div>
                         </div>
@@ -495,41 +540,42 @@ async function renderVisits() {
                         <div class="visit-section-grid">
                             <div class="form-group">
                                 <label>Pilih Terapis</label>
-                                <select name="therapist_id" id="visit-therapist-select" required>${trptOpts}</select>
+                                <select name="therapist_id" id="visit-therapist-select" required data-patient-action="visit-therapist">${trptOpts}</select>
                                 <div id="visit-therapist-helper" class="field-helper"></div>
                             </div>
                             <div class="form-group">
                                 <label>Layanan</label>
-                                <select name="service_id" id="visit-service-select" onchange="onVisitServiceChange()">${serviceOpts}</select>
+                                <select name="service_id" id="visit-service-select" data-patient-action="visit-service">${serviceOpts}</select>
                                 <input type="hidden" name="service_name" id="visit-service-name" value="Bekam">
+                                <div id="visit-service-capability-helper" class="field-helper visit-capability-helper"></div>
                             </div>
                             <div class="form-group visit-metric-field">
                                 <div class="visit-field-head">
                                     <label id="visit-quantity-label">Jumlah Layanan</label>
                                     <span class="visit-field-spacer" aria-hidden="true"></span>
                                 </div>
-                                <input type="number" name="point_count" id="visit-point-input" required placeholder="Quantity" min="1" oninput="calcVisitPrice(this.value)">
+                                <input type="number" name="point_count" id="visit-point-input" required placeholder="Quantity" min="1" data-patient-action="visit-price">
                             </div>
                             <div class="form-group visit-metric-field">
                                 <div class="visit-field-head">
                                     <label>Harga Akhir (Rp)</label>
                                     <span id="price-hint" class="visit-price-hint"></span>
                                 </div>
-                                <input type="number" id="visit-price-input" name="price" required placeholder="Otomatis / manual" min="0" oninput="onVisitManualPriceInput()">
+                                <input type="number" id="visit-price-input" name="price" required placeholder="Otomatis / manual" min="0" data-patient-action="visit-manual-price">
                                 <input type="hidden" id="visit-manual-price-used" name="manual_price_used" value="false">
                             </div>
                         </div>
                     </div>
-                    <div class="visit-form-section visit-herbal-section">
+                    <div class="visit-form-section visit-herbal-section visit-priority-section">
                         <label class="visit-herbal-title"><i class="fas fa-leaf"></i> Pembelian Produk / Herbal Tambahan</label>
                         <input type="hidden" name="herbal_items" id="visit-herbal-items-input" value="[]">
                         <div class="visit-herbal-entry">
                             <div class="visit-herbal-select-wrap">
-                                <select id="visit-herbal-select" onchange="onVisitHerbalSelectChange()">${herbalOpts}</select>
+                                <select id="visit-herbal-select" data-patient-action="visit-herbal-select">${herbalOpts}</select>
                                 <div id="visit-herbal-info" class="visit-herbal-info">Pilih produk/herbal untuk melihat stok dan harga.</div>
                             </div>
-                            <input type="number" id="visit-herbal-qty" min="1" placeholder="Qty" oninput="onVisitHerbalQtyInput()">
-                            <button type="button" class="btn btn-primary visit-herbal-add-btn" onclick="addVisitHerbalItem()"><i class="fas fa-plus"></i> Tambah</button>
+                            <input type="number" id="visit-herbal-qty" min="1" placeholder="Qty" data-patient-action="visit-herbal-qty">
+                            <button type="button" class="btn btn-primary visit-herbal-add-btn" data-patient-action="add-visit-herbal"><i class="fas fa-plus"></i> Tambah</button>
                         </div>
                         <div id="visit-herbal-warning" class="visit-herbal-warning"></div>
                         <div class="visit-herbal-body">
@@ -546,12 +592,12 @@ async function renderVisits() {
                             </div>
                         </div>
                     </div>
-                    <div class="visit-form-section visit-free-voucher-section">
+                    <div class="visit-form-section visit-free-voucher-section visit-secondary-section">
                         <div class="visit-section-title"><i class="fas fa-ticket-alt"></i> Voucher / Gratis</div>
                         <div class="visit-section-grid">
                             <div class="form-group visit-free-field">
                                 <label class="activation-switch visit-free-toggle is-off" id="visit-free-control" for="visit-free-checkbox">
-                                    <input type="checkbox" name="is_free_visit" id="visit-free-checkbox" value="true" onchange="onVisitFreeChange()">
+                                    <input type="checkbox" name="is_free_visit" id="visit-free-checkbox" value="true" data-patient-action="visit-free">
                                     <span class="activation-track" aria-hidden="true"><span></span></span>
                                     <span class="activation-copy">
                                         <strong id="visit-free-title">Kunjungan Gratis</strong>
@@ -561,31 +607,31 @@ async function renderVisits() {
                                 <select name="free_visit_reason" id="visit-free-reason" disabled>${freeReasonOpts}</select>
                             </div>
                             <div class="form-group visit-voucher-field">
-                                <label>Voucher <span style="color:#94a3b8;font-size:10px;text-transform:none;">(opsional)</span></label>
+                                <label>Voucher <span class="visit-voucher-label-optional">(opsional)</span></label>
                                 <input type="text" name="voucher_code" id="visit-voucher-input" placeholder="Contoh: SEHAT10">
                                 <div id="visit-voucher-help" class="field-helper">Voucher aktif untuk kunjungan berbayar.</div>
                             </div>
                         </div>
                     </div>
-                    <div class="visit-form-section visit-notes-section">
+                    <div class="visit-form-section visit-notes-section visit-secondary-section">
                         <div class="visit-section-title"><i class="fas fa-clipboard-list"></i> Catatan Medis</div>
                         <div class="form-group">
                             <label>Catatan</label>
                             <input type="text" name="medical_notes" id="visit-notes-input" placeholder="Keluhan, kondisi, dll...">
                         </div>
                     </div>
-                    <div class="visit-form-section visit-payment-section">
+                    <div class="visit-form-section visit-payment-section visit-secondary-section">
                         <div class="visit-section-title"><i class="fas fa-wallet"></i> Pembayaran</div>
                         <div class="visit-payment-quick-actions" aria-label="Pilihan cepat pembayaran">
-                            <button type="button" onclick="setVisitPaymentQuick('paid', 'cash')"><i class="fas fa-money-bill-wave"></i> Tunai Lunas</button>
-                            <button type="button" onclick="setVisitPaymentQuick('paid', 'qris')"><i class="fas fa-qrcode"></i> QRIS Manual Lunas</button>
-                            <button type="button" onclick="setVisitPaymentQuick('unpaid', 'other')"><i class="fas fa-clock"></i> Belum Dibayar</button>
-                            <button type="button" onclick="setVisitPaymentQuick('partial', 'cash')"><i class="fas fa-receipt"></i> Catat DP</button>
+                            <button type="button" data-patient-action="payment-quick" data-status="paid" data-method="cash"><i class="fas fa-money-bill-wave"></i> Tunai Lunas</button>
+                            <button type="button" data-patient-action="payment-quick" data-status="paid" data-method="qris"><i class="fas fa-qrcode"></i> QRIS Manual Lunas</button>
+                            <button type="button" data-patient-action="payment-quick" data-status="unpaid" data-method="other"><i class="fas fa-clock"></i> Belum Dibayar</button>
+                            <button type="button" data-patient-action="payment-quick" data-status="partial" data-method="cash"><i class="fas fa-receipt"></i> Catat DP</button>
                         </div>
                         <div class="visit-section-grid">
                             <div class="form-group">
                                 <label>Status Tagihan</label>
-                                <select name="payment_status" id="visit-payment-status" onchange="onVisitPaymentStatusChange()">
+                                <select name="payment_status" id="visit-payment-status" data-patient-action="visit-payment-status">
                                     <option value="unpaid" selected>Belum Dibayar</option>
                                     <option value="paid">Lunas</option>
                                     <option value="partial">Bayar Sebagian (DP)</option>
@@ -612,40 +658,40 @@ async function renderVisits() {
                         </div>
                         <div id="visit-payment-revenue-hint" class="visit-payment-hint">Belum masuk pendapatan sampai ditandai lunas/sebagian.</div>
                     </div>
-                    <button type="submit" id="visit-submit-button" class="btn btn-primary" style="background:linear-gradient(135deg,var(--success),#059669); box-shadow:0 4px 12px rgba(16,185,129,0.35);">
+                    <button type="submit" id="visit-submit-button" class="btn btn-primary visit-submit-button">
                         <i class="fas fa-plus-circle"></i> Catat Kunjungan
                     </button>
                 </form>
             </div>
 
-            <div class="card" id="visit-panel" style="padding:0; min-width:0; display:flex; flex-direction:column;">
-                <div id="visit-panel-content" style="display:flex; flex-direction:column; height:100%; min-height:360px;">
-                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); gap:12px; padding:32px;">
-                        <i class="fas fa-hand-pointer" style="font-size:48px; opacity:0.12;"></i>
-                        <p style="font-size:15px; font-weight:500;">Cari pasien dari bagian atas</p>
-                        <p style="font-size:12px;">riwayat kunjungan pasien aktif akan tampil di sini</p>
+            <div class="card visit-panel" id="visit-panel">
+                <div id="visit-panel-content" class="visit-panel-content">
+                    <div class="visit-panel-empty">
+                        <i class="fas fa-hand-pointer"></i>
+                        <p>Cari pasien dari bagian atas</p>
+                        <small>riwayat kunjungan pasien aktif akan tampil di sini</small>
                     </div>
                 </div>
             </div>
             </section>
 
         <!-- ── Main section: DataTable kiri + Visit panel kanan ── -->
-        <div style="display:block; margin-top:16px;">
+        <div class="patient-stats-row">
 
             <!-- LEFT: DataTable -->
-            <div class="card" style="padding:12px 16px 16px; flex:1; min-width:0;">
+            <div class="card patient-stats-card">
                 <div class="visit-table-toolbar">
-                    <strong><i class="fas fa-address-book"></i> Database Pasien</strong>
-                    <span id="dt-total-badge" style="font-size:12px; color:var(--text-muted); flex-shrink:0;"></span>
+                    <strong><i class="fas fa-address-book"></i> Data Pasien</strong>
+                    <span id="dt-total-badge" class="patient-stats-badge"></span>
                 </div>
-                <table id="patients-dt" class="display" style="width:100%; font-size:13px;">
+                <table id="patients-dt" class="display patient-dt-table">
                     <thead>
                         <tr>
                             <th>Nama</th>
                             <th>Jenis Kelamin</th>
                             <th>No HP</th>
-                            <th style="text-align:center;">Kunjungan</th>
-                            <th style="text-align:center;">Aksi</th>
+                            <th class="text-center">Kunjungan</th>
+                            <th class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -653,12 +699,12 @@ async function renderVisits() {
             </div>
 
             <!-- RIGHT: Visit detail panel -->
-            <div class="card" id="visit-panel-legacy" style="display:none; padding:0; width:440px; min-width:340px; flex-shrink:0; flex-direction:column;">
-                <div id="visit-panel-content-legacy" style="display:flex; flex-direction:column; height:100%; min-height:400px;">
-                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); gap:12px;">
-                        <i class="fas fa-hand-pointer" style="font-size:48px; opacity:0.12;"></i>
-                        <p style="font-size:15px; font-weight:500;">Cari pasien dari bagian atas</p>
-                        <p style="font-size:12px;">untuk melihat riwayat kunjungannya</p>
+            <div class="card visit-panel-legacy" id="visit-panel-legacy">
+                <div class="visit-panel-legacy-content" id="visit-panel-content-legacy">
+                    <div class="visit-panel-legacy-empty">
+                        <i class="fas fa-hand-pointer visit-panel-legacy-icon"></i>
+                        <p class="visit-panel-legacy-title">Cari pasien dari bagian atas</p>
+                        <p class="visit-panel-legacy-subtitle">untuk melihat riwayat kunjungannya</p>
                     </div>
                 </div>
             </div>
@@ -674,7 +720,7 @@ async function renderVisits() {
         const visitsTableWrap = mainLayout?.nextElementSibling;
         formCard?.classList.add('visit-form-card', 'visit-panel', 'visit-form-panel');
         formCard?.querySelector('.card-header')?.classList.add('visit-panel-header');
-        formCard?.querySelector('form')?.classList.add('visit-form-grid');
+        formCard?.querySelector('form')?.classList.add('visit-form-grid', 'visit-priority-flow');
         detailCard?.classList.add('visit-detail-card', 'visit-panel', 'visit-history-panel');
         detailCard?.removeAttribute('style');
         if (visitsTableWrap) {
@@ -703,12 +749,21 @@ function setupVisitSearchDelegate() {
     const input = document.getElementById('visit-patient-search');
     if (!results || !input) return;
 
-    // Click Delegation
-    results.addEventListener('click', (e) => {
-        const btn = e.target.closest('.visit-patient-result');
-        if (!btn) return;
+    const selectVisitPatientResult = (btn) => {
         const id = btn.dataset.patientId;
         if (id) _dtShowVisits(Number(id));
+    };
+    // WebView2 can blur and hide the result list before click is delivered.
+    results.addEventListener('pointerdown', (e) => {
+        const btn = (e.target as Element | null)?.closest('.visit-patient-result');
+        if (!btn) return;
+        e.preventDefault();
+        selectVisitPatientResult(btn);
+    });
+    results.addEventListener('click', (e) => {
+        const btn = (e.target as Element | null)?.closest('.visit-patient-result');
+        if (!btn || (e as MouseEvent).detail > 0) return;
+        selectVisitPatientResult(btn);
     });
 
     // Keyboard support
@@ -722,6 +777,10 @@ function setupVisitSearchDelegate() {
                 first.click();
             }
         }
+    });
+
+    input.addEventListener('blur', () => {
+        window.setTimeout(() => closeVisitPatientResults(), 0);
     });
 
     // Close on click outside
@@ -815,8 +874,8 @@ function _initPatientsDataTable() {
             {
                 data: 'phone',
                 render: function (val) {
-                    if (!val || val.startsWith('TEMP-')) return '<span style="color:#94a3b8; font-size:12px; font-style:italic;">Belum diatur</span>';
-                    return `<span style="font-size:13px; font-weight:600; color:#475569;">${escapeHtml(val)}</span>`;
+                    if (!val || val.startsWith('TEMP-')) return '<span class="patient-phone-placeholder">Belum diatur</span>';
+                    return `<span class="patient-phone-value">${escapeHtml(val)}</span>`;
                 },
                 orderable: true
             },
@@ -835,17 +894,19 @@ function _initPatientsDataTable() {
                 render: function (row) {
                     if (window._patientsTableMode === 'patients') {
                         return `
-                            <button onclick="_dtEditPatient(${row.id})" class="patient-edit-btn" title="Edit Data Pasien">
-                                <i class="fas fa-pen"></i> Edit
-                            </button>`;
+                            <div class="patient-action-buttons patient-action-buttons-compact">
+                                <button type="button" data-patient-action="edit" data-id="${escapeHtml(row.id)}" class="patient-edit-btn" title="Edit Data Pasien">
+                                    <i class="fas fa-pen"></i><span>Edit</span>
+                                </button>
+                            </div>`;
                     }
                     return `
-                        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-                            <button onclick="_dtShowVisits(${row.id})" class="patient-edit-btn" title="Lihat Kunjungan" style="color:var(--primary); border-color:var(--primary-light);">
-                                <i class="fas fa-history"></i> Riwayat
+                        <div class="patient-action-buttons patient-action-buttons-grouped">
+                            <button type="button" data-patient-action="visits" data-id="${escapeHtml(row.id)}" class="patient-edit-btn patient-edit-btn-primary" title="Lihat Kunjungan">
+                                <i class="fas fa-history"></i><span>Riwayat</span>
                             </button>
-                            <button onclick="_dtEditPatient(${row.id})" class="patient-edit-btn" title="Edit Data Pasien">
-                                <i class="fas fa-pen"></i> Edit
+                            <button type="button" data-patient-action="edit" data-id="${escapeHtml(row.id)}" class="patient-edit-btn" title="Edit Data Pasien">
+                                <i class="fas fa-pen"></i><span>Edit</span>
                             </button>
                         </div>`;
                 }
@@ -916,7 +977,7 @@ function updateVisitSelectedPatientCard(patient) {
             <strong>${formatRupiah(totalIncome)}</strong>
             <span>Total revenue</span>
         </div>
-        <button type="button" class="visit-change-patient-btn" onclick="clearVisitPatientSearch(true)">Ganti Pasien</button>`;
+        <button type="button" class="visit-change-patient-btn" data-patient-action="clear-visit-search" data-focus="true">Ganti Pasien</button>`;
 
     const search = document.getElementById('visit-patient-search');
     if (search) search.value = patient.name || '';
@@ -1022,7 +1083,7 @@ async function _dtShowVisits(patientId) {
     } catch (e) {
         const panel = document.getElementById('visit-panel-content');
         if (panel) {
-            panel.innerHTML = `<div style="padding:24px;color:var(--danger);font-weight:600;">${escapeHtml(e.message)}</div>`;
+            panel.innerHTML = `<div class="visit-error-panel">${escapeHtml(e.message)}</div>`;
         }
         return;
     }
@@ -1037,7 +1098,7 @@ async function _dtShowVisits(patientId) {
     const badge = document.getElementById('selected-patient-badge');
     if (badge) {
         const genderColor = patientRow.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
-        badge.innerHTML = `<i class="fas fa-user" style="color:${genderColor};"></i> <strong>${escapeHtml(patientRow.name)}</strong> <span style="color:#94a3b8;font-size:11px;">(${escapeHtml(patientRow.gender)})</span>`;
+        badge.innerHTML = `<span class="visit-selected-patient-badge"><i class="fas fa-user" style="color:${genderColor};"></i> <strong>${escapeHtml(patientRow.name)}</strong> <span class="visit-selected-patient-gender">(${escapeHtml(patientRow.gender)})</span></span>`;
     }
     updateVisitSelectedPatientCard(patientRow);
     closeVisitPatientResults();
@@ -1064,10 +1125,10 @@ async function _dtShowVisits(patientId) {
             <div class="visit-patient-main">
                 <div class="visit-patient-name-row">
                     <span class="visit-patient-name">${escapeHtml(patientRow.name)}</span>
-                    <button class="visit-edit-btn" onclick="_dtEditPatient(${patientRow.id})">Edit</button>
+                    <button type="button" class="visit-edit-btn" data-patient-action="edit" data-id="${escapeHtml(patientRow.id)}"><i class="fas fa-pen"></i><span>Edit Pasien</span></button>
                 </div>
                 <div class="visit-patient-meta">
-                    <span>${patientRow.phone && patientRow.phone.startsWith('TEMP-') ? '<i class="fas fa-clock"></i> No HP blm diatur' : '<i class="fab fa-whatsapp" style="color:#25D366"></i> ' + escapeHtml(patientRow.phone)}</span>
+                    <span>${patientRow.phone && patientRow.phone.startsWith('TEMP-') ? '<i class="fas fa-clock"></i> No HP blm diatur' : '<i class="fab fa-whatsapp visit-patient-meta-icon"></i> ' + escapeHtml(patientRow.phone)}</span>
                     <span><i class="fas fa-map-marker-alt"></i> ${escapeHtml(patientRow.address) || '-'}</span>
                 </div>
             </div>
@@ -1323,7 +1384,7 @@ function syncVisitHerbalItems() {
                             <div class="visit-herbal-meta">${item.quantity} ${escapeHtml(item.unit)}</div>
                         </div>
                         <div class="visit-herbal-price">${formatRupiah(subtotal)}</div>
-                        <button type="button" class="visit-herbal-remove" onclick="removeVisitHerbalItem(${item.herbal_id})" title="Hapus herbal"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="visit-herbal-remove" data-patient-action="remove-visit-herbal" data-id="${escapeHtml(item.herbal_id)}" title="Hapus herbal"><i class="fas fa-trash"></i></button>
                     </div>`;
             }).join('');
             list.innerHTML = `
@@ -1599,6 +1660,75 @@ function onVisitServiceChange() {
     if (notesInput) notesInput.placeholder = notesTemplate || 'Keluhan, kondisi, dll...';
     pointInput.value = String(qty || 1);
     calcVisitPrice(pointInput.value);
+}
+
+function _buildVisitServiceOptions(allowedServiceIds: Set<string> | null = null): string {
+    const services = Array.isArray(window._servicesList) ? window._servicesList : [];
+    const visible = allowedServiceIds
+        ? services.filter(service => allowedServiceIds.has(String(service.id)))
+        : services;
+    const placeholder = '<option value="" data-name="Bekam" data-unit="titik" data-qty="1" data-price="0">- Pilih Layanan -</option>';
+    if (!visible.length) return placeholder;
+    return placeholder + visible.map(service =>
+        `<option value="${service.id}" data-name="${escapeHtml(service.name || '')}" data-unit="${escapeHtml(service.unit_label || 'sesi')}" data-qty="${service.default_quantity || 1}" data-price="${service.price_per_unit || 0}" data-notes="${escapeHtml(service.notes_template || '')}">${escapeHtml(service.name || 'Layanan')}</option>`
+    ).join('');
+}
+
+function onVisitTherapistChange(showResetNotice = true): void {
+    const therapistSelect = document.getElementById('visit-therapist-select') as HTMLSelectElement | null;
+    const serviceSelect = document.getElementById('visit-service-select') as HTMLSelectElement | null;
+    const helper = document.getElementById('visit-service-capability-helper');
+    if (!therapistSelect || !serviceSelect || !helper) return;
+
+    const previousServiceId = String(serviceSelect.value || '');
+    const therapist = (window._therapistsList || []).find(item => String(item.id) === String(therapistSelect.value || ''));
+    const allServicesHtml = _buildVisitServiceOptions();
+    if (!therapist) {
+        serviceSelect.innerHTML = allServicesHtml;
+        if (previousServiceId) serviceSelect.value = previousServiceId;
+        helper.textContent = 'Pilih terapis untuk membatasi layanan sesuai kompetensi.';
+        helper.className = 'field-helper visit-capability-helper';
+        onVisitServiceChange();
+        return;
+    }
+
+    const capabilities = Array.isArray(therapist.service_capabilities) ? therapist.service_capabilities : [];
+    if (!capabilities.length) {
+        serviceSelect.innerHTML = allServicesHtml;
+        if (previousServiceId) serviceSelect.value = previousServiceId;
+        helper.textContent = 'Terapis belum dikaitkan dengan layanan. Semua layanan masih ditampilkan.';
+        helper.className = 'field-helper visit-capability-helper is-warning';
+        onVisitServiceChange();
+        return;
+    }
+
+    const allowed = new Set(
+        capabilities
+            .filter(item => item.is_active !== false)
+            .map(item => String(item.service_id || item.id))
+    );
+    serviceSelect.innerHTML = _buildVisitServiceOptions(allowed);
+    const matchingServices = (window._servicesList || []).filter(service => allowed.has(String(service.id)));
+    if (allowed.has(previousServiceId)) {
+        serviceSelect.value = previousServiceId;
+    } else if (matchingServices.length === 1) {
+        serviceSelect.value = String(matchingServices[0].id);
+    } else {
+        serviceSelect.value = '';
+        if (showResetNotice && previousServiceId) {
+            showToast('Layanan direset karena tidak sesuai dengan terapis yang dipilih.', 'warning');
+        }
+    }
+
+    if (matchingServices.length === 1) {
+        helper.textContent = 'Layanan otomatis dipilih sesuai terapis.';
+    } else if (matchingServices.length > 1) {
+        helper.textContent = `Layanan tersedia: ${matchingServices.map(service => service.name || '').join(', ')}.`;
+    } else {
+        helper.textContent = 'Tidak ada layanan aktif pada mapping terapis ini. Perbarui data terapis terlebih dahulu.';
+    }
+    helper.className = `field-helper visit-capability-helper ${matchingServices.length ? 'is-valid' : 'is-warning'}`;
+    onVisitServiceChange();
 }
 
 function onVisitFreeChange() {

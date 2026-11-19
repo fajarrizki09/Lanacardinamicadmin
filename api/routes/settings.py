@@ -173,6 +173,13 @@ def _resolve_backup_path(relative_path):
         raise ValueError("Path backup tidak valid.")
     if not target.lower().endswith(".db"):
         raise ValueError("File backup harus berformat .db.")
+    if not os.path.exists(target):
+        # Fallback: coba cari di project_root/backups (handle perbedaan
+        # direktori data antara mode source dan executable).
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        fallback_target = os.path.abspath(os.path.join(project_root, "backups", str(relative_path or "")))
+        if os.path.commonpath([os.path.abspath(project_root), fallback_target]) == os.path.abspath(project_root) and fallback_target.lower().endswith(".db") and os.path.exists(fallback_target):
+            return fallback_target
     return target
 
 @router.get("/settings")

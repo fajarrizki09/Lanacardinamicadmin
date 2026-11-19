@@ -170,6 +170,38 @@ class TestCRMApiSafety(unittest.TestCase):
         self.assertTrue(data["jangan_dihubungi"])
         self.assertEqual(data["catatan_kontak"], "Hubungi hanya sore.")
 
+    def test_mark_whatsapp_contacted_accepts_json_without_existing_message_log(self):
+        patient_id = db.add_patient("Pasien Followup Manual CRM", unique_phone("06"))
+
+        response = self.client.post(
+            f"/crm/patient/{patient_id}/mark-whatsapp-contacted",
+            json={"follow_up_date": "2026-06-01"},
+            headers=app_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["followup_status"], "contacted")
+
+        history = self.client.get(
+            f"/crm/patient/{patient_id}/followups",
+            headers=app_headers(),
+        )
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json()[0]["status"], "contacted")
+        self.assertEqual(history.json()[0]["follow_up_date"], "2026-06-01")
+
+    def test_mark_whatsapp_contacted_invalid_json_returns_safe_error(self):
+        patient_id = db.add_patient("Pasien Followup Invalid CRM", unique_phone("07"))
+
+        response = self.client.post(
+            f"/crm/patient/{patient_id}/mark-whatsapp-contacted",
+            content="{",
+            headers={**app_headers(), "Content-Type": "application/json"},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["detail"], "Data yang dikirim tidak valid. Periksa kembali input.")
+
 
 if __name__ == "__main__":
     unittest.main()

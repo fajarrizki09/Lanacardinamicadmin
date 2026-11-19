@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from typing import List, Optional
 from sqlalchemy import (
     create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, Numeric, Index, event, text, Text, func
@@ -14,11 +14,11 @@ import re
 warnings.filterwarnings('ignore', r"^Dialect sqlite\+pysqlite does \*not\* support Decimal objects natively.*", category=SAWarning)
 
 from db_models import (
-    Base, Patient, Therapist, Visit, Inventory, InventoryTransaction,
+    Base, Patient, Therapist, TherapistServiceCapability, Visit, Inventory, InventoryTransaction,
     Service, ServiceInventoryUsage, Herbal, HerbalTransaction,
     CorrectionLog, AuditLog, DiscountRule, VoucherUsage,
     VoucherPatientTarget, PatientFollowup, PatientManualTag,
-    PatientContactPreference, CRMWhatsAppLog
+    PatientContactPreference, CRMWhatsAppLog, WhatsAppFollowupQueue
 )
 from db_dataclasses import (
     VisitData, DiscountRuleData, PatientData, TherapistData, ServiceData
@@ -30,7 +30,7 @@ from db_mixins_inventory import HerbalMixin, InventoryMixin
 from helpers.payment_rules import allocate_payment_amounts, normalize_visit_payment
 
 class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMixin, InventoryMixin):
-    DB_SCHEMA_VERSION = 11
+    DB_SCHEMA_VERSION = 13
 
     def __init__(self, db_url="sqlite:///data.db"):
         self.db_url = db_url
@@ -158,6 +158,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             raise
 
     def _column_exists(self, session, table_name, column_name):
+        # Validate table name to prevent SQL injection
+        if not table_name.replace('_', '').isalnum():
+            raise ValueError(f"Invalid table name: {table_name}")
         rows = session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
         return column_name in {row[1] for row in rows}
 
@@ -337,6 +340,26 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
 
             self._run_migration(
                 session,
+                "ensure_table:therapist_service_capabilities",
+                lambda: self._ensure_table(session, "therapist_service_capabilities", [
+                    (
+                        "CREATE TABLE IF NOT EXISTS therapist_service_capabilities ("
+                        "id INTEGER PRIMARY KEY, "
+                        "therapist_id INTEGER NOT NULL, "
+                        "service_id INTEGER NOT NULL, "
+                        "created_at DATETIME NOT NULL, "
+                        "FOREIGN KEY(therapist_id) REFERENCES therapists (id), "
+                        "FOREIGN KEY(service_id) REFERENCES services (id)"
+                        ")"
+                    ),
+                    "CREATE INDEX IF NOT EXISTS ix_therapist_service_capabilities_therapist_id ON therapist_service_capabilities (therapist_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_therapist_service_capabilities_service_id ON therapist_service_capabilities (service_id)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_therapist_service_capability_unique ON therapist_service_capabilities (therapist_id, service_id)",
+                ]),
+            )
+
+            self._run_migration(
+                session,
                 "ensure_table:crm_whatsapp_logs",
                 lambda: self._ensure_table(session, "crm_whatsapp_logs", [
                     (
@@ -358,6 +381,45 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     "CREATE INDEX IF NOT EXISTS ix_crm_whatsapp_logs_message_type ON crm_whatsapp_logs (message_type)",
                     "CREATE INDEX IF NOT EXISTS ix_crm_whatsapp_logs_status ON crm_whatsapp_logs (status)",
                     "CREATE INDEX IF NOT EXISTS ix_crm_whatsapp_logs_created_at ON crm_whatsapp_logs (created_at)",
+                ]),
+            )
+
+            self._run_migration(
+                session,
+                "ensure_table:whatsapp_followup_queue",
+                lambda: self._ensure_table(session, "whatsapp_followup_queue", [
+                    (
+                        "CREATE TABLE IF NOT EXISTS whatsapp_followup_queue ("
+                        "id INTEGER PRIMARY KEY, "
+                        "patient_id INTEGER, "
+                        "visit_id INTEGER, "
+                        "phone TEXT NOT NULL, "
+                        "chat_id TEXT NOT NULL, "
+                        "template_key TEXT DEFAULT 'manual' NOT NULL, "
+                        "message TEXT NOT NULL, "
+                        "status TEXT DEFAULT 'pending' NOT NULL, "
+                        "scheduled_at DATETIME NOT NULL, "
+                        "sent_at DATETIME, "
+                        "retry_count INTEGER DEFAULT 0 NOT NULL, "
+                        "last_error TEXT, "
+                        "created_at DATETIME NOT NULL, "
+                        "updated_at DATETIME NOT NULL, "
+                        "created_by TEXT DEFAULT 'admin' NOT NULL, "
+                        "openwa_message_id TEXT, "
+                        "FOREIGN KEY(patient_id) REFERENCES patients (id), "
+                        "FOREIGN KEY(visit_id) REFERENCES visits (id)"
+                        ")"
+                    ),
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_patient_id ON whatsapp_followup_queue (patient_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_visit_id ON whatsapp_followup_queue (visit_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_phone ON whatsapp_followup_queue (phone)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_chat_id ON whatsapp_followup_queue (chat_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_template_key ON whatsapp_followup_queue (template_key)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_status ON whatsapp_followup_queue (status)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_scheduled_at ON whatsapp_followup_queue (scheduled_at)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_sent_at ON whatsapp_followup_queue (sent_at)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_created_at ON whatsapp_followup_queue (created_at)",
+                    "CREATE INDEX IF NOT EXISTS ix_whatsapp_followup_queue_openwa_message_id ON whatsapp_followup_queue (openwa_message_id)",
                 ]),
             )
 
@@ -930,6 +992,102 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 "recordsFiltered": filtered_records,
                 "data": data
             }
+
+    def enqueue_whatsapp_followup(
+        self,
+        phone,
+        message,
+        patient_id=None,
+        visit_id=None,
+        template_key="manual",
+        scheduled_at=None,
+        created_by="admin",
+    ):
+        from helpers.openwa_client import phone_to_chat_id
+
+        clean_phone = str(phone or "").strip()
+        clean_message = str(message or "").strip()
+        if not clean_phone:
+            raise ValueError("Nomor WhatsApp wajib diisi.")
+        if not clean_message:
+            raise ValueError("Pesan WhatsApp wajib diisi.")
+
+        chat_id = phone_to_chat_id(clean_phone)
+        if not chat_id:
+            raise ValueError("Nomor WhatsApp tidak valid.")
+
+        with self.Session() as session:
+            row = WhatsAppFollowupQueue(
+                patient_id=patient_id,
+                visit_id=visit_id,
+                phone=clean_phone,
+                chat_id=chat_id,
+                template_key=str(template_key or "manual").strip() or "manual",
+                message=clean_message,
+                status="pending",
+                scheduled_at=scheduled_at or datetime.now(),
+                created_by=str(created_by or "admin").strip() or "admin",
+            )
+            session.add(row)
+            session.commit()
+            return row.id
+
+    def get_pending_whatsapp_followups(self, limit=10):
+        with self.Session() as session:
+            rows = (
+                session.query(WhatsAppFollowupQueue)
+                .filter(
+                    WhatsAppFollowupQueue.status == "pending",
+                    WhatsAppFollowupQueue.scheduled_at <= datetime.now(),
+                )
+                .order_by(WhatsAppFollowupQueue.scheduled_at.asc(), WhatsAppFollowupQueue.id.asc())
+                .limit(max(1, int(limit or 10)))
+                .all()
+            )
+            return [
+                {
+                    "id": row.id,
+                    "patient_id": row.patient_id,
+                    "visit_id": row.visit_id,
+                    "phone": row.phone,
+                    "chat_id": row.chat_id,
+                    "template_key": row.template_key,
+                    "message": row.message,
+                    "status": row.status,
+                    "retry_count": int(row.retry_count or 0),
+                    "scheduled_at": row.scheduled_at.isoformat() if row.scheduled_at else None,
+                }
+                for row in rows
+            ]
+
+    def mark_whatsapp_followup_sent(self, queue_id, openwa_message_id=""):
+        with self.Session() as session:
+            row = session.get(WhatsAppFollowupQueue, int(queue_id))
+            if not row:
+                return False
+            row.status = "sent"
+            row.sent_at = datetime.now()
+            row.last_error = None
+            row.openwa_message_id = str(openwa_message_id or "").strip() or None
+            session.commit()
+            return True
+
+    def mark_whatsapp_followup_failed(self, queue_id, error_message, max_retry=3):
+        with self.Session() as session:
+            row = session.get(WhatsAppFollowupQueue, int(queue_id))
+            if not row:
+                return False
+            retry_count = int(row.retry_count or 0) + 1
+            row.retry_count = retry_count
+            row.last_error = str(error_message or "")[:1000]
+            if retry_count >= max(1, int(max_retry or 3)):
+                row.status = "failed"
+            else:
+                row.status = "pending"
+                delay_minutes = [1, 5, 15][min(retry_count - 1, 2)]
+                row.scheduled_at = datetime.now() + timedelta(minutes=delay_minutes)
+            session.commit()
+            return True
 
     def _period_start_date(self, period):
         import datetime
@@ -2130,7 +2288,11 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     paid_at=payment["paid_at"],
                 )
 
-            session.commit()
+            try:
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise
 
             return round(final_price, 2), discount_applied, discount_rule_name
 
@@ -2200,7 +2362,47 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 'discount_rule_name': v.discount_rule_name if hasattr(v, 'discount_rule_name') else None,
             } for v in visits]
 
-    def add_therapist(self, name, gender, specialization='', can_handle_any_gender=False):
+    def _normalize_therapist_service_ids(self, session, service_ids):
+        normalized = []
+        seen = set()
+        for raw_id in service_ids or []:
+            service_id = int(raw_id or 0)
+            if service_id <= 0 or service_id in seen:
+                continue
+            service = session.get(Service, service_id)
+            if not service or not service.is_active:
+                raise ValueError("Layanan terapis tidak ditemukan atau tidak aktif.")
+            normalized.append(service.id)
+            seen.add(service.id)
+        return normalized
+
+    def _replace_therapist_service_capabilities(self, session, therapist_id, service_ids):
+        normalized_ids = self._normalize_therapist_service_ids(session, service_ids)
+        session.query(TherapistServiceCapability).filter(
+            TherapistServiceCapability.therapist_id == therapist_id
+        ).delete()
+        for service_id in normalized_ids:
+            session.add(TherapistServiceCapability(therapist_id=therapist_id, service_id=service_id))
+
+    def _therapist_service_capability_payload(self, session, therapist_id):
+        rows = (
+            session.query(TherapistServiceCapability)
+            .join(Service, TherapistServiceCapability.service_id == Service.id)
+            .filter(TherapistServiceCapability.therapist_id == therapist_id)
+            .order_by(Service.name.asc())
+            .all()
+        )
+        return [
+            {
+                "id": row.service_id,
+                "service_id": row.service_id,
+                "name": row.service.name if row.service else "",
+                "is_active": bool(row.service.is_active) if row.service else False,
+            }
+            for row in rows
+        ]
+
+    def add_therapist(self, name, gender, specialization='', can_handle_any_gender=False, service_ids=None):
         with self.Session() as session:
             if not str(name or "").strip():
                 raise ValueError("Nama terapis wajib diisi")
@@ -2213,6 +2415,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                 can_handle_any_gender=bool(can_handle_any_gender),
             )
             session.add(therapist)
+            session.flush()
+            if service_ids is not None:
+                self._replace_therapist_service_capabilities(session, therapist.id, service_ids)
             session.commit()
             return therapist.id
 
@@ -2230,6 +2435,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     specialization=t.specialization,
                     is_active=t.is_active,
                     can_handle_any_gender=bool(getattr(t, "can_handle_any_gender", False)),
+                    service_capabilities=self._therapist_service_capability_payload(session, t.id),
                 )
                 for t in therapists
             ]
@@ -2248,11 +2454,12 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     specialization=t.specialization,
                     is_active=t.is_active,
                     can_handle_any_gender=bool(getattr(t, "can_handle_any_gender", False)),
+                    service_capabilities=self._therapist_service_capability_payload(session, t.id),
                 )
                 for t in therapists
             ]
 
-    def update_therapist(self, therapist_id, name, gender, specialization='', is_active=True, can_handle_any_gender=False):
+    def update_therapist(self, therapist_id, name, gender, specialization='', is_active=True, can_handle_any_gender=False, service_ids=None):
         with self.Session() as session:
             if not str(name or "").strip():
                 raise ValueError("Nama terapis wajib diisi")
@@ -2266,6 +2473,8 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             therapist.specialization = specialization
             therapist.is_active = is_active
             therapist.can_handle_any_gender = bool(can_handle_any_gender)
+            if service_ids is not None:
+                self._replace_therapist_service_capabilities(session, therapist.id, service_ids)
             session.commit()
 
     def delete_therapist(self, therapist_id):
@@ -2276,6 +2485,9 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             visit_count = session.query(func.count(Visit.id)).filter(Visit.therapist_id == therapist_id).scalar() or 0
             if visit_count > 0:
                 raise ValueError("Data sudah memiliki riwayat kunjungan. Gunakan Nonaktifkan agar riwayat tetap aman.")
+            session.query(TherapistServiceCapability).filter(
+                TherapistServiceCapability.therapist_id == therapist_id
+            ).delete()
             session.delete(therapist)
             session.commit()
             return True
@@ -2291,6 +2503,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
                     specialization=therapist.specialization,
                     is_active=therapist.is_active,
                     can_handle_any_gender=bool(getattr(therapist, "can_handle_any_gender", False)),
+                    service_capabilities=self._therapist_service_capability_payload(session, therapist.id),
                 )
             return None
 
@@ -2418,6 +2631,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
             if visit_count > 0:
                 raise ValueError("Data sudah memiliki riwayat kunjungan. Gunakan Nonaktifkan agar riwayat tetap aman.")
             session.query(ServiceInventoryUsage).filter(ServiceInventoryUsage.service_id == service_id).delete()
+            session.query(TherapistServiceCapability).filter(TherapistServiceCapability.service_id == service_id).delete()
             session.delete(service)
             session.commit()
             return True

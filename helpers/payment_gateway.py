@@ -201,7 +201,7 @@ def create_payment(provider, source_type, source_id, amount, method, customer=No
     normalized_provider = _ensure_available_gateway_provider(provider)
     normalized_method = str(method or "").strip().lower()
     if normalized_method not in GATEWAY_METHODS:
-        raise ValueError("Metode ini belum mendukung gateway pembayaran.")
+        raise ValueError("Metode pembayaran ini belum mendukung link pembayaran otomatis.")
     provider_result = _provider_module(normalized_provider).create_payment(
         source_type=source_type,
         source_id=source_id,

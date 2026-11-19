@@ -1,0 +1,22 @@
+[package]
+name = "lancar-dynamic-admin"
+version = "1.7.39"
+description = "Tauri desktop shell for Lancar Dynamic Admin"
+authors = ["Lancar Dynamic Admin"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

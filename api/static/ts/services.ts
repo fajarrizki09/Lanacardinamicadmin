@@ -5,7 +5,9 @@ interface Window {
     addServiceUsageItem?: (prefix: string) => void;
     removeServiceUsageItem?: (prefix: string, index: number) => void;
     syncServiceUsageInput?: (prefix: string) => boolean;
-    openEditServiceModal?: (id: number | string, btn?: HTMLButtonElement) => void;
+    openServiceModal?: () => void;
+    closeServiceModal?: () => void;
+    openEditServiceModal?: (id: number | string) => void;
     submitEditService?: (event: SubmitEvent) => Promise<void>;
     toggleService?: (id: number | string, btn: HTMLButtonElement) => Promise<void>;
     deleteService?: (id: number | string) => Promise<void>;
@@ -27,6 +29,76 @@ window._serviceUsageDrafts = window._serviceUsageDrafts || {};
 window._serviceUnitPresets = window._serviceUnitPresets || ['sesi', 'titik', 'paket', 'layanan', 'area', 'menit', 'jam', 'kali', 'orang', 'item'];
 window._serviceFilter = window._serviceFilter || 'active';
 
+let serviceDelegationReady = false;
+
+function ensureServiceEventDelegation(): void {
+    if (serviceDelegationReady) return;
+    serviceDelegationReady = true;
+
+    document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.classList.contains('service-modal-overlay')) {
+            closeServiceModal();
+            return;
+        }
+
+        const actionElement = target?.closest<HTMLElement>('[data-service-action]');
+        if (!actionElement) return;
+        const action = actionElement.dataset.serviceAction || '';
+        if (!action) return;
+        event.preventDefault();
+
+        switch (action) {
+            case 'filter':
+                setServiceFilter((actionElement.dataset.filter || 'active') as ServiceFilter);
+                break;
+            case 'open-add':
+                openServiceModal();
+                break;
+            case 'close-modal':
+                closeServiceModal();
+                break;
+            case 'edit':
+                openEditServiceModal(actionElement.dataset.serviceId || '');
+                break;
+            case 'toggle':
+                toggleService(actionElement.dataset.serviceId || '', actionElement as HTMLButtonElement);
+                break;
+            case 'delete':
+                deleteService(actionElement.dataset.serviceId || '');
+                break;
+            case 'usage-add':
+                addServiceUsageItem(actionElement.dataset.prefix || '');
+                break;
+            case 'usage-remove':
+                removeServiceUsageItem(actionElement.dataset.prefix || '', Number(actionElement.dataset.index || 0));
+                break;
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target as HTMLElement | null;
+        const action = target?.dataset?.serviceAction || '';
+        if (action === 'unit-select') {
+            setServiceUnitValue(target.dataset.inputId || '', (target as HTMLSelectElement).value);
+        }
+        if (action === 'pricing-mode') {
+            syncServicePricingMode(target.dataset.prefix || '');
+        }
+    });
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target as HTMLFormElement | null;
+        const action = form?.dataset?.serviceFormAction || '';
+        if (action === 'add') {
+            syncServiceUsageInput(form.dataset.prefix || 'add-service');
+        }
+        if (action === 'edit') {
+            submitEditService(event);
+        }
+    });
+}
+
 function serviceUnitPicker(inputId: string, value = 'sesi'): string {
     const currentValue = value || 'sesi';
     const selectedPreset = window._serviceUnitPresets!.some(unit => unit.toLowerCase() === String(currentValue).toLowerCase());
@@ -35,7 +107,7 @@ function serviceUnitPicker(inputId: string, value = 'sesi'): string {
     ).join('');
     return `
         <div class="service-unit-picker">
-            <select aria-label="Pilih satuan cepat" onchange="setServiceUnitValue('${inputId}', this.value)">
+            <select aria-label="Pilih satuan cepat" data-service-action="unit-select" data-input-id="${escapeHtml(inputId)}">
                 <option value="">Pilih satuan...</option>
                 ${presetOptions}
                 <option value="__custom" ${selectedPreset ? '' : 'selected'}>Satuan lainnya...</option>
@@ -74,10 +146,10 @@ function servicePricingFields(prefix: string, service?: Partial<Service>): strin
     const fixedPrice = Number(service?.fixed_price || 0);
     const allowManualPrice = service?.allow_manual_price !== false;
     return `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="service-form-grid">
             <div class="form-group">
                 <label>Mode Harga</label>
-                <select name="pricing_type" id="${prefix}-pricing-type" onchange="syncServicePricingMode('${prefix}')">
+                <select name="pricing_type" id="${prefix}-pricing-type" data-service-action="pricing-mode" data-prefix="${escapeHtml(prefix)}">
                     <option value="per_unit" ${pricingType === 'per_unit' ? 'selected' : ''}>Per satuan</option>
                     <option value="fixed" ${pricingType === 'fixed' ? 'selected' : ''}>Harga tetap / paket</option>
                 </select>
@@ -90,7 +162,7 @@ function servicePricingFields(prefix: string, service?: Partial<Service>): strin
                 </select>
             </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="service-form-grid">
             <div class="form-group" id="${prefix}-price-per-unit-group">
                 <label>Harga per Satuan</label>
                 <input type="number" name="price_per_unit" id="${prefix}-price-per-unit" value="${Number(service?.price_per_unit || 0)}" min="0" step="1000">
@@ -165,7 +237,7 @@ function buildServiceUsageEditor(prefix: string, usage?: ServiceUsageItem[]): st
             <div class="service-usage-add">
                 <select id="${prefix}-usage-inventory">${serviceInventoryOptions()}</select>
                 <input type="number" id="${prefix}-usage-qty" min="1" placeholder="Jumlah">
-                <button type="button" class="btn btn-secondary" onclick="addServiceUsageItem('${prefix}')"><i class="fas fa-plus"></i> Tambah</button>
+                <button type="button" class="btn btn-secondary" data-service-action="usage-add" data-prefix="${escapeHtml(prefix)}"><i class="fas fa-plus"></i> Tambah</button>
             </div>
             <div id="${prefix}-usage-list" class="service-usage-list"></div>
         </div>
@@ -184,7 +256,7 @@ function renderServiceUsageList(prefix: string): void {
     list.innerHTML = items.map((item, index) => `
         <div class="service-usage-row">
             <span><strong>${escapeHtml(item.item_name)}</strong><small>${item.quantity} ${escapeHtml(item.unit || '')} per kunjungan</small></span>
-            <button type="button" onclick="removeServiceUsageItem('${prefix}', ${index})" title="Hapus item"><i class="fas fa-trash-alt"></i></button>
+            <button type="button" data-service-action="usage-remove" data-prefix="${escapeHtml(prefix)}" data-index="${index}" title="Hapus item"><i class="fas fa-trash-alt"></i></button>
         </div>
     `).join('');
     syncServiceUsageInput(prefix);
@@ -233,6 +305,7 @@ function syncServiceUsageInput(prefix: string): boolean {
 }
 
 function renderServices(data: Service[]): void {
+    ensureServiceEventDelegation();
     ensureServiceInventoryLoaded(data);
     window._serviceMap = {};
     data.forEach(service => { window._serviceMap![service.id] = service; });
@@ -246,27 +319,118 @@ function renderServices(data: Service[]): void {
         return !!service.is_active;
     });
     const filterButton = (filter: ServiceFilter, label: string, count: number) => `
-        <button type="button" onclick="setServiceFilter('${filter}')"
-            style="border:1px solid ${currentFilter === filter ? 'var(--primary)' : '#e5e7eb'};
-                   background:${currentFilter === filter ? '#eef2ff' : '#fff'};
-                   color:${currentFilter === filter ? 'var(--primary)' : 'var(--text-muted)'};
-                   border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer;">
-            ${label} <span style="opacity:.72;">${count}</span>
+        <button type="button" data-service-action="filter" data-filter="${filter}"
+            class="service-filter-btn ${currentFilter === filter ? 'is-active' : ''}">
+            ${label} <span>${count}</span>
         </button>
     `;
     const html = `
-        <div class="grid-2">
-            <div class="card" style="height:fit-content; border-top:3px solid var(--primary);">
-                <div class="card-header">
-                    <h3><i class="fas fa-plus-circle"></i> Tambah Layanan</h3>
+        <div class="service-header">
+            <div class="service-header-left">
+                <h2><i class="fas fa-spa"></i> Daftar Layanan</h2>
+            </div>
+            <button type="button" data-service-action="open-add" class="service-add-btn">
+                <i class="fas fa-plus-circle"></i> Tambah Layanan
+            </button>
+        </div>
+
+        <div class="service-filter-row">
+            ${filterButton('active', 'Aktif', activeCount)}
+            ${filterButton('inactive', 'Nonaktif', inactiveCount)}
+            ${filterButton('all', 'Semua', data.length)}
+        </div>
+
+        ${visibleServices.length === 0 ? `
+            <div class="service-empty-state">
+                <i class="fas fa-spa"></i>
+                <p>${data.length === 0 ? 'Belum ada layanan. Klik "Tambah Layanan" untuk memulai.' : 'Tidak ada layanan pada filter ini.'}</p>
+            </div>
+        ` : `
+            <div class="service-card-grid">
+                ${visibleServices.map(service => serviceCard(service)).join('')}
+            </div>
+        `}
+    `;
+
+    const displayArea = document.getElementById('display-area');
+    if (displayArea) displayArea.innerHTML = html;
+}
+
+function serviceCard(service: Service): string {
+    const isActive = !!service.is_active;
+    const pricingType = service.pricing_type === 'fixed' ? 'fixed' : 'per_unit';
+    const priceLabel = pricingType === 'fixed'
+        ? `Rp ${Number(service.fixed_price || 0).toLocaleString('id-ID')}`
+        : `Rp ${Number(service.price_per_unit || 0).toLocaleString('id-ID')} / ${escapeHtml(service.unit_label || 'sesi')}`;
+    const category = serviceCategoryLabel(service.service_category);
+    const usageItems = Array.isArray(service.inventory_usage) ? service.inventory_usage : [];
+    const hasUsage = usageItems.length > 0;
+
+    return `
+        <div class="service-card ${isActive ? '' : 'inactive'}">
+            <div class="service-card-header">
+                <div class="service-card-title-group">
+                    <div class="service-card-icon ${pricingType}">
+                        <i class="fas ${pricingType === 'fixed' ? 'fa-box' : 'fa-hand-holding-medical'}"></i>
+                    </div>
+                    <h3 class="service-card-name">${escapeHtml(service.name)}</h3>
                 </div>
-                <form action="/add_service" method="post" onsubmit="syncServiceUsageInput('add-service')">
+                <span class="service-card-status-badge ${isActive ? 'active' : 'inactive'}">
+                    ${isActive ? 'Aktif' : 'Nonaktif'}
+                </span>
+            </div>
+            <div class="service-card-body">
+                <div class="service-card-category">
+                    <i class="fas fa-tag"></i> ${escapeHtml(category)}
+                </div>
+                <div class="service-card-price">${priceLabel}</div>
+                <div class="service-card-meta">
+                    ${escapeHtml(servicePricingTypeLabel(service.pricing_type))}
+                    ${service.allow_manual_price === false ? ' · <span class="text-amber-600"><i class="fas fa-lock"></i> Harga terkunci</span>' : ''}
+                </div>
+                ${hasUsage ? `
+                    <div class="service-card-usage">
+                        <i class="fas fa-box-open"></i> ${usageItems.length} item inventaris
+                    </div>
+                ` : ''}
+            </div>
+            <div class="service-card-footer">
+                <button type="button" data-service-action="edit" data-service-id="${escapeHtml(service.id)}"
+                    class="service-card-action edit" title="Edit">
+                    <i class="fas fa-pen"></i><span>Edit</span>
+                </button>
+                <button type="button" data-service-action="toggle" data-service-id="${escapeHtml(service.id)}"
+                    class="service-card-action toggle ${isActive ? 'active' : 'inactive'}"
+                    title="${isActive ? 'Nonaktifkan' : 'Aktifkan'}">
+                    <i class="fas ${isActive ? 'fa-toggle-on' : 'fa-toggle-off'}"></i><span>${isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
+                </button>
+                <button type="button" data-service-action="delete" data-service-id="${escapeHtml(service.id)}"
+                    class="service-card-action delete" title="Hapus">
+                    <i class="fas fa-trash-alt"></i><span>Hapus</span>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function openServiceModal(): void {
+    ensureServiceEventDelegation();
+    const modalHtml = `
+        <div class="service-modal-overlay">
+            <div class="service-modal-content">
+                <div class="service-modal-header">
+                    <h3><i class="fas fa-plus-circle"></i> Tambah Layanan</h3>
+                    <button type="button" data-service-action="close-modal" class="service-modal-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form action="/add_service" method="post" data-service-form-action="add" data-prefix="add-service">
                     <div class="form-group">
                         <label>Nama Layanan</label>
                         <input type="text" name="name" required placeholder="Contoh: Pijat Refleksi">
                     </div>
                     ${servicePricingFields('add-service')}
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div class="service-form-grid">
                         <div class="form-group">
                             <label>Satuan</label>
                             ${serviceUnitPicker('add-service-unit', 'sesi')}
@@ -281,173 +445,80 @@ function renderServices(data: Service[]): void {
                         <textarea name="notes_template" class="service-notes-template" rows="4" placeholder="Keluhan; area terapi; respons pasien"></textarea>
                     </div>
                     ${buildServiceUsageEditor('add-service', [])}
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Simpan Layanan
-                    </button>
+                    <div class="service-modal-actions">
+                        <button type="button" class="btn btn-secondary" data-service-action="close-modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Simpan Layanan
+                        </button>
+                    </div>
                 </form>
             </div>
-
-            <div class="card" style="padding:0;">
-                <div class="card-header" style="padding:18px 20px 12px;">
-                    <h3><i class="fas fa-spa"></i> Daftar Layanan
-                        <span style="font-size:12px; font-weight:500; color:var(--text-muted); margin-left:6px;">${data.length} layanan</span>
-                    </h3>
-                    <div style="display:flex; gap:8px; font-size:12px;">
-                        <span style="background:#ecfdf5; color:#059669; padding:4px 10px; border-radius:999px; font-weight:600; border:1px solid #a7f3d0;">
-                            ${activeCount} Aktif
-                        </span>
-                        <span style="background:#f3f4f6; color:#6b7280; padding:4px 10px; border-radius:999px; font-weight:600; border:1px solid #e5e7eb;">
-                            ${inactiveCount} Nonaktif
-                        </span>
-                    </div>
-                </div>
-                <div style="padding:0 20px 12px; display:flex; gap:8px; flex-wrap:wrap;">
-                    ${filterButton('active', 'Aktif', activeCount)}
-                    ${filterButton('inactive', 'Nonaktif', inactiveCount)}
-                    ${filterButton('all', 'Semua', data.length)}
-                </div>
-                <div style="padding:14px; display:flex; flex-direction:column; gap:8px;">
-                    ${visibleServices.length === 0 ? `
-                        <div style="padding:50px; text-align:center; color:var(--text-muted);">
-                            <i class="fas fa-spa" style="font-size:40px; opacity:0.15; display:block; margin-bottom:14px;"></i>
-                            <p>${data.length === 0 ? 'Belum ada layanan.' : 'Tidak ada layanan pada filter ini.'}</p>
-                        </div>
-                    ` : visibleServices.map(service => serviceRow(service)).join('')}
-                </div>
-            </div>
         </div>
     `;
-
-    const displayArea = document.getElementById('display-area');
-    if (displayArea) displayArea.innerHTML = html;
-    syncServicePricingMode('add-service');
-    renderServiceUsageList('add-service');
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    setTimeout(() => {
+        syncServicePricingMode('add-service');
+        renderServiceUsageList('add-service');
+    }, 0);
 }
 
-function serviceRow(service: Service): string {
-    const isActive = !!service.is_active;
-    const pricingType = service.pricing_type === 'fixed' ? 'fixed' : 'per_unit';
-    const priceLabel = pricingType === 'fixed'
-        ? `Paket Rp ${Number(service.fixed_price || 0).toLocaleString('id-ID')}`
-        : `${service.default_quantity} ${escapeHtml(service.unit_label || 'sesi')} - Rp ${Number(service.price_per_unit || 0).toLocaleString('id-ID')}`;
-    return `
-        <div style="display:flex; align-items:center; gap:12px; padding:13px 15px;
-                    background:${isActive ? '#fafbff' : '#f9fafb'}; border-radius:12px;
-                    border:1px solid ${isActive ? '#e0e7ff' : '#e5e7eb'};
-                    opacity:${isActive ? 1 : 0.7};">
-            <div style="width:44px; height:44px; border-radius:12px; background:#ecfdf5;
-                        display:flex; align-items:center; justify-content:center;
-                        font-size:18px; color:var(--primary); flex-shrink:0;">
-                <i class="fas fa-hand-holding-medical"></i>
-            </div>
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:700; font-size:14px;">${escapeHtml(service.name)}</div>
-                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
-                    ${priceLabel}
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
-                    ${escapeHtml(servicePricingTypeLabel(service.pricing_type))} · ${escapeHtml(serviceCategoryLabel(service.service_category))}${service.allow_manual_price === false ? ' · Harga terkunci' : ''}
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${escapeHtml(service.notes_template || '-')}</div>
-                <div class="service-usage-summary"><i class="fas fa-box-open"></i> ${serviceUsageSummary(service.inventory_usage)}</div>
-            </div>
-            <span class="badge ${isActive ? 'badge-ok' : 'badge-low'}">
-                ${isActive ? 'Aktif' : 'Nonaktif'}
-            </span>
-            <div style="display:flex; gap:6px; flex-shrink:0;">
-                <button type="button" onclick="openEditServiceModal(${service.id}, this)" title="Edit Layanan"
-                    style="width:32px; height:32px; border-radius:8px; border:1px solid #e0e7ff;
-                           background:#f0f4ff; color:var(--primary); cursor:pointer;">
-                    <i class="fas fa-pen"></i>
-                </button>
-                <button type="button" onclick="toggleService(${service.id}, this)"
-                    class="activation-action mini ${isActive ? 'is-on' : 'is-off'}"
-                    title="${isActive ? 'Klik untuk menonaktifkan layanan' : 'Klik untuk mengaktifkan layanan'}">
-                    <i class="fas ${isActive ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
-                    <span>
-                        <strong>${isActive ? 'Aktif' : 'Nonaktif'}</strong>
-                        <small>${isActive ? 'Matikan' : 'Aktifkan'}</small>
-                    </span>
-                </button>
-                <button type="button" onclick="deleteService(${service.id})" title="Hapus Layanan"
-                    style="width:32px; height:32px; border-radius:8px; border:1px solid #fecaca;
-                           background:#fef2f2; color:var(--danger); cursor:pointer;">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-        </div>
-    `;
+function closeServiceModal(): void {
+    const modal = document.querySelector('.service-modal-overlay');
+    if (modal) modal.remove();
 }
 
-function openEditServiceModal(id: number | string, btn?: HTMLButtonElement): void {
-    if (btn) {
-        btn.disabled = true;
-        btn.dataset.originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    }
-
-    window.requestAnimationFrame(() => {
-        setTimeout(() => {
-            try {
-                renderEditServiceModal(id);
-            } catch (error) {
-                alert('Gagal membuka form edit layanan: ' + sanitizeAppErrorMessage(error));
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = btn.dataset.originalHtml || '<i class="fas fa-pen"></i>';
-                    delete btn.dataset.originalHtml;
-                }
-            }
-        }, 0);
-    });
-}
-
-function renderEditServiceModal(id: number | string): void {
+function openEditServiceModal(id: number | string): void {
     const service = window._serviceMap?.[id];
     if (!service) return;
 
-    if (typeof openModal !== 'function') {
-        if (typeof initModals === 'function') initModals();
-    }
-    if (typeof openModal !== 'function') {
-        throw new Error('Komponen modal belum siap.');
-    }
-
-    const html = `
-        <form id="edit-service-form" onsubmit="submitEditService(event)">
-            <input type="hidden" name="service_id" value="${service.id}">
-            <input type="hidden" name="is_active" value="${service.is_active ? 'true' : 'false'}">
-            <div class="form-group">
-                <label>Nama Layanan</label>
-                <input type="text" name="name" value="${escapeHtml(service.name)}" required>
-            </div>
-            ${servicePricingFields(`edit-service-${service.id}`, service)}
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <div class="form-group">
-                    <label>Satuan</label>
-                    ${serviceUnitPicker(`edit-service-${service.id}-unit`, service.unit_label || 'sesi')}
+    const modalHtml = `
+        <div class="service-modal-overlay">
+            <div class="service-modal-content">
+                <div class="service-modal-header">
+                    <h3><i class="fas fa-pen"></i> Edit Layanan</h3>
+                    <button type="button" data-service-action="close-modal" class="service-modal-close">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label>Jumlah Default</label>
-                    <input type="number" name="default_quantity" value="${service.default_quantity || 1}" min="1" required>
-                </div>
+                <form id="edit-service-form" data-service-form-action="edit">
+                    <input type="hidden" name="service_id" value="${service.id}">
+                    <input type="hidden" name="is_active" value="${service.is_active ? 'true' : 'false'}">
+                    <div class="form-group">
+                        <label>Nama Layanan</label>
+                        <input type="text" name="name" value="${escapeHtml(service.name)}" required>
+                    </div>
+                    ${servicePricingFields(`edit-service-${service.id}`, service)}
+                    <div class="service-form-grid">
+                        <div class="form-group">
+                            <label>Satuan</label>
+                            ${serviceUnitPicker(`edit-service-${service.id}-unit`, service.unit_label || 'sesi')}
+                        </div>
+                        <div class="form-group">
+                            <label>Jumlah Default</label>
+                            <input type="number" name="default_quantity" value="${service.default_quantity || 1}" min="1" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Template Catatan</label>
+                        <textarea name="notes_template" class="service-notes-template" rows="4">${escapeHtml(service.notes_template || '')}</textarea>
+                    </div>
+                    ${buildServiceUsageEditor(`edit-service-${service.id}`, service.inventory_usage)}
+                    <div class="service-modal-actions">
+                        <button type="button" class="btn btn-secondary" data-service-action="close-modal">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan</button>
+                    </div>
+                </form>
             </div>
-            <div class="form-group">
-                <label>Template Catatan</label>
-                <textarea name="notes_template" class="service-notes-template" rows="4">${escapeHtml(service.notes_template || '')}</textarea>
-            </div>
-            ${buildServiceUsageEditor(`edit-service-${service.id}`, service.inventory_usage)}
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-                <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan</button>
-            </div>
-        </form>
+        </div>
     `;
-    openModal('Edit Layanan', html);
-    syncServicePricingMode(`edit-service-${service.id}`);
-    renderServiceUsageList(`edit-service-${service.id}`);
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    setTimeout(() => {
+        syncServicePricingMode(`edit-service-${service.id}`);
+        renderServiceUsageList(`edit-service-${service.id}`);
+    }, 0);
 }
+
+
 
 async function submitEditService(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -467,7 +538,7 @@ async function submitEditService(event: SubmitEvent): Promise<void> {
     try {
         const data = await apiPostForm<ApiResponse>('/update_service', form);
         if (data.status === 'success') {
-            closeModal();
+            closeServiceModal();
             loadTab('services');
         } else {
             alert(window.LancarApi?.getErrorMessage(data, 'Gagal menyimpan layanan.') || 'Gagal menyimpan layanan.');
@@ -548,6 +619,8 @@ window.syncServicePricingMode = syncServicePricingMode;
 window.addServiceUsageItem = addServiceUsageItem;
 window.removeServiceUsageItem = removeServiceUsageItem;
 window.syncServiceUsageInput = syncServiceUsageInput;
+window.openServiceModal = openServiceModal;
+window.closeServiceModal = closeServiceModal;
 window.openEditServiceModal = openEditServiceModal;
 window.submitEditService = submitEditService;
 window.toggleService = toggleService;

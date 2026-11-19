@@ -3,56 +3,51 @@ from typing import Optional
 from api.admin_pin import require_admin_pin
 from api.database_manager import db
 from api.license_guard import require_valid_license
+from helpers.ttl_cache import TTLCache
+from helpers.exceptions import ValidationError, StockError, IdempotencyError
 import json
 import threading
 import time
 import hashlib
 import logging
+import uuid
 
 router = APIRouter()
 
-# Idempotency / concurrency protection (in-memory, per-process)
-_HERBAL_IDEMPOTENCY_TTL_SECONDS = 10 * 60
-_herbal_idempotency_lock = threading.Lock()
-_herbal_idempotency_cache = {}
-
-def _cleanup_herbal_idempotency_cache(now=None):
-    now = now or time.monotonic()
-    expired = [k for k, v in _herbal_idempotency_cache.items() if now - float(v.get("created_at") or 0) > _HERBAL_IDEMPOTENCY_TTL_SECONDS]
-    for k in expired:
-        _herbal_idempotency_cache.pop(k, None)
+# Idempotency / concurrency protection with TTL cache (prevents memory leaks)
+_herbal_idempotency_cache = TTLCache(maxsize=1000, ttl_seconds=600, cleanup_interval=60)
+_logger = logging.getLogger("lancar.herbals")
 
 def _reserve_herbal_idempotency_key(raw_key):
+    """Reserve idempotency key using TTL cache."""
     key = str(raw_key or "").strip()
     if not key:
         return "", "none", None
     key = key[:128]
-    now = time.monotonic()
-    with _herbal_idempotency_lock:
-        _cleanup_herbal_idempotency_cache(now)
-        existing = _herbal_idempotency_cache.get(key)
-        if existing:
-            return key, existing.get("state"), existing.get("response")
-        _herbal_idempotency_cache[key] = {"state": "pending", "created_at": now, "response": None}
-        return key, "reserved", None
+    
+    existing = _herbal_idempotency_cache.get(key)
+    if existing:
+        return key, existing.get("state"), existing.get("response")
+    
+    _herbal_idempotency_cache.set(key, {"state": "pending", "response": None})
+    return key, "reserved", None
 
 def _complete_herbal_idempotency_key(key, response):
+    """Mark idempotency key as complete."""
     if not key:
         return
-    with _herbal_idempotency_lock:
-        _herbal_idempotency_cache[key] = {"state": "done", "created_at": time.monotonic(), "response": dict(response)}
+    _herbal_idempotency_cache.set(key, {"state": "done", "response": dict(response)})
 
 def _release_herbal_idempotency_key(key):
+    """Release pending idempotency key."""
     if not key:
         return
-    with _herbal_idempotency_lock:
-        entry = _herbal_idempotency_cache.get(key)
-        if entry and entry.get("state") == "pending":
-            _herbal_idempotency_cache.pop(key, None)
+    existing = _herbal_idempotency_cache.get(key)
+    if existing and existing.get("state") == "pending":
+        _herbal_idempotency_cache.delete(key)
 
 # Simple process-wide lock to avoid concurrent stock updates in the same process
 _herbal_sale_lock = threading.Lock()
-_logger = logging.getLogger("lancar.herbals")
 
 def _herbal_meta(herbal_id):
     try:
@@ -61,34 +56,39 @@ def _herbal_meta(herbal_id):
         return {}
 
 def _parse_sale_items(value):
+    """Parse and validate herbal sale items."""
     text = str(value or "").strip()
     if not text:
-        raise ValueError("Minimal pilih satu herbal untuk dijual.")
+        raise ValidationError("Minimal pilih satu herbal untuk dijual.")
     try:
         data = json.loads(text)
-    except json.JSONDecodeError:
-        raise ValueError("Data penjualan herbal tidak valid.")
+    except json.JSONDecodeError as e:
+        _logger.error(f"JSON decode error in sale items: {e}")
+        raise ValidationError("Data penjualan herbal tidak valid.")
     if not isinstance(data, list) or not data:
-        raise ValueError("Minimal pilih satu herbal untuk dijual.")
+        raise ValidationError("Minimal pilih satu herbal untuk dijual.")
     items = []
     for item in data:
         if not isinstance(item, dict):
-            raise ValueError("Data penjualan herbal tidak valid.")
+            raise ValidationError("Data penjualan herbal tidak valid.")
         try:
             herbal_id = int(item.get("herbal_id"))
             quantity = int(item.get("quantity"))
-        except (TypeError, ValueError):
-            raise ValueError("Data penjualan herbal tidak valid.")
+        except (TypeError, ValueError) as e:
+            _logger.error(f"Invalid herbal item data: {e}")
+            raise ValidationError("Data penjualan herbal tidak valid.")
         if quantity <= 0:
-            raise ValueError("Jumlah penjualan herbal harus lebih dari 0.")
+            raise ValidationError("Jumlah penjualan herbal harus lebih dari 0.")
         items.append({"herbal_id": herbal_id, "quantity": quantity})
     return items
 
 @router.get("/herbals")
 def get_herbals():
+    """Get all herbals."""
     try:
         return db.get_all_herbals()
-    except Exception:
+    except Exception as e:
+        _logger.error(f"Failed to get herbals: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Gagal memuat data herbal. Hubungi admin.")
 
 @router.get("/herbals/transactions")
@@ -155,8 +155,9 @@ def get_herbal_transactions(
                     "note": row.note,
                 })
             return {"page": page, "page_size": page_size, "data": data}
-    except Exception:
-        raise HTTPException(status_code=500, detail="Gagal memuat riwayat transaksi herbal. Hubungi admin.")
+    except Exception as e:
+        _logger.exception("Failed to load herbal transactions")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat riwayat transaksi herbal: {str(e)[:100]}")
 
 @router.post("/herbals/sale")
 async def add_herbal_sale(
@@ -181,8 +182,8 @@ async def add_herbal_sale(
         elif form_key:
             key_source = form_key
         else:
-            # fallback: deterministic but not too aggressive
-            fallback_raw = f"{buyer_name}|{patient_id}|{items}"
+            # Use UUID + timestamp for better uniqueness guarantee
+            fallback_raw = f"{buyer_name}|{patient_id}|{items}|{uuid.uuid4().hex[:8]}"
             key_source = hashlib.sha256(fallback_raw.encode()).hexdigest()[:64]
 
         reserved_idempotency_key = ""
@@ -314,8 +315,9 @@ def get_correction_logs(request: Request, limit: int = 100, action_type: str = "
         return db.get_correction_logs(limit=limit, action_type=action_type)
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Gagal memuat log koreksi. Hubungi admin.")
+    except Exception as e:
+        _logger.exception("Failed to load correction logs")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat log koreksi: {str(e)[:100]}")
 
 @router.post("/add_herbal")
 async def add_herbal(

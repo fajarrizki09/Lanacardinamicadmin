@@ -1,5 +1,33 @@
 "use strict";
+let helpDelegationReady = false;
+function ensureHelpEventDelegation() {
+    if (helpDelegationReady)
+        return;
+    helpDelegationReady = true;
+    document.addEventListener('click', async (event) => {
+        const actionElement = event.target?.closest('[data-help-action]');
+        if (!actionElement)
+            return;
+        const action = actionElement.dataset.helpAction || '';
+        if (!action)
+            return;
+        event.preventDefault();
+        try {
+            if (action === 'open-external') {
+                const button = actionElement;
+                await openDesktopExternalUrl(button.dataset.url || '', 'whatsapp_help');
+            }
+            if (action === 'open-folder') {
+                await openSupportFolder(actionElement.dataset.kind || '');
+            }
+        }
+        catch (error) {
+            showToast(sanitizeAppErrorMessage(error, action === 'open-folder' ? 'Gagal membuka folder.' : 'Tautan bantuan tidak dapat dibuka.'), 'error');
+        }
+    });
+}
 async function renderHelp() {
+    ensureHelpEventDelegation();
     const displayArea = document.getElementById('display-area');
     if (!displayArea)
         return;
@@ -13,7 +41,7 @@ async function renderHelp() {
                 </div>
                 <div id="help-support-card" class="help-support-card">
                     <i class="fas fa-spinner fa-spin"></i>
-                    <span>Memuat info support...</span>
+                    <span>Memuat info bantuan...</span>
                 </div>
             </section>
 
@@ -89,8 +117,8 @@ async function renderHelp() {
 
             <section class="help-info-grid">
                 <div class="help-info-panel">
-                    <h3><i class="fas fa-headset"></i> Kontak Support</h3>
-                    <div id="help-support-detail" class="help-muted">Memuat kontak support...</div>
+                    <h3><i class="fas fa-headset"></i> Kontak Bantuan</h3>
+                    <div id="help-support-detail" class="help-muted">Memuat kontak bantuan...</div>
                 </div>
                 <div class="help-info-panel">
                     <h3><i class="fas fa-info-circle"></i> Informasi Aplikasi</h3>
@@ -131,10 +159,10 @@ async function loadHelpInfo() {
     }
 }
 function renderHelpSupport(support) {
-    const name = support.support_name || 'Support Lancar Dynamic';
+    const name = support.support_name || 'Bantuan Lancar Dynamic';
     const whatsapp = String(support.support_whatsapp || '').replace(/\D/g, '');
     const email = support.support_email || '';
-    const waUrl = whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent('Halo Support, saya butuh bantuan aplikasi Lancar Dynamic Admin.')}` : '';
+    const waUrl = whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent('Halo, saya butuh bantuan aplikasi Lancar Dynamic Admin.')}` : '';
     const summary = document.getElementById('help-support-card');
     if (summary) {
         summary.innerHTML = `
@@ -142,7 +170,7 @@ function renderHelpSupport(support) {
                 <strong>${escapeHtml(name)}</strong>
                 <span>${whatsapp ? `WA ${escapeHtml(whatsapp)}` : 'Nomor WhatsApp belum diset'}</span>
             </div>
-            ${waUrl ? `<a class="help-wa-btn" href="${waUrl}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : `<button class="help-wa-btn disabled" type="button" disabled><i class="fab fa-whatsapp"></i> WhatsApp</button>`}
+            ${waUrl ? `<button class="help-wa-btn help-external-link" type="button" data-help-action="open-external" data-url="${escapeHtml(waUrl)}"><i class="fab fa-whatsapp"></i> WhatsApp</button>` : `<button class="help-wa-btn disabled" type="button" disabled><i class="fab fa-whatsapp"></i> WhatsApp</button>`}
         `;
     }
     const detail = document.getElementById('help-support-detail');
@@ -151,7 +179,7 @@ function renderHelpSupport(support) {
             <div class="help-detail-row"><span>Nama</span><strong>${escapeHtml(name)}</strong></div>
             <div class="help-detail-row"><span>WhatsApp</span><strong>${whatsapp ? escapeHtml(whatsapp) : 'Belum diset'}</strong></div>
             <div class="help-detail-row"><span>Email</span><strong>${email ? escapeHtml(email) : '-'}</strong></div>
-            ${waUrl ? `<a class="btn btn-primary help-full-btn" href="${waUrl}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Hubungi Support via WhatsApp</a>` : ''}
+            ${waUrl ? `<button class="btn btn-primary help-full-btn help-external-link" type="button" data-help-action="open-external" data-url="${escapeHtml(waUrl)}"><i class="fab fa-whatsapp"></i> Hubungi Bantuan via WhatsApp</button>` : ''}
         `;
     }
 }
@@ -162,22 +190,20 @@ function renderHelpAppInfo(data) {
         return;
     appInfo.innerHTML = `
         <div class="help-detail-row"><span>Versi</span><strong>${escapeHtml(data.app_version || '-')}</strong></div>
-        <div class="help-path-row"><span>Database</span><code>${escapeHtml(data.database_path || '-')}</code></div>
+        <div class="help-path-row"><span>Data Klinik</span><code>${escapeHtml(data.database_path || '-')}</code></div>
         <div class="help-path-row"><span>Backup</span><code>${escapeHtml(data.backup_dir || '-')}</code></div>
-        <div class="help-path-row"><span>Log</span><code>${escapeHtml(data.logs_dir || '-')}</code></div>
+        <div class="help-path-row"><span>Catatan Bantuan</span><code>${escapeHtml(data.logs_dir || '-')}</code></div>
         <div class="help-path-row"><span>Export</span><code>${escapeHtml(data.exports_dir || '-')}</code></div>
         <div class="help-detail-row"><span>Lisensi</span><strong>${license.valid ? 'Aktif' : (license.status || 'Tidak aktif')}</strong></div>
         <div class="help-folder-actions">
-            <button type="button" class="crm-row-btn" onclick="openSupportFolder('backups')"><i class="fas fa-folder-open"></i> Buka Folder Backup</button>
-            <button type="button" class="crm-row-btn" onclick="openSupportFolder('logs')"><i class="fas fa-file-alt"></i> Buka Folder Log</button>
+            <button type="button" class="crm-row-btn" data-help-action="open-folder" data-kind="backups"><i class="fas fa-folder-open"></i> Buka Folder Backup</button>
+            <button type="button" class="crm-row-btn" data-help-action="open-folder" data-kind="logs"><i class="fas fa-file-alt"></i> Buka Folder Catatan</button>
         </div>
     `;
 }
 async function openSupportFolder(kind) {
     try {
-        const response = await window.LancarApi.request(`/support/open_folder?kind=${encodeURIComponent(kind)}`, {
-            method: 'POST',
-        });
+        const response = await window.LancarApi.openPath(kind);
         if (response.status !== 'success')
             throw new Error(window.LancarApi.getErrorMessage(response, 'Gagal membuka folder.'));
         showToast('Folder dibuka.', 'success');

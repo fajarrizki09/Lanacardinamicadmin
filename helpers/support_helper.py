@@ -3,8 +3,17 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+from urllib.parse import urlparse
 
 from utils.app_paths import get_app_data_dir
+
+ALLOWED_HTTPS_EXTERNAL_HOSTS = {
+    "app.sandbox.midtrans.com",
+    "wa.me",
+}
+ALLOWED_LOCAL_EXTERNAL_TARGETS = {
+    ("http", "127.0.0.1", 3000),
+}
 
 
 def _support_settings():
@@ -95,3 +104,32 @@ def open_local_folder(kind, db=None):
     else:
         subprocess.Popen(["xdg-open", path])
     return path
+
+
+def validate_external_url(url):
+    value = str(url or "").strip()
+    parsed = urlparse(value)
+    hostname = (parsed.hostname or "").lower()
+    if parsed.username or parsed.password:
+        raise ValueError("URL eksternal tidak diizinkan.")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("URL eksternal tidak diizinkan.") from exc
+    if parsed.scheme == "https" and hostname in ALLOWED_HTTPS_EXTERNAL_HOSTS and port in (None, 443):
+        return value
+    if (parsed.scheme, hostname, port) in ALLOWED_LOCAL_EXTERNAL_TARGETS:
+        return value
+    raise ValueError("URL eksternal tidak diizinkan.")
+
+
+def open_external_url(url):
+    safe_url = validate_external_url(url)
+    system = platform.system().lower()
+    if system == "windows":
+        os.startfile(safe_url)  # type: ignore[attr-defined]
+    elif system == "darwin":
+        subprocess.Popen(["open", safe_url])
+    else:
+        subprocess.Popen(["xdg-open", safe_url])
+    return safe_url

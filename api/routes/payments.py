@@ -70,7 +70,7 @@ def _safe_gateway_error(exc):
         "Midtrans server key belum diisi.",
         "Midtrans production belum diaktifkan. Gunakan sandbox terlebih dahulu.",
         "Metode pembayaran ini tidak didukung Midtrans sandbox.",
-        "Metode ini belum mendukung gateway pembayaran.",
+        "Metode pembayaran ini belum mendukung link pembayaran otomatis.",
         "Provider pembayaran ini belum aktif.",
         "Provider pembayaran belum didukung.",
         PROVIDER_UNAVAILABLE_MESSAGE,
@@ -78,8 +78,8 @@ def _safe_gateway_error(exc):
     if message in safe_messages:
         return message
     if "midtrans" in message.lower():
-        return "Midtrans sandbox gagal memproses pembayaran. Periksa konfigurasi gateway dan coba lagi."
-    return message[:180] if message else "Gateway pembayaran gagal memproses permintaan."
+        return "Midtrans belum bisa memproses pembayaran. Periksa pengaturan pembayaran online dan coba lagi."
+    return message[:180] if message else "Link pembayaran belum bisa diproses."
 
 
 def _serialize_payment(row, source_type, source_id, amount):
@@ -111,13 +111,17 @@ def _apply_gateway_status_update(session, rows, source_type, source_id, normaliz
     paid_at = datetime.now().isoformat() if payment_status == "paid" else None
     amount_paid = amount if payment_status == "paid" else 0
     now = datetime.now()
-    for row in rows:
-        row.payment_gateway_status = gateway_status
-        row.payment_status = payment_status
-        row.amount_paid = amount_paid
-        row.paid_at = paid_at
-        row.payment_updated_at = now
-    session.commit()
+    try:
+        for row in rows:
+            row.payment_gateway_status = gateway_status
+            row.payment_status = payment_status
+            row.amount_paid = amount_paid
+            row.paid_at = paid_at
+            row.payment_updated_at = now
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal update status pembayaran: {str(e)[:100]}")
 
     if old_status != payment_status:
         db.log_audit("gateway_status_changed", source_type, source_id, "Status gateway berubah.", {
@@ -308,10 +312,10 @@ def mock_payment_page(payment_reference: str):
     return f"""
     <!doctype html>
     <html lang="id">
-    <head><meta charset="utf-8"><title>Gateway Pembayaran</title></head>
+    <head><meta charset="utf-8"><title>Link Pembayaran</title></head>
     <body style="font-family:Arial,sans-serif;margin:40px;color:#0f172a;">
-        <h1>Gateway Pembayaran</h1>
-        <p>Halaman mock lokal untuk referensi pembayaran:</p>
+        <h1>Link Pembayaran</h1>
+        <p>Halaman percobaan untuk referensi pembayaran:</p>
         <strong>{safe_reference}</strong>
         <p style="color:#64748b;">Tidak ada koneksi ke penyedia pembayaran eksternal.</p>
     </body>

@@ -133,6 +133,22 @@ class BackupHelper:
         if not backup_path.lower().endswith(".db"):
             return self._set_status(False, "File restore harus berformat .db")
 
+        # Phase 3 Fix #9: Validate backup integrity BEFORE restore
+        try:
+            conn = sqlite3.connect(backup_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA integrity_check;")
+            result = cursor.fetchone()
+            conn.close()
+            if not result or result[0].lower() != "ok":
+                return self._set_status(
+                    False, 
+                    f"File backup corrupt, restore dibatalkan: {result[0] if result else 'Unknown'}",
+                    backup_path
+                )
+        except Exception as e:
+            return self._set_status(False, f"Gagal validasi backup: {e}", backup_path)
+
         pre_restore = self.create_backup(daily=False)
         if not pre_restore:
             return self._set_status(False, "Restore dibatalkan karena backup database aktif gagal dibuat.")

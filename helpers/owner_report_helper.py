@@ -79,26 +79,10 @@ def build_owner_report_summary(
     active_herbal_status = active_invoice_filter(HerbalTransaction)
     receivable_statuses = ("unpaid", "pending", "partial")
     herbal_sale_filter = HerbalTransaction.transaction_type == "sale"
-    standalone_herbal_sale_filter = (
-        HerbalTransaction.transaction_type == "sale",
-        HerbalTransaction.visit_id.is_(None),
-    )
     herbal_return_filter = HerbalTransaction.transaction_type.in_(["return", "retur"])
 
-    linked_herbal_total_expr = (
-        session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0))
-        .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
-        .correlate(Visit)
-        .scalar_subquery()
-    )
-    linked_herbal_paid_expr = (
-        session.query(func.coalesce(func.sum(func.coalesce(HerbalTransaction.amount_paid, 0)), 0))
-        .filter(HerbalTransaction.visit_id == Visit.id, HerbalTransaction.transaction_type == "sale")
-        .correlate(Visit)
-        .scalar_subquery()
-    )
-    visit_total_expr = func.coalesce(func.nullif(Visit.final_price, 0), Visit.price, 0) + linked_herbal_total_expr
-    visit_paid_expr = func.coalesce(Visit.amount_paid, 0) + linked_herbal_paid_expr
+    visit_total_expr = func.coalesce(func.nullif(Visit.final_price, 0), Visit.price, 0)
+    visit_paid_expr = func.coalesce(Visit.amount_paid, 0)
     visit_revenue_expr = case(
         (Visit.payment_method == "free", 0),
         (or_(Visit.payment_status == "paid", Visit.payment_status.is_(None)), visit_total_expr),
@@ -136,7 +120,7 @@ def build_owner_report_summary(
         HerbalTransaction.date,
         start,
         end,
-    ).filter(*standalone_herbal_sale_filter, active_herbal_status)
+    ).filter(herbal_sale_filter, active_herbal_status)
     herbal_returns_query = _between(
         session.query(func.coalesce(func.sum(HerbalTransaction.total_price), 0)),
         HerbalTransaction.date,
@@ -169,7 +153,7 @@ def build_owner_report_summary(
             start,
             end,
         )
-        .filter(*standalone_herbal_sale_filter, active_herbal_status, HerbalTransaction.payment_status.in_(receivable_statuses))
+        .filter(herbal_sale_filter, active_herbal_status, HerbalTransaction.payment_status.in_(receivable_statuses))
         .scalar()
     )
 
@@ -253,7 +237,7 @@ def build_owner_report_summary(
                 start,
                 end,
             )
-            .filter(*standalone_herbal_sale_filter, active_herbal_status)
+            .filter(herbal_sale_filter, active_herbal_status)
             .group_by(Herbal.name)
             .order_by(func.coalesce(func.sum(herbal_revenue_expr), 0).desc())
             .limit(5)

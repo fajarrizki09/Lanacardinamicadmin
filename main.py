@@ -151,8 +151,8 @@ def health_check(timeout: float = 0.5) -> bool:
 
 def compact_error(exc) -> str:
     if exc is None:
-        return "Backend lokal tidak merespon."
-    return f"{exc.__class__.__name__}: {exc}"
+        return "Aplikasi belum siap merespon."
+    return "Aplikasi belum siap. Tutup aplikasi lalu buka kembali."
 
 
 def start_license_recheck_thread(notifier: LicenseRecheckNotifier, stop_event: threading.Event):
@@ -257,7 +257,7 @@ class BrowserApp(QMainWindow):
             clinic_name = AppSettings().get_clinic_profile().get("clinic_name") or clinic_name
         except Exception:
             pass
-        self.setWindowTitle(f"{clinic_name} - Admin Dashboard")
+        self.setWindowTitle(f"{clinic_name} - Aplikasi Klinik")
         self.resize(1280, 720)
 
         self._profile = QWebEngineProfile("LancarDinamicAdmin", self)
@@ -336,8 +336,8 @@ class BrowserApp(QMainWindow):
             <body>
               <main>
                 <div class="mark" aria-hidden="true"></div>
-                <h1>Menyiapkan dashboard</h1>
-                <p>Menghubungkan aplikasi desktop ke backend lokal...</p>
+                <h1>Menyiapkan aplikasi</h1>
+                <p>Sedang memuat data klinik. Mohon tunggu sebentar...</p>
               </main>
             </body>
             </html>
@@ -368,8 +368,8 @@ class BrowserApp(QMainWindow):
             </head>
             <body>
               <main>
-                <h1>Backend lokal belum siap</h1>
-                <p>Tutup aplikasi lalu buka lagi. Jika masih gagal, periksa apakah port {APP_PORT} sedang dipakai aplikasi lain.</p>
+                <h1>Aplikasi belum siap</h1>
+                <p>Tutup aplikasi lalu buka lagi. Jika masih gagal, hubungi bantuan dengan menyertakan pesan di bawah ini.</p>
                 <code>{safe_message}</code>
               </main>
             </body>

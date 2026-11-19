@@ -1,6 +1,136 @@
 "use strict";
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
+let settingsDelegationReady = false;
+function ensureSettingsEventDelegation() {
+    if (settingsDelegationReady)
+        return;
+    settingsDelegationReady = true;
+    document.addEventListener('click', (event) => {
+        const button = event.target?.closest('[data-settings-action]');
+        if (!button)
+            return;
+        const action = button.dataset.settingsAction || '';
+        if (!action)
+            return;
+        event.preventDefault();
+        switch (action) {
+            case 'category':
+                setSettingsCategory(button.dataset.settingsCategory || 'profile');
+                break;
+            case 'whatsapp-tab':
+                openSettingsWhatsAppTab();
+                break;
+            case 'clear-logo':
+                clearClinicLogoPath();
+                break;
+            case 'request-admin-pin-reset':
+                requestAdminPinReset();
+                break;
+            case 'seed-demo':
+                seedDemoData();
+                break;
+            case 'clear-demo':
+                clearDemoData();
+                break;
+            case 'export':
+                exportSettingsData(button.dataset.format || 'json');
+                break;
+            case 'open-export-folder':
+                openSettingsExportFolder();
+                break;
+            case 'create-backup':
+                createWebBackup();
+                break;
+            case 'refresh-backup':
+                loadBackupManagement();
+                break;
+            case 'restore-backup':
+                restoreWebBackup(button.dataset.path || '');
+                break;
+            case 'reset-discount-form':
+                resetDiscountRuleForm();
+                break;
+            case 'discount-type':
+                setDiscountRuleType(button.dataset.type || 'visit_count');
+                break;
+            case 'run-discount-simulation':
+                runDiscountSimulation();
+                break;
+            case 'toggle-discount-rule':
+                toggleDiscountRule(Number(button.dataset.ruleId || 0), button.dataset.nextActive === 'true');
+                break;
+            case 'edit-discount-rule':
+                editDiscountRule(Number(button.dataset.ruleId || 0));
+                break;
+            case 'delete-discount-rule':
+                deleteDiscountRule(Number(button.dataset.ruleId || 0));
+                break;
+            case 'reset-free-visit-reasons':
+                resetFreeVisitReasons();
+                break;
+            case 'reload-free-visit-reasons':
+                loadFreeVisitReasons();
+                break;
+        }
+    });
+    document.addEventListener('input', (event) => {
+        const input = event.target;
+        if (input?.dataset?.settingsAction === 'filter-sections') {
+            filterSettingsSections(input.value);
+        }
+    });
+    document.addEventListener('change', (event) => {
+        const target = event.target;
+        const action = target?.dataset?.settingsAction || '';
+        if (!action)
+            return;
+        switch (action) {
+            case 'upload-logo':
+                uploadClinicLogo(target);
+                break;
+            case 'discount-type-ui':
+                updateDiscountRuleTypeUI();
+                break;
+            case 'sync-discount-target-patients':
+                syncDiscountTargetPatients();
+                break;
+            case 'sync-discount-activation':
+                syncDiscountActivationControl();
+                break;
+            case 'sync-manual-simulation':
+                syncManualSimulationControl();
+                break;
+        }
+    });
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        const action = form?.dataset?.settingsFormAction || '';
+        if (!action)
+            return;
+        switch (action) {
+            case 'license-activation':
+                submitLicenseActivation(event);
+                break;
+            case 'admin-pin-change':
+                submitAdminPinChange(event);
+                break;
+            case 'admin-pin-reset':
+                submitAdminPinReset(event);
+                break;
+            case 'import':
+                submitImport(event);
+                break;
+            case 'discount-rule':
+                submitDiscountRule(event);
+                break;
+            case 'free-visit-reasons':
+                submitFreeVisitReasons(event);
+                break;
+        }
+    });
+}
 function renderSettings(s, options = {}) {
+    ensureSettingsEventDelegation();
     const onlyDiscount = options.onlyDiscount === true;
     const pricePerPoint = s.price_per_point ?? 10000;
     const basePrice = s.base_price ?? 100000;
@@ -12,20 +142,42 @@ function renderSettings(s, options = {}) {
         .filter(([, info]) => info.status === 'coming_soon')
         .map(([id, info]) => ({ id, label: info.display_name || id }));
     const comingSoonHtml = comingSoonProviders.length
-        ? `<div class="settings-info-row" style="margin-bottom:14px;">
+        ? `<div class="settings-info-row settings-info-coming-soon">
                 <i class="fas fa-clock"></i>
                 <span>Segera Hadir: ${comingSoonProviders.map(p => escapeHtml(p.label)).join(', ')}. Adapter belum tersedia, jadi belum bisa dipilih sebagai provider aktif.</span>
            </div>`
         : '';
     const html = `
+        <section class="settings-workspace">
+        <div class="settings-workspace-head">
+            <div>
+                <h2><i class="fas fa-sliders-h"></i> Pengaturan</h2>
+                <p>Pilih kategori untuk membuka pengaturan yang diperlukan tanpa menelusuri halaman panjang.</p>
+            </div>
+            <label class="settings-search">
+                <i class="fas fa-search"></i>
+                <input type="search" id="settings-search-input" placeholder="Cari Midtrans, backup, PIN, tema..." data-settings-action="filter-sections">
+            </label>
+        </div>
+        <nav class="settings-category-nav" aria-label="Kategori pengaturan">
+            <button type="button" data-settings-action="category" data-settings-category="profile"><i class="fas fa-clinic-medical"></i><span>Profil & Pembayaran</span></button>
+            <button type="button" data-settings-action="category" data-settings-category="license"><i class="fas fa-shield-alt"></i><span>Lisensi</span></button>
+            <button type="button" data-settings-action="category" data-settings-category="security"><i class="fas fa-user-shield"></i><span>Keamanan / PIN</span></button>
+            <button type="button" data-settings-action="category" data-settings-category="export"><i class="fas fa-file-export"></i><span>Ekspor</span></button>
+            <button type="button" data-settings-action="category" data-settings-category="import"><i class="fas fa-file-import"></i><span>Impor</span></button>
+            <button type="button" data-settings-action="category" data-settings-category="backup"><i class="fas fa-database"></i><span>Backup & Data</span></button>
+            <button type="button" data-settings-action="category" data-settings-category="developer"><i class="fas fa-flask"></i><span>Data Contoh</span></button>
+            <button type="button" class="settings-link-category" data-settings-action="whatsapp-tab"><i class="fab fa-whatsapp"></i><span>WhatsApp</span></button>
+        </nav>
+        <div id="settings-search-status" class="settings-search-status" hidden></div>
         <div class="settings-compact-grid">
             <!-- Settings Form -->
-            <div class="card settings-system-card" style="height:fit-content; border-top:3px solid var(--primary);">
+            <div class="card settings-system-card settings-card-border-primary">
                 <div class="card-header">
                     <h3><i class="fas fa-sliders-h"></i> Konfigurasi Sistem</h3>
                 </div>
 
-                <div style="margin-bottom:18px;">
+                <div class="settings-form-wrapper">
                     <form action="/settings" method="post" id="settings-form">
                         <input type="hidden" name="discount_percentage" value="0">
                         <input type="hidden" name="min_visits_for_discount" value="999999">
@@ -33,9 +185,9 @@ function renderSettings(s, options = {}) {
                         <input type="hidden" name="base_price" value="${basePrice}">
 
                         <!-- Section: Klinik -->
-                        <div class="settings-form-section" style="display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:8px 12px; background:#f0fdf4; border-radius:8px; border-left:3px solid var(--success);">
-                            <i class="fas fa-clinic-medical" style="color:var(--success);"></i>
-                            <span style="font-size:12px; font-weight:700; color:var(--success); text-transform:uppercase; letter-spacing:0.5px;">Identitas Klinik</span>
+                        <div class="settings-section-clinic">
+                            <i class="fas fa-clinic-medical"></i>
+                            <span>Identitas Klinik</span>
                         </div>
                         <div class="form-group">
                             <label>Nama Klinik</label>
@@ -63,15 +215,15 @@ function renderSettings(s, options = {}) {
                         </div>
                         <div class="form-group">
                             <label>Logo Klinik</label>
-                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                                <input type="file" id="clinic-logo-file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onchange="uploadClinicLogo(this)" style="background:white; cursor:pointer; flex:1 1 210px;">
-                                <button type="button" class="btn btn-secondary" onclick="clearClinicLogoPath()" style="width:auto;">
+                            <div class="settings-logo-upload-row">
+                                <input type="file" id="clinic-logo-file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" data-settings-action="upload-logo">
+                                <button type="button" class="btn btn-secondary" data-settings-action="clear-logo">
                                     <i class="fas fa-times"></i> Hapus
                                 </button>
                             </div>
-                            <input type="text" id="clinic-logo-path" name="clinic_logo_path" value="${escapeHtml(s.clinic_logo_path || '')}" placeholder="Path logo akan terisi setelah pilih file" style="margin-top:8px;">
+                            <input type="text" id="clinic-logo-path" name="clinic_logo_path" value="${escapeHtml(s.clinic_logo_path || '')}" placeholder="Path logo akan terisi setelah pilih file" class="settings-logo-path-input">
                             <small class="settings-logo-help">Contoh: PNG/JPG/WebP, ideal 512x512 px atau rasio persegi, maksimal 2 MB. File akan disalin ke folder data aplikasi.</small>
-                            <div id="clinic-logo-result" style="margin-top:8px;"></div>
+                            <div id="clinic-logo-result" class="settings-logo-result"></div>
                         </div>
                         <div class="form-group">
                             <label>Footer Invoice</label>
@@ -81,40 +233,40 @@ function renderSettings(s, options = {}) {
                             <label>Label Admin</label>
                             <input type="text" name="admin_label" value="${escapeHtml(s.admin_label || 'Admin Klinik,')}">
                         </div>
-                        <div class="settings-form-section" style="display:flex; align-items:center; gap:8px; margin:18px 0 12px; padding:8px 12px; background:#eff6ff; border-radius:8px; border-left:3px solid #2563eb;">
-                            <i class="fas fa-credit-card" style="color:#2563eb;"></i>
-                            <span style="font-size:12px; font-weight:700; color:#1d4ed8; text-transform:uppercase; letter-spacing:0.5px;">Payment Gateway</span>
+                        <div class="settings-section-payment">
+                            <i class="fas fa-credit-card"></i>
+                            <span>Link Pembayaran</span>
                         </div>
                         <div class="form-group">
                             <label class="activation-switch is-${s.payment_gateway_enabled ? 'on' : 'off'}" for="payment-gateway-enabled">
                                 <input type="checkbox" id="payment-gateway-enabled" name="payment_gateway_enabled" value="true" ${s.payment_gateway_enabled ? 'checked' : ''}>
                                 <span class="activation-track" aria-hidden="true"><span></span></span>
                                 <span class="activation-copy">
-                                    <strong>Gateway Pembayaran</strong>
-                                    <small>Jika belum punya API key, biarkan nonaktif. Pembayaran manual tetap bisa dipakai.</small>
+                                    <strong>Link Pembayaran Otomatis</strong>
+                                    <small>Jika belum punya akun pembayaran online, biarkan nonaktif. Pembayaran manual tetap bisa dipakai.</small>
                                 </span>
                             </label>
                         </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="settings-payment-grid">
                             <div class="form-group">
-                                <label>Provider Default</label>
+                                <label>Penyedia Pembayaran</label>
                                 <select name="payment_gateway_default_provider">
                                     <option value="gateway_mock" ${paymentProvider === 'gateway_mock' ? 'selected' : ''}>Pembayaran Internal</option>
                                     <option value="midtrans" ${paymentProvider === 'midtrans' ? 'selected' : ''}>Midtrans</option>
                                 </select>
-                                <small class="settings-logo-help">Hanya provider dengan adapter aktif yang bisa dipilih. Provider Segera Hadir belum bisa disimpan sebagai provider aktif.</small>
+                                <small class="settings-logo-help">Pilih penyedia pembayaran yang sudah siap digunakan.</small>
                             </div>
                             <div class="form-group">
-                                <label>Environment</label>
+                                <label>Mode Penggunaan</label>
                                 <select name="payment_gateway_environment">
-                                    <option value="sandbox" ${(s.payment_gateway_environment || 'sandbox') === 'sandbox' ? 'selected' : ''}>Sandbox</option>
-                                    <option value="production" ${s.payment_gateway_environment === 'production' ? 'selected' : ''}>Production</option>
+                                    <option value="sandbox" ${(s.payment_gateway_environment || 'sandbox') === 'sandbox' ? 'selected' : ''}>Percobaan</option>
+                                    <option value="production" ${s.payment_gateway_environment === 'production' ? 'selected' : ''}>Aktif</option>
                                 </select>
                             </div>
                         </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="settings-payment-grid-3col">
                             <div class="form-group">
-                                <label>Midtrans Server Key</label>
+                                <label>Midtrans Kunci Rahasia</label>
                                 <input type="password" name="midtrans_server_key" placeholder="Kosongkan jika belum tersedia" autocomplete="off">
                             </div>
                             <div class="form-group">
@@ -126,9 +278,9 @@ function renderSettings(s, options = {}) {
                                 <input type="text" name="midtrans_merchant_id" value="${escapeHtml(s.midtrans_merchant_id || '')}" placeholder="Opsional">
                             </div>
                         </div>
-                        <div class="settings-info-row" style="margin-bottom:14px;">
+                        <div class="settings-info-row">
                             <i class="fas fa-info-circle"></i>
-                            <span>Tanpa API key gateway, gunakan status Lunas, Belum Bayar, DP, Tunai, QRIS manual, atau Transfer dari form kunjungan. Gateway hanya diperlukan untuk membuat link pembayaran otomatis.</span>
+                            <span>Tanpa kunci pembayaran online, gunakan status Lunas, Belum Bayar, DP, Tunai, QRIS manual, atau Transfer dari form kunjungan. Fitur ini hanya diperlukan untuk membuat link pembayaran otomatis.</span>
                         </div>
                         ${comingSoonHtml}
                         <button type="submit" class="btn btn-primary">
@@ -139,15 +291,15 @@ function renderSettings(s, options = {}) {
             </div>
 
             <!-- Export & Import -->
-            <div class="settings-card-stack" style="display:flex; flex-direction:column; gap:18px;">
-                <div class="card settings-license-card" style="height:fit-content; border-top:3px solid #6366f1;">
+            <div class="settings-card-stack">
+                <div class="card settings-license-card settings-card-border-indigo">
                     <div class="card-header">
-                        <h3><i class="fas fa-shield-alt" style="color:#6366f1;"></i> Lisensi Aplikasi</h3>
+                        <h3><i class="fas fa-shield-alt settings-icon-indigo"></i> Lisensi Aplikasi</h3>
                     </div>
-                    <div id="license-settings-status" style="padding:10px 12px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0; color:var(--text-muted); font-size:13px; margin-bottom:14px;">
+                    <div id="license-settings-status" class="settings-license-status">
                         <i class="fas fa-spinner fa-spin"></i> Memuat status lisensi...
                     </div>
-                    <form id="license-settings-form" onsubmit="submitLicenseActivation(event)">
+                    <form id="license-settings-form" data-settings-form-action="license-activation">
                         <div class="form-group">
                             <label>Clinic ID</label>
                             <input type="text" id="license-clinic-id" name="clinic_id" placeholder="Clinic ID" required>
@@ -156,21 +308,21 @@ function renderSettings(s, options = {}) {
                             <label>Kode Lisensi Baru</label>
                             <input type="password" id="license-key-input" name="license_key" placeholder="Tempel kode lisensi baru" required>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#6366f1,#4f46e5); box-shadow:0 4px 12px rgba(99,102,241,0.28);">
+                        <button type="submit" class="btn btn-primary settings-license-btn">
                             <i class="fas fa-key"></i> Aktivasi / Ganti Lisensi
                         </button>
                     </form>
-                    <div id="license-settings-result" style="margin-top:12px;"></div>
+                    <div id="license-settings-result" class="settings-result-margin"></div>
                 </div>
 
-                <div class="card settings-security-card" style="height:fit-content; border-top:3px solid #0f766e;">
+                <div class="card settings-security-card settings-card-border-teal">
                     <div class="card-header">
-                        <h3><i class="fas fa-user-shield" style="color:#0f766e;"></i> Keamanan Admin</h3>
+                        <h3><i class="fas fa-user-shield settings-icon-teal"></i> Keamanan Admin</h3>
                     </div>
                     <p class="settings-security-copy">
                         Ubah PIN lokal yang dipakai untuk membuka aplikasi dan menjalankan aksi sensitif.
                     </p>
-                    <form id="admin-pin-change-form" class="admin-pin-change-form" onsubmit="submitAdminPinChange(event)">
+                    <form id="admin-pin-change-form" class="admin-pin-change-form" data-settings-form-action="admin-pin-change">
                         <div class="form-group">
                             <label>PIN Lama</label>
                             <input type="password" id="admin-current-pin" name="current_pin" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" required>
@@ -184,31 +336,31 @@ function renderSettings(s, options = {}) {
                             <label>Konfirmasi PIN Baru</label>
                             <input type="password" id="admin-confirm-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" required>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#0f766e,#115e59); box-shadow:0 4px 12px rgba(15,118,110,0.26);">
+                        <button type="submit" class="btn btn-primary settings-security-btn">
                             <i class="fas fa-lock"></i> Ubah PIN Admin
                         </button>
                     </form>
-                    <div id="admin-pin-change-result" style="margin-top:12px;"></div>
+                    <div id="admin-pin-change-result" class="settings-result-margin"></div>
                     <div class="admin-pin-reset-box">
                         <div class="admin-pin-reset-heading">
                             <i class="fas fa-life-ring"></i>
                             <div>
                                 <strong>Lupa PIN?</strong>
-                                <span>Minta kode reset dari server lisensi, lalu buat PIN admin baru di komputer ini.</span>
+                                <span>Minta kode reset dari pusat lisensi, lalu buat PIN admin baru di komputer ini.</span>
                             </div>
                         </div>
-                        <button type="button" id="admin-pin-reset-request-btn" class="btn btn-secondary" onclick="requestAdminPinReset()">
+                        <button type="button" id="admin-pin-reset-request-btn" class="btn btn-secondary" data-settings-action="request-admin-pin-reset">
                             <i class="fas fa-paper-plane"></i> Minta Kode Reset
                         </button>
-                        <form id="admin-pin-reset-form" class="admin-pin-change-form" onsubmit="submitAdminPinReset(event)">
+                        <form id="admin-pin-reset-form" class="admin-pin-change-form" data-settings-form-action="admin-pin-reset">
                             <div class="form-group">
-                                <label>Kode Reset Server Lisensi</label>
-                                <input type="text" id="admin-reset-token" autocomplete="one-time-code" placeholder="Masukkan kode dari server lisensi" required>
+                                <label>Kode Reset Lisensi</label>
+                                <input type="text" id="admin-reset-token" autocomplete="one-time-code" placeholder="Masukkan kode dari pusat lisensi" required>
                             </div>
                             <div class="form-group">
                                 <label>PIN Admin Baru</label>
                                 <input type="password" id="admin-reset-new-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" required>
-                                <small class="settings-security-help">PIN tetap disimpan lokal. Server lisensi hanya memberi izin reset.</small>
+                                <small class="settings-security-help">PIN tetap tersimpan di komputer ini. Pusat lisensi hanya memberi izin reset.</small>
                             </div>
                             <div class="form-group">
                                 <label>Konfirmasi PIN Baru</label>
@@ -218,37 +370,37 @@ function renderSettings(s, options = {}) {
                                 <i class="fas fa-rotate"></i> Reset PIN Admin
                             </button>
                         </form>
-                        <div id="admin-pin-reset-result" style="margin-top:12px;"></div>
+                        <div id="admin-pin-reset-result" class="settings-result-margin"></div>
                     </div>
                 </div>
 
-                <div class="card settings-demo-card" style="height:fit-content; border-top:3px solid #8b5cf6;">
+                <div class="card settings-demo-card settings-card-border-purple">
                     <div class="card-header">
-                        <h3><i class="fas fa-magic" style="color:#8b5cf6;"></i> Data Contoh</h3>
+                        <h3><i class="fas fa-magic settings-icon-purple"></i> Data Contoh</h3>
                     </div>
                     <p class="settings-security-copy">
                         Isi data demo untuk mencoba alur pasien, layanan, stok, dan kunjungan tanpa input manual.
                     </p>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                        <button type="button" class="btn btn-primary" onclick="seedDemoData()" style="width:auto;background:linear-gradient(135deg,#8b5cf6,#6d28d9);">
+                    <div class="settings-demo-actions">
+                        <button type="button" class="btn btn-primary settings-demo-btn" data-settings-action="seed-demo">
                             <i class="fas fa-magic"></i> Isi Data Contoh
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="clearDemoData()" style="width:auto;">
+                        <button type="button" class="btn btn-secondary" data-settings-action="clear-demo">
                             <i class="fas fa-broom"></i> Hapus Demo
                         </button>
                     </div>
-                    <div id="demo-data-result" style="margin-top:12px;"></div>
+                    <div id="demo-data-result" class="settings-demo-result"></div>
                 </div>
 
                 <!-- Export -->
-                <div class="card settings-export-card" style="height:fit-content; border-top:3px solid #10b981;">
+                <div class="card settings-export-card settings-card-border-emerald">
                     <div class="card-header">
-                        <h3><i class="fas fa-file-export" style="color:#10b981;"></i> Ekspor Data</h3>
+                        <h3><i class="fas fa-file-export settings-icon-emerald"></i> Ekspor Data</h3>
                     </div>
-                    <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px; line-height:1.6;">
+                    <p class="settings-export-description">
                         Ekspor data operasional untuk backup, pengecekan, atau migrasi manual.
                     </p>
-                    <div id="settings-export-folder" class="settings-info-row" style="margin-bottom:12px;">
+                    <div id="settings-export-folder" class="settings-info-row settings-export-folder-row">
                         <i class="fas fa-spinner fa-spin"></i>
                         <span>Memuat lokasi folder export...</span>
                     </div>
@@ -262,64 +414,62 @@ function renderSettings(s, options = {}) {
                             <option value="audit_logs">Audit Log</option>
                         </select>
                     </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div class="settings-export-grid">
                         <button type="button"
                            id="settings-export-xlsx-btn"
-                           onclick="exportSettingsData('xlsx')"
-                           style="background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:8px; padding:11px 16px; font-weight:600; cursor:pointer; font-size:13px; text-decoration:none; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(16,185,129,0.3); transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-1px)'"
-                           onmouseout="this.style.transform=''">
+                           data-settings-action="export"
+                           data-format="xlsx"
+                           class="settings-export-btn-xlsx">
                             <i class="fas fa-file-excel"></i> Excel (.xlsx)
                         </button>
                         <button type="button"
                            id="settings-export-json-btn"
-                           onclick="exportSettingsData('json')"
-                           style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; border:none; border-radius:8px; padding:11px 16px; font-weight:600; cursor:pointer; font-size:13px; text-decoration:none; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(59,130,246,0.3); transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-1px)'"
-                           onmouseout="this.style.transform=''">
+                           data-settings-action="export"
+                           data-format="json"
+                           class="settings-export-btn-json">
                             <i class="fas fa-file-code"></i> JSON
                         </button>
                     </div>
-                    <button type="button" class="btn btn-secondary" onclick="openSettingsExportFolder()" style="width:auto;margin-top:10px;">
+                    <button type="button" class="btn btn-secondary settings-export-folder-btn" data-settings-action="open-export-folder">
                         <i class="fas fa-folder-open"></i> Buka Folder Export
                     </button>
-                    <div id="settings-export-result" style="margin-top:12px;"></div>
+                    <div id="settings-export-result" class="settings-export-result"></div>
                 </div>
 
                 <!-- Import -->
-                <div class="card settings-import-card" style="height:fit-content; border-top:3px solid var(--warning);">
+                <div class="card settings-import-card settings-card-border-warning">
                     <div class="card-header">
-                        <h3><i class="fas fa-file-import" style="color:var(--warning);"></i> Impor Data</h3>
+                        <h3><i class="fas fa-file-import settings-icon-warning"></i> Impor Data</h3>
                     </div>
-                    <div style="background:var(--warning-light); border:1px solid #fcd34d; border-radius:8px; padding:12px 14px; margin-bottom:16px; font-size:13px; color:#92400e; display:flex; gap:10px; align-items:flex-start;">
-                        <i class="fas fa-exclamation-triangle" style="margin-top:2px; color:var(--warning); flex-shrink:0;"></i>
+                    <div class="settings-import-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
                         <span>Data baru akan digabung (merge) dengan data yang ada. Pasien dengan nomor HP sama tidak akan diduplikasi.</span>
                     </div>
-                    <form id="import-form" onsubmit="submitImport(event)">
+                    <form id="import-form" data-settings-form-action="import">
                         <div class="form-group">
                             <label>Pilih File JSON / Excel</label>
-                            <input type="file" id="import-file" name="file" accept=".json,.xlsx,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required style="background:white; cursor:pointer;">
+                            <input type="file" id="import-file" name="file" accept=".json,.xlsx,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required class="settings-import-file-input">
                         </div>
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#f59e0b,#ef4444); box-shadow:0 4px 12px rgba(245,158,11,0.35);">
+                        <button type="submit" class="btn btn-primary settings-import-btn">
                             <i class="fas fa-upload"></i> Impor Sekarang
                         </button>
                     </form>
-                    <div id="import-result" style="margin-top:12px;"></div>
+                    <div id="import-result" class="settings-import-result"></div>
                 </div>
 
                 <!-- Backup Management -->
-                <div class="card settings-backup-card" style="height:fit-content; border-top:3px solid #0ea5e9;">
+                <div class="card settings-backup-card settings-card-border-sky">
                     <div class="card-header">
-                        <h3><i class="fas fa-database" style="color:#0ea5e9;"></i> Manajemen Backup</h3>
+                        <h3><i class="fas fa-database settings-icon-sky"></i> Manajemen Backup</h3>
                     </div>
-                    <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px; line-height:1.6;">
+                    <p class="settings-backup-description">
                         Buat backup database manual dan restore dari backup yang tersimpan.
                     </p>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
-                        <button type="button" class="btn btn-primary" onclick="createWebBackup()" style="width:auto; background:linear-gradient(135deg,#0ea5e9,#2563eb); box-shadow:0 4px 12px rgba(14,165,233,0.28);">
+                    <div class="settings-backup-actions">
+                        <button type="button" class="btn btn-primary settings-backup-btn" data-settings-action="create-backup">
                             <i class="fas fa-plus"></i> Buat Backup
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="loadBackupManagement()" style="width:auto;">
+                        <button type="button" class="btn btn-secondary" data-settings-action="refresh-backup">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -330,14 +480,15 @@ function renderSettings(s, options = {}) {
                 </div>
             </div>
         </div>
+        </section>
 
-        <div class="card discount-admin-card" style="margin-top:18px; border-top:3px solid #6366f1;">
-            <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div class="card discount-admin-card discount-card-border-indigo">
+            <div class="card-header settings-card-header-flex">
                 <div>
-                    <h3><i class="fas fa-tags" style="color:#6366f1;"></i> Diskon & Voucher</h3>
+                    <h3><i class="fas fa-tags settings-icon-indigo"></i> Diskon & Voucher</h3>
                     <p class="discount-helper-text">Sistem hanya memakai 1 diskon per kunjungan: prioritas terkecil menang. Diskon kunjungan dihitung dari total riwayat pasien dan berlaku mulai kunjungan ke-N dan seterusnya.</p>
                 </div>
-                <button type="button" class="btn btn-secondary" onclick="resetDiscountRuleForm()" style="width:auto;">
+                <button type="button" class="btn btn-secondary" data-settings-action="reset-discount-form">
                     <i class="fas fa-plus"></i> Baru
                 </button>
             </div>
@@ -347,22 +498,22 @@ function renderSettings(s, options = {}) {
                 <div><strong>Diskon baru aktif</strong><span>Langsung ikut dihitung pada kunjungan berikutnya, jika nomor kunjungan sudah mencapai syarat.</span></div>
             </div>
             <div class="discount-admin-grid">
-                <form id="discount-rule-form" class="discount-rule-form" onsubmit="submitDiscountRule(event)">
+                <form id="discount-rule-form" class="discount-rule-form" data-settings-form-action="discount-rule">
                 <input type="hidden" id="discount-rule-id" name="rule_id" value="0">
                 <div class="discount-type-picker" aria-label="Pilih tipe diskon">
-                    <button type="button" data-type="visit_count" onclick="setDiscountRuleType('visit_count')"><i class="fas fa-redo"></i><span>Kunjungan</span></button>
-                    <button type="button" data-type="voucher" onclick="setDiscountRuleType('voucher')"><i class="fas fa-ticket-alt"></i><span>Voucher</span></button>
-                    <button type="button" data-type="period" onclick="setDiscountRuleType('period')"><i class="fas fa-calendar-alt"></i><span>Periode</span></button>
-                    <button type="button" data-type="manual" onclick="setDiscountRuleType('manual')"><i class="fas fa-edit"></i><span>Harga Manual</span></button>
+                    <button type="button" data-settings-action="discount-type" data-type="visit_count"><i class="fas fa-redo"></i><span>Kunjungan</span></button>
+                    <button type="button" data-settings-action="discount-type" data-type="voucher"><i class="fas fa-ticket-alt"></i><span>Voucher</span></button>
+                    <button type="button" data-settings-action="discount-type" data-type="period"><i class="fas fa-calendar-alt"></i><span>Periode</span></button>
+                    <button type="button" data-settings-action="discount-type" data-type="manual"><i class="fas fa-edit"></i><span>Harga Manual</span></button>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px;">
+                <div class="discount-form-grid">
                     <div class="form-group">
                         <label>Nama Diskon</label>
                         <input type="text" id="discount-rule-name" name="name" placeholder="Promo Ramadhan" required>
                     </div>
                     <div class="form-group">
                         <label>Tipe</label>
-                        <select id="discount-rule-type" name="type" required onchange="updateDiscountRuleTypeUI()">
+                        <select id="discount-rule-type" name="type" required data-settings-action="discount-type-ui">
                             <option value="visit_count">Jumlah Kunjungan</option>
                             <option value="voucher">Voucher</option>
                             <option value="manual">Manual</option>
@@ -402,18 +553,18 @@ function renderSettings(s, options = {}) {
                     <div class="form-group discount-field discount-field-voucher" style="grid-column:1 / -1;">
                         <label>Pasien Khusus</label>
                         <input type="hidden" id="discount-rule-target-patient-ids" name="target_patient_ids" value="">
-                        <select id="discount-rule-target-patients" multiple size="6" onchange="syncDiscountTargetPatients()" style="min-height:130px;">
+                        <select id="discount-rule-target-patients" multiple size="6" data-settings-action="sync-discount-target-patients" style="min-height:130px;">
                             <option value="">Memuat daftar pasien...</option>
                         </select>
                         <small class="discount-input-help">Kosongkan jika voucher berlaku untuk semua pasien. Tahan Ctrl untuk memilih beberapa pasien.</small>
                     </div>
                     <div class="form-group discount-field discount-field-date">
                         <label>Mulai</label>
-                        <input type="date" id="discount-rule-start" name="start_date" onchange="updateDiscountRuleTypeUI()">
+                        <input type="date" id="discount-rule-start" name="start_date" data-settings-action="discount-type-ui">
                     </div>
                     <div class="form-group discount-field discount-field-date">
                         <label>Selesai</label>
-                        <input type="date" id="discount-rule-end" name="end_date" onchange="updateDiscountRuleTypeUI()">
+                        <input type="date" id="discount-rule-end" name="end_date" data-settings-action="discount-type-ui">
                     </div>
                     <div class="form-group">
                         <label>Prioritas</label>
@@ -423,7 +574,7 @@ function renderSettings(s, options = {}) {
                     <div class="form-group activation-field">
                         <label>Status Aturan</label>
                         <label class="activation-switch is-on" id="discount-rule-active-control" for="discount-rule-active">
-                            <input type="checkbox" id="discount-rule-active" checked onchange="syncDiscountActivationControl()">
+                            <input type="checkbox" id="discount-rule-active" checked data-settings-action="sync-discount-activation">
                             <span class="activation-track" aria-hidden="true"><span></span></span>
                             <span class="activation-copy">
                                 <strong id="discount-rule-active-title">Aktif</strong>
@@ -436,7 +587,7 @@ function renderSettings(s, options = {}) {
                         <button type="submit" class="btn btn-primary" style="width:auto;">
                             <i class="fas fa-save"></i> Simpan Diskon
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="runDiscountSimulation()" style="width:auto;">
+                        <button type="button" class="btn btn-secondary" data-settings-action="run-discount-simulation" style="width:auto;">
                             <i class="fas fa-calculator"></i> Simulasi
                         </button>
                     </div>
@@ -457,14 +608,14 @@ function renderSettings(s, options = {}) {
                         <input type="text" id="discount-sim-voucher" placeholder="Kosongkan jika tidak ada">
                     </div>
                     <label class="activation-switch compact" id="discount-sim-manual-control" for="discount-sim-manual">
-                        <input type="checkbox" id="discount-sim-manual" onchange="syncManualSimulationControl()">
+                        <input type="checkbox" id="discount-sim-manual" data-settings-action="sync-manual-simulation">
                         <span class="activation-track" aria-hidden="true"><span></span></span>
                         <span class="activation-copy">
                             <strong id="discount-sim-manual-title">Harga normal</strong>
                             <small id="discount-sim-manual-help">Simulasi memakai aturan diskon otomatis.</small>
                         </span>
                     </label>
-                    <button type="button" class="btn btn-primary" onclick="runDiscountSimulation()">
+                    <button type="button" class="btn btn-primary" data-settings-action="run-discount-simulation">
                         <i class="fas fa-play"></i> Cek Simulasi
                     </button>
                     <div id="discount-simulation-result" class="discount-simulation-result">Isi simulasi untuk melihat diskon yang akan dipakai pada kunjungan berikutnya.</div>
@@ -474,7 +625,7 @@ function renderSettings(s, options = {}) {
             <div style="overflow-x:auto;">
                 <table style="width:100%; border-collapse:collapse;">
                     <thead>
-                        <tr style="background:#f8fafc; color:#475569; font-size:12px; text-transform:uppercase;">
+                        <tr style="background:var(--color-surface-muted); color:var(--color-text-muted); font-size:12px; text-transform:uppercase;">
                             <th style="padding:10px; text-align:left;">Nama</th>
                             <th style="padding:10px; text-align:left;">Tipe</th>
                             <th style="padding:10px; text-align:left;">Diskon</th>
@@ -508,6 +659,7 @@ function renderSettings(s, options = {}) {
     if (discountCard)
         discountCard.remove();
     arrangeSettingsLayout();
+    syncSettingsActivationSwitches();
     loadLicenseSettingsStatus();
     loadSettingsExportFolder();
     loadBackupManagement();
@@ -519,31 +671,31 @@ function renderVouchers() {
     if (!displayArea || !discountCard)
         return;
     discountCard.insertAdjacentHTML('beforebegin', `
-        <div class="card free-visit-reasons-card" style="margin-bottom:18px; border-top:3px solid #10b981;">
-            <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div class="card free-visit-reasons-card free-visit-card">
+            <div class="card-header settings-card-header-flex">
                 <div>
-                    <h3><i class="fas fa-gift" style="color:#10b981;"></i> Promo Gratis</h3>
+                    <h3><i class="fas fa-gift settings-icon-emerald"></i> Promo Gratis</h3>
                     <p class="discount-helper-text">Daftar alasan yang muncul saat toggle Kunjungan Gratis aktif di form kunjungan.</p>
                 </div>
-                <button type="button" class="btn btn-secondary" onclick="resetFreeVisitReasons()" style="width:auto;">
+                <button type="button" class="btn btn-secondary" data-settings-action="reset-free-visit-reasons">
                     <i class="fas fa-undo"></i> Default
                 </button>
             </div>
-            <form id="free-visit-reasons-form" onsubmit="submitFreeVisitReasons(event)">
+            <form id="free-visit-reasons-form" data-settings-form-action="free-visit-reasons">
                 <div class="form-group">
                     <label>Alasan Kunjungan Gratis</label>
-                    <textarea id="free-visit-reasons-input" name="reasons" rows="5" placeholder="Satu alasan per baris" style="width:100%; resize:vertical;"></textarea>
+                    <textarea id="free-visit-reasons-input" name="reasons" rows="5" placeholder="Satu alasan per baris" class="free-visit-textarea"></textarea>
                     <small class="discount-input-help">Contoh: promo, keluarga, koreksi, garansi terapi. Satu baris menjadi satu pilihan.</small>
                 </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                    <button type="submit" class="btn btn-primary" style="width:auto;">
+                <div class="free-visit-actions">
+                    <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Simpan Promo Gratis
                     </button>
-                    <button type="button" class="btn btn-secondary" onclick="loadFreeVisitReasons()" style="width:auto;">
+                    <button type="button" class="btn btn-secondary" data-settings-action="reload-free-visit-reasons">
                         <i class="fas fa-sync-alt"></i> Muat Ulang
                     </button>
                 </div>
-                <div id="free-visit-reasons-result" style="margin-top:12px;"></div>
+                <div id="free-visit-reasons-result" class="settings-result-margin"></div>
             </form>
         </div>
     `);
@@ -649,37 +801,107 @@ async function submitFreeVisitReasons(event) {
 }
 function arrangeSettingsLayout() {
     const root = document.querySelector('.settings-compact-grid');
-    if (!root || root.querySelector('.settings-left-stack'))
+    if (!root)
         return;
-    const systemCard = root.querySelector('.settings-system-card');
-    const stack = root.querySelector('.settings-card-stack');
-    const licenseCard = root.querySelector('.settings-license-card');
-    const securityCard = root.querySelector('.settings-security-card');
-    const demoCard = root.querySelector('.settings-demo-card');
-    const exportCard = root.querySelector('.settings-export-card');
-    const importCard = root.querySelector('.settings-import-card');
-    const backupCard = root.querySelector('.settings-backup-card');
-    if (!systemCard || !stack)
-        return;
-    const left = document.createElement('div');
-    left.className = 'settings-left-stack';
-    const right = document.createElement('div');
-    right.className = 'settings-right-stack';
-    left.appendChild(systemCard);
-    if (exportCard)
-        left.appendChild(exportCard);
-    if (importCard)
-        left.appendChild(importCard);
-    if (licenseCard)
-        right.appendChild(licenseCard);
-    if (securityCard)
-        right.appendChild(securityCard);
-    if (demoCard)
-        right.appendChild(demoCard);
-    if (backupCard)
-        right.appendChild(backupCard);
-    root.replaceChildren(left, right);
+    if (!root.querySelector('.settings-left-stack')) {
+        const systemCard = root.querySelector('.settings-system-card');
+        const whatsappCard = root.querySelector('.settings-whatsapp-card');
+        const stack = root.querySelector('.settings-card-stack');
+        const licenseCard = root.querySelector('.settings-license-card');
+        const securityCard = root.querySelector('.settings-security-card');
+        const demoCard = root.querySelector('.settings-demo-card');
+        const exportCard = root.querySelector('.settings-export-card');
+        const importCard = root.querySelector('.settings-import-card');
+        const backupCard = root.querySelector('.settings-backup-card');
+        if (!systemCard || !stack)
+            return;
+        const left = document.createElement('div');
+        left.className = 'settings-left-stack';
+        const right = document.createElement('div');
+        right.className = 'settings-right-stack';
+        left.appendChild(systemCard);
+        if (whatsappCard)
+            left.appendChild(whatsappCard);
+        if (exportCard)
+            left.appendChild(exportCard);
+        if (importCard)
+            left.appendChild(importCard);
+        if (licenseCard)
+            right.appendChild(licenseCard);
+        if (securityCard)
+            right.appendChild(securityCard);
+        if (demoCard)
+            right.appendChild(demoCard);
+        if (backupCard)
+            right.appendChild(backupCard);
+        root.replaceChildren(left, right);
+    }
+    const categories = [
+        ['.settings-system-card', 'profile', 'profil klinik pembayaran payment gateway midtrans invoice struk tema tampilan'],
+        ['.settings-license-card', 'license', 'lisensi aktivasi clinic id license'],
+        ['.settings-security-card', 'security', 'keamanan pin reset admin'],
+        ['.settings-export-card', 'export', 'ekspor export excel json folder'],
+        ['.settings-import-card', 'import', 'impor import data'],
+        ['.settings-backup-card', 'backup', 'backup restore database data'],
+        ['.settings-demo-card', 'developer', 'developer diagnostik data contoh demo'],
+    ];
+    categories.forEach(([selector, category, keywords]) => {
+        const card = root.querySelector(selector);
+        if (!card)
+            return;
+        card.dataset.settingsCategory = category;
+        card.dataset.settingsKeywords = keywords;
+    });
+    setSettingsCategory(window._settingsCategory || 'profile', false);
 }
+function setSettingsCategory(category, focus = true) {
+    window._settingsCategory = category;
+    const searchInput = document.getElementById('settings-search-input');
+    if (searchInput)
+        searchInput.value = '';
+    const status = document.getElementById('settings-search-status');
+    if (status)
+        status.hidden = true;
+    document.querySelectorAll('.settings-category-nav [data-settings-category]').forEach(button => {
+        button.classList.toggle('is-active', button.dataset.settingsCategory === category);
+    });
+    document.querySelectorAll('.settings-compact-grid .card[data-settings-category]').forEach(card => {
+        const matches = card.dataset.settingsCategory === category;
+        card.hidden = !matches;
+    });
+    if (focus) {
+        const panel = document.querySelector(`.settings-compact-grid .card[data-settings-category="${category}"]`);
+        panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+function filterSettingsSections(rawQuery) {
+    const query = String(rawQuery || '').trim().toLowerCase();
+    const status = document.getElementById('settings-search-status');
+    const cards = Array.from(document.querySelectorAll('.settings-compact-grid .card[data-settings-category]'));
+    if (!query) {
+        setSettingsCategory(window._settingsCategory || 'profile', false);
+        return;
+    }
+    document.querySelectorAll('.settings-category-nav [data-settings-category]').forEach(button => button.classList.remove('is-active'));
+    let shown = 0;
+    cards.forEach(card => {
+        const haystack = `${card.dataset.settingsKeywords || ''} ${card.textContent || ''}`.toLowerCase();
+        const match = haystack.includes(query);
+        card.hidden = !match;
+        if (match)
+            shown += 1;
+    });
+    if (status) {
+        status.hidden = false;
+        status.textContent = shown ? `${shown} kategori cocok untuk "${rawQuery}".` : `Tidak ada pengaturan yang cocok untuk "${rawQuery}".`;
+    }
+}
+function openSettingsWhatsAppTab() {
+    document.querySelector('[data-tab="whatsapp-gateway"]')?.click();
+}
+window.setSettingsCategory = setSettingsCategory;
+window.filterSettingsSections = filterSettingsSections;
+window.openSettingsWhatsAppTab = openSettingsWhatsAppTab;
 async function uploadClinicLogo(input) {
     const result = document.getElementById('clinic-logo-result');
     const pathInput = document.getElementById('clinic-logo-path');
@@ -733,6 +955,489 @@ function clearClinicLogoPath() {
         fileInput.value = '';
     if (result)
         result.innerHTML = '<div class="settings-info-row"><i class="fas fa-info-circle"></i><span>Logo akan dikosongkan setelah pengaturan disimpan.</span></div>';
+}
+function setWhatsAppResult(html) {
+    const result = document.getElementById('whatsapp-settings-result');
+    if (result)
+        result.innerHTML = html;
+}
+function setWhatsAppLoginPanel(html, visible = true) {
+    const panel = document.getElementById('whatsapp-login-panel');
+    if (!panel)
+        return;
+    panel.style.display = visible ? 'block' : 'none';
+    panel.innerHTML = html;
+}
+function whatsappStatusRow(message, type = 'info') {
+    const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+    const className = type === 'error' ? 'settings-error-row' : `settings-info-row ${type === 'success' ? 'success' : ''}`;
+    return `<div class="${className}"><i class="fas ${icon}"></i><span>${escapeHtml(message)}</span></div>`;
+}
+function normalizeOpenWAErrorMessage(message) {
+    const text = String(message || '').trim();
+    if (/Cannot POST\s+\/layanan\/koneksis\//i.test(text)) {
+        return 'Server WhatsApp yang sedang berjalan masih versi lama. Tutup aplikasi, pastikan proses Node WhatsApp ikut tertutup, lalu buka aplikasi kembali.';
+    }
+    if (/berhenti saat startup/i.test(text)) {
+        return 'Node gateway berhenti saat startup. Buka log WhatsApp Gateway untuk melihat penyebab runtime, lalu coba mulai ulang.';
+    }
+    if (/startup timeout|tidak siap setelah/i.test(text)) {
+        return 'Gateway belum siap dalam batas waktu. Periksa log WhatsApp Gateway lalu coba mulai ulang.';
+    }
+    if (/Folder openwa_server belum tersedia/i.test(text)) {
+        return 'Runtime WhatsApp tidak ditemukan di instalasi aplikasi. Instal ulang RC atau periksa log startup.';
+    }
+    if (/Dependency OpenWA belum terinstall/i.test(text)) {
+        return 'Dependency WhatsApp tidak lengkap pada instalasi aplikasi. Instal ulang RC yang valid.';
+    }
+    if (/Port gateway WhatsApp digunakan/i.test(text)) {
+        return 'Port WhatsApp sedang digunakan proses lain atau session lama. Tutup proses tersebut lalu mulai ulang dari aplikasi.';
+    }
+    if (/WinError 10061|actively refused|connection refused|Tidak bisa terhubung ke OpenWA/i.test(text)) {
+        return 'Node gateway tidak berjalan. Klik Perbarui Status untuk memulai ulang gateway.';
+    }
+    if (/Gateway token|token invalid|HTTP 403|tidak dikelola aplikasi/i.test(text)) {
+        return 'Token gateway tidak valid atau gateway bukan milik aplikasi. Tutup proses WhatsApp lama lalu buka ulang aplikasi.';
+    }
+    if (/QR tidak tersedia|QR belum tersedia/i.test(text)) {
+        return 'QR belum tersedia. Tunggu beberapa detik lalu klik Perbarui Status.';
+    }
+    return text
+        .replace(/OpenWA/gi, 'WhatsApp')
+        .replace(/Baileys/gi, 'WhatsApp')
+        .replace(/server lokal/gi, 'layanan WhatsApp')
+        .replace(/server/gi, 'layanan')
+        .replace(/session/gi, 'koneksi')
+        .replace(/Base URL\/port/gi, 'pengaturan koneksi')
+        .replace(/API/gi, 'layanan')
+        .replace(/QR OpenWA/gi, 'QR WhatsApp');
+}
+function syncSettingsActivationSwitches() {
+    document.querySelectorAll('.settings-compact-grid .activation-switch input[type="checkbox"]').forEach(input => {
+        const checkbox = input;
+        const control = checkbox.closest('.activation-switch');
+        if (!control)
+            return;
+        const applyState = () => {
+            control.classList.toggle('is-on', checkbox.checked);
+            control.classList.toggle('is-off', !checkbox.checked);
+        };
+        applyState();
+        checkbox.addEventListener('change', applyState);
+    });
+}
+function getOpenWASessionIdFromForm() {
+    const input = document.querySelector('#whatsapp-settings-form input[name="openwa_session_id"]');
+    return String(input?.value || 'clinic').trim() || 'clinic';
+}
+function buildSessionFormData() {
+    const formData = new FormData();
+    const sessionId = getOpenWASessionIdFromForm();
+    if (sessionId)
+        formData.set('session_id', sessionId);
+    return formData;
+}
+function applyLocalOpenWASettings() {
+    const form = document.getElementById('whatsapp-settings-form');
+    if (!form)
+        return;
+    const baseUrl = form.querySelector('input[name="openwa_base_url"]');
+    const sessionId = form.querySelector('input[name="openwa_session_id"]');
+    if (baseUrl)
+        baseUrl.value = 'http://127.0.0.1:3000/api';
+    if (sessionId && !String(sessionId.value || '').trim())
+        sessionId.value = 'clinic';
+}
+async function checkLocalOpenWAServer() {
+    setWhatsAppResult(whatsappStatusRow('Mengecek kesiapan WhatsApp...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/server/status');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal mengecek kesiapan WhatsApp.');
+        applyLocalOpenWASettings();
+        const message = data.running
+            ? 'WhatsApp siap digunakan.'
+            : 'WhatsApp belum siap. Klik Perbarui Status atau buka ulang aplikasi.';
+        setWhatsAppResult(whatsappStatusRow(message, data.running ? 'success' : 'info'));
+        setWhatsAppLoginPanel(`<span><strong>Status WhatsApp:</strong><br>${escapeHtml(message)}</span>`);
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal mengecek kesiapan WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+}
+async function installLocalOpenWAServer() {
+    setWhatsAppResult(whatsappStatusRow('Menyiapkan komponen WhatsApp. Proses ini bisa beberapa menit...', 'info'));
+    setWhatsAppLoginPanel('<span><i class="fas fa-spinner fa-spin"></i> WhatsApp sedang disiapkan. Jangan tutup aplikasi.</span>');
+    try {
+        const response = await fetch('/whatsapp/server/install', { method: 'POST', body: new FormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'WhatsApp gagal disiapkan.');
+        setWhatsAppResult(whatsappStatusRow(data.message || 'WhatsApp berhasil disiapkan.', 'success'));
+        setWhatsAppLoginPanel('<span><strong>WhatsApp siap.</strong><br>Klik <b>Perbarui Status</b> untuk melanjutkan login.</span>');
+        showToast(data.message || 'WhatsApp berhasil disiapkan.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'WhatsApp gagal disiapkan.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        setWhatsAppLoginPanel(`<span>${escapeHtml(message)}</span>`);
+        showToast(message, 'error');
+    }
+}
+async function openOpenWADashboard() {
+    try {
+        await openDesktopExternalUrl('http://127.0.0.1:3000', 'gateway_dashboard');
+    }
+    catch (error) {
+        showToast(sanitizeAppErrorMessage(error, 'Dashboard WhatsApp tidak dapat dibuka.'), 'error');
+    }
+}
+async function startLocalOpenWAServer() {
+    setWhatsAppResult(whatsappStatusRow('Menyiapkan WhatsApp...', 'info'));
+    setWhatsAppLoginPanel('<span><i class="fas fa-spinner fa-spin"></i> WhatsApp sedang disiapkan. Tunggu beberapa detik...</span>');
+    try {
+        const response = await fetch('/whatsapp/server/start', { method: 'POST', body: new FormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyiapkan WhatsApp.');
+        applyLocalOpenWASettings();
+        setWhatsAppResult(whatsappStatusRow(data.message || 'WhatsApp disiapkan.', 'success'));
+        setWhatsAppLoginPanel('<span><strong>WhatsApp sedang dimulai.</strong><br>Tunggu beberapa detik, lalu klik <b>Perbarui Status</b>.</span>');
+        showToast(data.message || 'WhatsApp disiapkan.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal menyiapkan WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        setWhatsAppLoginPanel(`<span>${escapeHtml(message)}</span>`);
+        showToast(message, 'error');
+    }
+}
+function extractOpenWAQR(data) {
+    const candidates = [
+        typeof data === 'string' ? data : '',
+        data?.qr?.qr,
+        data?.qr?.qrcode,
+        data?.qr?.qrCode,
+        data?.qr?.base64,
+        data?.qr?.image,
+        data?.qr,
+        data?.qrcode,
+        data?.qrCode,
+        data?.base64,
+        data?.image,
+        data?.data?.qr,
+        data?.data?.qrcode,
+        data?.data?.qrCode,
+        data?.data?.base64,
+        data?.data?.image,
+        data?.data?.data?.qr,
+        data?.data?.data?.qrcode,
+        data?.data?.data?.qrCode,
+        data?.data?.data?.base64,
+    ].filter(Boolean).map(value => String(value));
+    return candidates.find(value => value.startsWith('data:image/'))
+        || candidates.find(value => /^https?:\/\//.test(value))
+        || '';
+}
+function renderOpenWADataSummary(data) {
+    try {
+        return `<pre style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0;font-size:11px;max-height:180px;overflow:auto;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+    }
+    catch (error) {
+        return '';
+    }
+}
+let openwaAutoRefreshTimer = null;
+function extractOpenWAStatus(data) {
+    return String(data?.session?.status || data?.session?.sessionStatus || data?.data?.status || data?.data?.sessionStatus || data?.status || '').trim();
+}
+function extractOpenWAAccount(data) {
+    const account = data?.session?.account || data?.data?.account || data?.account || null;
+    if (!account)
+        return null;
+    return {
+        name: String(account.name || '').trim(),
+        phone: String(account.phone || '').trim(),
+        id: String(account.id || '').trim(),
+    };
+}
+function renderWhatsAppLoginState(data) {
+    const status = extractOpenWAStatus(data);
+    const account = extractOpenWAAccount(data);
+    const qr = extractOpenWAQR(data);
+    const imageSrc = qr && (qr.startsWith('data:image/') || /^https?:\/\//.test(qr)) ? qr : '';
+    if (status === 'connected') {
+        return `
+            <div class="wa-profile-card is-connected">
+                <div class="wa-profile-heading">
+                    <span class="wa-connection-indicator" aria-hidden="true"></span>
+                    <div>
+                        <span class="wa-profile-eyebrow">Status login</span>
+                        <strong>WhatsApp sudah login</strong>
+                    </div>
+                    <span class="wa-status-pill"><i class="fas fa-check-circle"></i> Terhubung</span>
+                </div>
+                <div class="wa-profile-grid">
+                    <div class="wa-profile-field">
+                        <span>Nama akun</span>
+                        <strong>${escapeHtml(account?.name || 'Tidak tersedia')}</strong>
+                    </div>
+                    <div class="wa-profile-field">
+                        <span>Nomor WhatsApp</span>
+                        <strong>${escapeHtml(account?.phone || 'Tidak tersedia')}</strong>
+                    </div>
+                    <div class="wa-profile-field">
+                        <span>Status koneksi</span>
+                        <strong>Aktif dan siap mengirim</strong>
+                    </div>
+                </div>
+            </div>`;
+    }
+    return `
+        <div class="wa-profile-card is-waiting">
+            <div class="wa-profile-heading">
+                <span class="wa-connection-indicator" aria-hidden="true"></span>
+                <div>
+                    <span class="wa-profile-eyebrow">Status login</span>
+                    <strong>Menunggu login WhatsApp</strong>
+                </div>
+                <span class="wa-status-pill">Belum terhubung</span>
+            </div>
+            <p class="wa-profile-guidance">Buka WhatsApp di HP &gt; Perangkat Tertaut &gt; Tautkan Perangkat, lalu scan QR berikut.</p>
+            ${imageSrc
+        ? `<div class="wa-qr-frame"><img src="${escapeHtml(imageSrc)}" alt="QR Login WhatsApp"></div>`
+        : `<div class="wa-qr-pending"><i class="fas fa-spinner fa-spin"></i> Menunggu QR WhatsApp. Klik Perbarui Status bila belum muncul.</div>`}
+        </div>`;
+}
+async function autoWhatsAppGatewayLogin(showSuccessToast = false) {
+    if (openwaAutoRefreshTimer) {
+        clearTimeout(openwaAutoRefreshTimer);
+        openwaAutoRefreshTimer = null;
+    }
+    setWhatsAppResult(whatsappStatusRow('Menyiapkan WhatsApp...', 'info'));
+    setWhatsAppLoginPanel('<span><i class="fas fa-spinner fa-spin"></i> Menunggu QR WhatsApp...</span>');
+    try {
+        const response = await fetch('/whatsapp/auto-login', { method: 'POST', body: new FormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyiapkan WhatsApp.');
+        setWhatsAppLoginPanel(renderWhatsAppLoginState(data));
+        const status = extractOpenWAStatus(data);
+        const message = status === 'connected'
+            ? 'WhatsApp sudah login.'
+            : (extractOpenWAQR(data) ? 'QR WhatsApp siap. Scan QR yang tampil.' : 'QR belum tersedia. Tunggu beberapa detik lalu klik Perbarui Status.');
+        setWhatsAppResult(whatsappStatusRow(message, status === 'connected' ? 'success' : 'info'));
+        if (showSuccessToast)
+            showToast(message, status === 'connected' ? 'success' : 'info');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal menyiapkan WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        setWhatsAppLoginPanel(`<span>${escapeHtml(message)}</span>`);
+        showToast(message, 'error');
+    }
+}
+async function createOpenWASession() {
+    setWhatsAppResult(whatsappStatusRow('Menyiapkan koneksi WhatsApp...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/session/create', { method: 'POST', body: buildSessionFormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyiapkan koneksi WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(data.message || 'Session WhatsApp dibuat.', 'success'));
+        setWhatsAppLoginPanel('<span><strong>Koneksi WhatsApp siap.</strong><br>Langkah berikutnya: klik <b>Perbarui Status</b>, lalu scan QR jika diminta.</span>');
+        showToast(data.message || 'Koneksi WhatsApp siap.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal menyiapkan koneksi WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+}
+async function startOpenWASession() {
+    setWhatsAppResult(whatsappStatusRow('Memulai login WhatsApp...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/session/start', { method: 'POST', body: buildSessionFormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal memulai login WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(data.message || 'Session WhatsApp dijalankan.', 'success'));
+        setWhatsAppLoginPanel('<span><strong>Login WhatsApp dimulai.</strong><br>Klik <b>Perbarui Status</b>, lalu scan dari WhatsApp > Perangkat Tertaut.</span>');
+        showToast(data.message || 'Login WhatsApp dimulai.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal memulai login WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+}
+async function logoutWhatsAppSession() {
+    const ok = await showConfirm('Logout WhatsApp dari aplikasi ini?\n\nSetelah logout, koneksi lama akan dihapus dan Anda perlu scan QR ulang.', 'warning', { confirmText: 'Ya, Logout', cancelText: 'Batal' });
+    if (!ok)
+        return;
+    if (openwaAutoRefreshTimer) {
+        clearTimeout(openwaAutoRefreshTimer);
+        openwaAutoRefreshTimer = null;
+    }
+    setWhatsAppResult(whatsappStatusRow('Logout WhatsApp...', 'info'));
+    setWhatsAppLoginPanel('<span><i class="fas fa-spinner fa-spin"></i> Menghapus koneksi WhatsApp lama...</span>');
+    try {
+        const response = await fetch('/whatsapp/session/logout', { method: 'POST', body: buildSessionFormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal logout WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(data.message || 'WhatsApp berhasil logout.', 'success'));
+        setWhatsAppLoginPanel('<span><strong>WhatsApp sudah logout.</strong><br>Klik <b>Perbarui Status</b> untuk membuat QR baru, lalu scan dari WhatsApp HP.</span>');
+        showToast(data.message || 'WhatsApp berhasil logout.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal logout WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        setWhatsAppLoginPanel(`<span>${escapeHtml(message)}</span>`);
+        showToast(message, 'error');
+    }
+}
+async function showOpenWAQRCode() {
+    setWhatsAppResult(whatsappStatusRow('Mengambil QR login WhatsApp...', 'info'));
+    setWhatsAppLoginPanel('<span><i class="fas fa-spinner fa-spin"></i> Menunggu QR WhatsApp...</span>');
+    try {
+        const sessionId = encodeURIComponent(getOpenWASessionIdFromForm());
+        const response = await fetch(`/whatsapp/session/qr${sessionId ? `?session_id=${sessionId}` : ''}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal mengambil QR WhatsApp.');
+        const qr = extractOpenWAQR(data);
+        const imageSrc = qr && (qr.startsWith('data:image/') || /^https?:\/\//.test(qr)) ? qr : '';
+        if (!imageSrc)
+            throw new Error('QR belum tersedia.');
+        setWhatsAppResult(whatsappStatusRow('QR login siap. Scan dari WhatsApp > Perangkat Tertaut.', 'success'));
+        setWhatsAppLoginPanel(renderWhatsAppLoginState({ status: 'waiting', qr: imageSrc }));
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal mengambil QR WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        setWhatsAppLoginPanel(`<span>${escapeHtml(message)}</span>`);
+        showToast(message, 'error');
+    }
+}
+async function checkOpenWAStatus() {
+    setWhatsAppResult(whatsappStatusRow('Mengecek status WhatsApp...', 'info'));
+    try {
+        const sessionId = encodeURIComponent(getOpenWASessionIdFromForm());
+        const response = await fetch(`/whatsapp/session/status${sessionId ? `?session_id=${sessionId}` : ''}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal mengecek status WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow('Status WhatsApp berhasil dimuat.', 'success'));
+        setWhatsAppLoginPanel(renderWhatsAppLoginState(data.data || data));
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal mengecek status WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+}
+async function submitWhatsAppSettings(event) {
+    event.preventDefault();
+    const form = event.target;
+    const button = form?.querySelector('button[type="submit"]');
+    const originalText = button ? button.innerHTML : '';
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
+    setWhatsAppResult(whatsappStatusRow('Menyimpan pengaturan WhatsApp...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/settings', { method: 'POST', body: new FormData(form) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal menyimpan pengaturan WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(data.message || 'Pengaturan WhatsApp tersimpan.', 'success'));
+        showToast(data.message || 'Pengaturan WhatsApp tersimpan.', 'success');
+        const activeTab = document.querySelector('.nav-links li.active');
+        if (activeTab?.getAttribute('data-tab') === 'settings') {
+            await loadTab('settings');
+        }
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal menyimpan pengaturan WhatsApp.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+    finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+}
+async function testOpenWAHealth() {
+    setWhatsAppResult(whatsappStatusRow('Mengecek koneksi OpenWA...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/health-check', { method: 'POST', body: new FormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Koneksi OpenWA gagal.');
+        setWhatsAppResult(whatsappStatusRow('OpenWA tersambung.', 'success'));
+        showToast('OpenWA tersambung.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Koneksi OpenWA gagal.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+}
+async function processWhatsAppQueue() {
+    setWhatsAppResult(whatsappStatusRow('Mengirim follow-up tertunda...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/process-queue', { method: 'POST', body: new FormData() });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal mengirim follow-up tertunda.');
+        const sent = (data.processed || []).filter(item => item.status === 'sent').length;
+        const failed = (data.processed || []).filter(item => item.status !== 'sent').length;
+        const message = `Follow-up diproses: ${data.count || 0}. Terkirim: ${sent}. Belum berhasil: ${failed}.`;
+        setWhatsAppResult(whatsappStatusRow(message, failed ? 'info' : 'success'));
+        showToast(message, failed ? 'info' : 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal mengirim follow-up tertunda.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+}
+async function sendWhatsAppTestMessage(event) {
+    event.preventDefault();
+    const form = event.target;
+    const button = form?.querySelector('button[type="submit"]');
+    const originalText = button ? button.innerHTML : '';
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim...';
+    }
+    setWhatsAppResult(whatsappStatusRow('Mengirim pesan percobaan...', 'info'));
+    try {
+        const response = await fetch('/whatsapp/send-test', { method: 'POST', body: new FormData(form) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status !== 'success')
+            throw new Error(data.detail || 'Gagal mengirim pesan percobaan.');
+        setWhatsAppResult(whatsappStatusRow('Pesan percobaan berhasil dikirim.', 'success'));
+        showToast('Pesan percobaan berhasil dikirim.', 'success');
+    }
+    catch (error) {
+        const message = normalizeOpenWAErrorMessage(error.message || 'Gagal mengirim pesan percobaan.');
+        setWhatsAppResult(whatsappStatusRow(message, 'error'));
+        showToast(message, 'error');
+    }
+    finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
 }
 let discountRulesCache = [];
 function setDiscountRuleType(type) {
@@ -879,7 +1584,7 @@ function renderBackupManagement(data) {
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${escapeHtml(item.modified_at)} - ${formatBackupSize(item.size)}</span>
             </div>
-            <button type="button" onclick="restoreWebBackup('${escapeHtml(item.path)}')" title="Restore backup">
+            <button type="button" data-settings-action="restore-backup" data-path="${escapeHtml(item.path)}" title="Restore backup">
                 <i class="fas fa-undo-alt"></i>
             </button>
         </div>
@@ -1013,7 +1718,7 @@ async function submitLicenseActivation(event) {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memverifikasi...';
     }
     if (result) {
-        result.innerHTML = '<div style="color:#4f46e5;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Menghubungi server lisensi...</div>';
+        result.innerHTML = '<div style="color:#4f46e5;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Menghubungi pusat lisensi...</div>';
     }
     try {
         const response = await fetch('/activate_license', {
@@ -1122,19 +1827,19 @@ async function requestAdminPinReset() {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim...';
     }
-    renderAdminPinResetResult('Menghubungi server lisensi untuk membuat permintaan reset...', 'success');
+    renderAdminPinResetResult('Menghubungi pusat lisensi untuk membuat permintaan reset...', 'success');
     try {
         const response = await fetch('/admin_pin/reset/request', { method: 'POST' });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.status !== 'success') {
-            throw new Error(data.detail || 'Gagal meminta kode reset PIN ke server lisensi.');
+            throw new Error(data.detail || 'Gagal meminta kode reset PIN ke pusat lisensi.');
         }
         const suffix = data.reset_request_id ? ` ID permintaan: ${data.reset_request_id}` : '';
         const form = document.getElementById('admin-pin-reset-form');
         if (form)
-            form.dataset.resetToken = data.reset_token || '';
+            form.dataset.resetReady = 'true';
         renderAdminPinResetResult(`${data.message || 'Permintaan reset PIN dikirim.'}${suffix}`, 'success');
-        showToast('Permintaan reset PIN dikirim ke server lisensi.', 'success');
+        showToast('Permintaan reset PIN dikirim ke pusat lisensi.', 'success');
     }
     catch (error) {
         renderAdminPinResetResult(error.message || 'Gagal meminta reset PIN.');
@@ -1151,16 +1856,16 @@ async function submitAdminPinReset(event) {
     const form = event.target;
     const button = form.querySelector('button[type="submit"]');
     const originalText = button ? button.innerHTML : '';
-    const token = form.dataset.resetToken || '';
+    const resetReady = form.dataset.resetReady === 'true';
     const resetPin = document.getElementById('admin-reset-token')?.value.trim() || '';
     const newPin = document.getElementById('admin-reset-new-pin')?.value.trim() || '';
     const confirmPin = document.getElementById('admin-reset-confirm-pin')?.value.trim() || '';
     if (!resetPin) {
-        renderAdminPinResetResult('Kode reset dari server lisensi wajib diisi.');
+        renderAdminPinResetResult('Kode reset lisensi wajib diisi.');
         return;
     }
-    if (!token) {
-        renderAdminPinResetResult('Token reset belum tersedia. Klik Minta Kode Reset ulang.');
+    if (!resetReady) {
+        renderAdminPinResetResult('Kode reset belum siap. Klik Minta Kode Reset ulang.');
         return;
     }
     if (!/^[0-9]{4,8}$/.test(newPin)) {
@@ -1177,7 +1882,6 @@ async function submitAdminPinReset(event) {
     }
     try {
         const formData = new FormData();
-        formData.set('reset_token', token);
         formData.set('reset_pin', resetPin);
         formData.set('new_pin', newPin);
         const response = await fetch('/admin_pin/reset/confirm', { method: 'POST', body: formData });
@@ -1272,7 +1976,7 @@ async function exportSettingsData(format) {
                         ${escapeHtml(message)}<br>
                         <strong>${escapeHtml(data.filename || '')}</strong><br>
                         <small>${escapeHtml(data.path || '')}</small><br>
-                        <button type="button" class="btn btn-secondary" onclick="openSettingsExportFolder()" style="width:auto;margin-top:8px;">
+                        <button type="button" class="btn btn-secondary" data-settings-action="open-export-folder" style="width:auto;margin-top:8px;">
                             <i class="fas fa-folder-open"></i> Buka Folder
                         </button>
                     </span>
@@ -1316,10 +2020,10 @@ async function loadSettingsExportFolder() {
 }
 async function openSettingsExportFolder() {
     try {
-        const response = await fetch('/support/open_folder?kind=exports', { method: 'POST' });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status !== 'success')
-            throw new Error(data.detail || 'Gagal membuka folder export.');
+        const data = await window.LancarApi.openPath('exports');
+        if (data.status && data.status !== 'success') {
+            throw new Error(window.LancarApi.getErrorMessage(data, 'Gagal membuka folder export.'));
+        }
         showToast('Folder export dibuka.', 'success');
     }
     catch (error) {
@@ -1377,14 +2081,14 @@ async function loadDiscountRules() {
             return;
         }
         body.innerHTML = discountRulesCache.map(rule => `
-            <tr style="border-top:1px solid #e2e8f0; font-size:13px;">
+            <tr style="border-top:1px solid var(--color-border); font-size:13px;">
                 <td style="padding:10px;"><strong>${escapeHtml(rule.name)}</strong><br><span style="color:var(--text-muted);">Prioritas ${rule.priority}</span></td>
                 <td style="padding:10px;">${formatDiscountRuleType(rule.type)}</td>
                 <td style="padding:10px;">${formatDiscountRuleValue(rule)}</td>
                 <td style="padding:10px;">${escapeHtml(formatDiscountRuleCondition(rule))}</td>
                 <td style="padding:10px;">${escapeHtml(formatDiscountRulePeriod(rule))}</td>
                 <td style="padding:10px;">
-                    <button type="button" onclick="toggleDiscountRule(${rule.id}, ${!rule.is_active})"
+                    <button type="button" data-settings-action="toggle-discount-rule" data-rule-id="${Number(rule.id)}" data-next-active="${!rule.is_active}"
                         class="activation-action ${rule.is_active ? 'is-on' : 'is-off'}"
                         title="${rule.is_active ? 'Klik untuk menonaktifkan diskon ini' : 'Klik untuk mengaktifkan diskon ini'}">
                         <i class="fas ${rule.is_active ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
@@ -1395,8 +2099,8 @@ async function loadDiscountRules() {
                     </button>
                 </td>
                 <td style="padding:10px; text-align:right; white-space:nowrap;">
-                    <button type="button" onclick="editDiscountRule(${rule.id})" title="Edit" style="border:none; background:#e0e7ff; color:#3730a3; border-radius:6px; padding:7px 9px; cursor:pointer;"><i class="fas fa-edit"></i></button>
-                    <button type="button" onclick="deleteDiscountRule(${rule.id})" title="Hapus" style="border:none; background:#fee2e2; color:#991b1b; border-radius:6px; padding:7px 9px; cursor:pointer; margin-left:4px;"><i class="fas fa-trash"></i></button>
+                    <button type="button" class="discount-rule-action edit" data-settings-action="edit-discount-rule" data-rule-id="${Number(rule.id)}" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button type="button" class="discount-rule-action delete" data-settings-action="delete-discount-rule" data-rule-id="${Number(rule.id)}" title="Hapus"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
         `).join('');

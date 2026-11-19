@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from settings import AppSettings
 
@@ -109,6 +110,82 @@ class TestAdminPinApiProtection(unittest.TestCase):
         response = self.client.get("/backups", headers=app_headers(pin="0000"))
 
         self.assertEqual(response.status_code, 403)
+
+
+class TestAdminPinResetApiRecovery(unittest.TestCase):
+    def setUp(self):
+        self.client = client()
+
+    def test_reset_request_requires_existing_admin_pin(self):
+        fake_settings = type("FakeSettings", (), {"has_admin_pin": lambda self: False})
+        with patch("settings.AppSettings", return_value=fake_settings()), \
+            patch("helpers.license.request_admin_pin_reset") as mock_request:
+            response = self.client.post("/admin_pin/reset/request", headers=app_headers())
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "PIN admin belum diset.")
+        mock_request.assert_not_called()
+
+    def test_reset_request_response_never_exposes_reset_token(self):
+        fake_settings = type("FakeSettings", (), {"has_admin_pin": lambda self: True})
+        with patch("settings.AppSettings", return_value=fake_settings()), \
+            patch(
+                "helpers.license.request_admin_pin_reset",
+                return_value={
+                    "status": "success",
+                    "message": "Permintaan reset PIN dikirim.",
+                    "reset_request_id": "REQ-001",
+                    "reset_token": "SERVER-TOKEN-SHOULD-NOT-LEAK",
+                },
+            ):
+            response = self.client.post("/admin_pin/reset/request", headers=app_headers())
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["reset_request_id"], "REQ-001")
+        self.assertNotIn("reset_token", body)
+        self.assertNotIn("SERVER-TOKEN-SHOULD-NOT-LEAK", json.dumps(body))
+
+    def test_reset_confirm_uses_server_pending_token_without_client_token(self):
+        class FakeSettings:
+            def __init__(self):
+                self.pin = ""
+
+            def has_admin_pin(self):
+                return True
+
+            def set_admin_pin(self, pin):
+                self.pin = pin
+
+        fake_settings = FakeSettings()
+        with patch("settings.AppSettings", return_value=fake_settings), \
+            patch(
+                "helpers.license.confirm_admin_pin_reset",
+                return_value={"status": "success", "message": "PIN admin berhasil direset."},
+            ) as mock_confirm:
+            response = self.client.post(
+                "/admin_pin/reset/confirm",
+                data={"reset_pin": "987654", "new_pin": "2468"},
+                headers=app_headers(),
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_confirm.assert_called_once_with("", "987654")
+        self.assertEqual(fake_settings.pin, "2468")
+
+    def test_reset_confirm_requires_existing_admin_pin(self):
+        fake_settings = type("FakeSettings", (), {"has_admin_pin": lambda self: False})
+        with patch("settings.AppSettings", return_value=fake_settings()), \
+            patch("helpers.license.confirm_admin_pin_reset") as mock_confirm:
+            response = self.client.post(
+                "/admin_pin/reset/confirm",
+                data={"reset_pin": "987654", "new_pin": "2468"},
+                headers=app_headers(),
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "PIN admin belum diset.")
+        mock_confirm.assert_not_called()
 
 
 if __name__ == "__main__":

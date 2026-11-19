@@ -7,6 +7,8 @@ Panduan ini untuk membuat paket EXE/installer dari source code. Fokus build adal
 - Windows 10/11.
 - Python 3.11.
 - Virtualenv `.venv` sudah dibuat dan dependency `requirements.txt` sudah terinstall.
+- Node.js portable Windows x64 sudah diekstrak ke `tools/node/` agar ikut installer.
+- Dependency WhatsApp Gateway di `openwa_server/node_modules` sudah ada, atau `build.bat` akan menjalankan `npm install`.
 - PyInstaller tersedia di environment build. Jika belum ada, tambahkan sesuai workflow project sebelum build.
 - Inno Setup 6 opsional, hanya diperlukan untuk membuat installer `.exe`.
 
@@ -31,8 +33,10 @@ Script akan:
 3. membersihkan `dist\LancarDinamicAdmin` dan `build\LancarDinamicAdmin`;
 4. menjalankan PyInstaller onedir untuk `main.py`;
 5. menyertakan `api/templates` dan `api/static`;
-6. mengecualikan arsip UI native lama di `legacy_ui/`;
-7. membuat installer dengan Inno Setup jika tersedia.
+6. menyalin `openwa_server/` termasuk `node_modules/` ke output build;
+7. menyalin Node.js portable dari `tools/node/` ke `dist\LancarDinamicAdmin\node`;
+8. mengecualikan arsip UI native lama di `legacy_ui/`;
+9. membuat installer dengan Inno Setup jika tersedia.
 
 Output utama:
 
@@ -53,6 +57,10 @@ Build perlu membawa source dan asset aplikasi, antara lain:
 - `settings.py`
 - `version.py`
 - `icon.ico`
+- `openwa_server/server.js`
+- `openwa_server/package.json`
+- `openwa_server/node_modules/`
+- `tools/node/` saat build, disalin menjadi `dist/LancarDinamicAdmin/node/`
 - modul Python lain yang diimport aplikasi
 - asset static offline di `api/static/`
 - template HTML di `api/templates/`

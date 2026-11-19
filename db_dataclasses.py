@@ -79,6 +79,7 @@ class TherapistData:
     specialization: str
     is_active: bool
     can_handle_any_gender: bool = False
+    service_capabilities: list = field(default_factory=list)
 
 @dataclass
 class ServiceData:

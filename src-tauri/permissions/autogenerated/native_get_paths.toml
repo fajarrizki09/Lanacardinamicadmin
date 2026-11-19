@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-native-get-paths"
+description = "Enables the native_get_paths command without any pre-configured scope."
+commands.allow = ["native_get_paths"]
+
+[[permission]]
+identifier = "deny-native-get-paths"
+description = "Denies the native_get_paths command without any pre-configured scope."
+commands.deny = ["native_get_paths"]

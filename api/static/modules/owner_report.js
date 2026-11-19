@@ -1,7 +1,45 @@
 "use strict";
 window._ownerReportPeriod = window._ownerReportPeriod || 'month';
 window._ownerNewPatientSource = window._ownerNewPatientSource || 'first_visit';
+let ownerReportDelegationReady = false;
+function ensureOwnerReportEventDelegation() {
+    if (ownerReportDelegationReady)
+        return;
+    ownerReportDelegationReady = true;
+    document.addEventListener('click', (event) => {
+        const actionElement = event.target?.closest('[data-owner-action]');
+        if (!actionElement)
+            return;
+        const action = actionElement.dataset.ownerAction || '';
+        if (!action)
+            return;
+        event.preventDefault();
+        switch (action) {
+            case 'apply-filter':
+                renderOwnerReport();
+                break;
+            case 'export-excel':
+                exportOwnerReportExcel();
+                break;
+            case 'open-followup':
+                openCRMFollowup(Number(actionElement.dataset.patientId || 0));
+                break;
+        }
+    });
+    document.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!target?.dataset?.ownerAction)
+            return;
+        if (target.dataset.ownerAction === 'period') {
+            changeOwnerReportPeriod(target.value);
+        }
+        if (target.dataset.ownerAction === 'new-patient-source') {
+            changeOwnerNewPatientSource(target.value);
+        }
+    });
+}
 async function renderOwnerReport() {
+    ensureOwnerReportEventDelegation();
     const displayArea = document.getElementById('display-area');
     const params = new URLSearchParams({
         period: window._ownerReportPeriod || 'month',
@@ -45,14 +83,14 @@ async function renderOwnerReport() {
                 <div class="owner-filter-compact-grid">
                     <label>
                         <span>Periode</span>
-                        <select id="owner-period-select" onchange="changeOwnerReportPeriod(this.value)">
+                        <select id="owner-period-select" data-owner-action="period">
                             <option value="month" ${window._ownerReportPeriod === 'month' ? 'selected' : ''}>Bulan ini</option>
                             <option value="year" ${window._ownerReportPeriod === 'year' ? 'selected' : ''}>Tahun ini</option>
                         </select>
                     </label>
                     <label>
                         <span>Pasien Baru</span>
-                        <select id="owner-new-patient-source" onchange="changeOwnerNewPatientSource(this.value)">
+                        <select id="owner-new-patient-source" data-owner-action="new-patient-source">
                             <option value="first_visit" ${window._ownerNewPatientSource === 'first_visit' ? 'selected' : ''}>Kunjungan pertama</option>
                             <option value="registration" ${window._ownerNewPatientSource === 'registration' ? 'selected' : ''}>Tanggal daftar</option>
                         </select>
@@ -65,10 +103,10 @@ async function renderOwnerReport() {
                         <span>Sampai</span>
                         <input id="owner-date-to" type="date" value="${escapeHtml(dateTo)}">
                     </label>
-                    <button type="button" class="btn-owner-compact btn-owner-primary" onclick="renderOwnerReport()">
+                    <button type="button" class="btn-owner-compact btn-owner-primary" data-owner-action="apply-filter">
                         <i class="fas fa-filter"></i> Terapkan
                     </button>
-                    <button type="button" id="owner-export-excel-btn" class="btn-owner-compact btn-owner-outline" onclick="exportOwnerReportExcel()">
+                    <button type="button" id="owner-export-excel-btn" class="btn-owner-compact btn-owner-outline" data-owner-action="export-excel">
                         <i class="fas fa-file-excel"></i> Export Excel
                     </button>
                 </div>
@@ -199,7 +237,7 @@ function renderOwnerFollowupRows(rows) {
                 <span class="owner-item-sub">${escapeHtml(row.segment_label || row.segment || 'Perlu follow-up')}</span>
                 <span class="owner-item-sub">${Number(row.days_since_last_visit || 0)} hari tidak datang</span>
             </div>
-            <button type="button" class="owner-detail-btn" onclick="openCRMFollowup(${Number(row.id || 0)})">
+            <button type="button" class="owner-detail-btn" data-owner-action="open-followup" data-patient-id="${Number(row.id || 0)}">
                 <i class="fas fa-pen"></i> Detail
             </button>
         </div>

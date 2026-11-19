@@ -3,13 +3,75 @@ interface Window {
     toggleTherapist?: (id: number | string, btn: HTMLButtonElement) => Promise<void>;
     deleteTherapist?: (id: number | string) => Promise<void>;
     setTherapistFilter?: (filter: TherapistFilter) => void;
+    openAddTherapistModal?: () => void;
+    openEditTherapistModal?: (id: number | string) => void;
+    filterTherapistCapabilityChoices?: (value: string) => void;
+    syncTherapistCapabilitySelection?: () => void;
 }
 
 type TherapistFilter = 'active' | 'inactive' | 'all';
 
 window._therapistFilter = window._therapistFilter || 'active';
 
+let therapistDelegationReady = false;
+
+function ensureTherapistEventDelegation(): void {
+    if (therapistDelegationReady) return;
+    therapistDelegationReady = true;
+
+    document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.id === 'therapist-modal-overlay') {
+            closeTherapistModal();
+            return;
+        }
+
+        const actionElement = target?.closest<HTMLElement>('[data-therapist-action]');
+        if (!actionElement) return;
+        const action = actionElement.dataset.therapistAction || '';
+        if (!action) return;
+        if (action === 'capability-sync') return;
+        event.preventDefault();
+
+        switch (action) {
+            case 'filter':
+                setTherapistFilter((actionElement.dataset.filter || 'active') as TherapistFilter);
+                break;
+            case 'open-add':
+                openAddTherapistModal();
+                break;
+            case 'edit':
+                openEditTherapistModal(actionElement.dataset.therapistId || '');
+                break;
+            case 'toggle':
+                toggleTherapist(actionElement.dataset.therapistId || '', actionElement as HTMLButtonElement);
+                break;
+            case 'delete':
+                deleteTherapist(actionElement.dataset.therapistId || '');
+                break;
+            case 'close-modal':
+                closeTherapistModal();
+                break;
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const target = event.target as HTMLInputElement | null;
+        if (target?.dataset?.therapistAction === 'capability-filter') {
+            filterTherapistCapabilityChoices(target.value);
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.dataset?.therapistAction === 'capability-sync') {
+            syncTherapistCapabilitySelection();
+        }
+    });
+}
+
 function renderTherapists(data: Therapist[]): void {
+    ensureTherapistEventDelegation();
     window._therapistMap = {};
     data.forEach(therapist => { window._therapistMap![therapist.id] = therapist; });
     const currentFilter = window._therapistFilter || 'active';
@@ -21,27 +83,162 @@ function renderTherapists(data: Therapist[]): void {
         return !!therapist.is_active;
     });
     const filterButton = (filter: TherapistFilter, label: string, count: number) => `
-        <button type="button" onclick="setTherapistFilter('${filter}')"
-            style="border:1px solid ${currentFilter === filter ? 'var(--primary)' : '#e5e7eb'};
-                   background:${currentFilter === filter ? '#eef2ff' : '#fff'};
-                   color:${currentFilter === filter ? 'var(--primary)' : 'var(--text-muted)'};
-                   border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer;">
-            ${label} <span style="opacity:.72;">${count}</span>
+        <button type="button" data-therapist-action="filter" data-filter="${filter}"
+            class="therapist-filter-btn ${currentFilter === filter ? 'is-active' : ''}">
+            ${label} <span>${count}</span>
         </button>
     `;
 
     let html = `
-        <div class="grid-2">
-            <!-- LEFT: Form tambah -->
-            <div class="card" style="height:fit-content; border-top:3px solid var(--primary);">
-                <div class="card-header">
-                    <h3><i class="fas fa-user-plus"></i> Registrasi Terapis</h3>
+        <div class="therapist-page">
+            <!-- Header action; counts are shown once in the filter tabs below. -->
+            <div class="therapist-page-header">
+                <div class="therapist-page-title">
+                    <h2><i class="fas fa-user-md"></i> Manajemen Terapis</h2>
+                    <p class="therapist-page-subtitle">${data.length} terapis terdaftar</p>
                 </div>
-                <form action="/add_therapist" method="post">
+                <div class="therapist-page-actions">
+                    <button type="button" class="btn btn-primary therapist-add-btn" data-therapist-action="open-add">
+                        <i class="fas fa-user-plus"></i> Tambah Terapis
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter tabs -->
+            <div class="therapist-filter-tabs">
+                ${filterButton('active', 'Aktif', activeCount)}
+                ${filterButton('inactive', 'Nonaktif', inactiveCount)}
+                ${filterButton('all', 'Semua', data.length)}
+            </div>`;
+
+    if (visibleTherapists.length === 0) {
+        html += `<div class="therapist-empty-state">
+            <i class="fas fa-user-slash"></i>
+            <p>${data.length === 0 ? 'Belum ada data terapis.' : 'Tidak ada terapis pada filter ini.'}</p>
+        </div>`;
+    } else {
+        html += `<div class="therapist-card-grid">`;
+        visibleTherapists.forEach(therapist => {
+            const isActive = therapist.is_active;
+            const genderClass = therapist.gender === 'Laki-laki' ? 'male' : 'female';
+            const genderIcon = therapist.gender === 'Laki-laki' ? 'fa-male' : 'fa-female';
+            const capabilities = (therapist.service_capabilities || []).filter(item => item.is_active !== false);
+            const capabilitySummary = capabilities.length
+                ? capabilities.map(item => `<span>${escapeHtml(item.name || '')}</span>`).join('')
+                : '<small>Terapis belum memiliki layanan yang ditangani.</small>';
+
+            html += `
+            <div class="therapist-card ${isActive ? 'is-active' : 'is-inactive'}">
+                <!-- Card header with avatar and status -->
+                <div class="therapist-card-header">
+                    <div class="therapist-card-avatar ${genderClass}">
+                        <i class="fas ${genderIcon}"></i>
+                    </div>
+                    <span class="therapist-card-status ${isActive ? 'active' : 'inactive'}">
+                        <i class="fas fa-circle"></i>
+                        ${isActive ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                </div>
+
+                <!-- Card body -->
+                <div class="therapist-card-body">
+                    <h4 class="therapist-card-name">${escapeHtml(therapist.name)}</h4>
+                    <p class="therapist-card-specialization">
+                        <i class="fas fa-tag"></i>
+                        ${escapeHtml(therapist.specialization) || 'Belum ada spesialisasi'}
+                    </p>
+                    ${therapist.can_handle_any_gender ? `
+                    <div class="therapist-card-badge">
+                        <i class="fas fa-venus-mars"></i>
+                        Lintas gender
+                    </div>
+                    ` : ''}
+                    <div class="therapist-service-summary ${capabilities.length ? '' : 'is-empty'}">
+                        <strong>Layanan ditangani</strong>
+                        <div>${capabilitySummary}</div>
+                    </div>
+                </div>
+
+                <!-- Card actions -->
+                <div class="therapist-card-actions">
+                    <button type="button" data-therapist-action="edit" data-therapist-id="${escapeHtml(therapist.id)}"
+                        title="Edit Terapis"
+                        class="therapist-card-btn edit">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <button type="button" data-therapist-action="toggle" data-therapist-id="${escapeHtml(therapist.id)}"
+                        title="${isActive ? 'Nonaktifkan' : 'Aktifkan'}"
+                        class="therapist-card-btn toggle ${isActive ? 'active' : 'inactive'}">
+                        <i class="fas ${isActive ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                    </button>
+                    <button type="button" data-therapist-action="delete" data-therapist-id="${escapeHtml(therapist.id)}"
+                        title="Hapus Terapis"
+                        class="therapist-card-btn delete">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    html += `</div>`;
+
+    const displayArea = document.getElementById('display-area');
+    if (displayArea) displayArea.innerHTML = html;
+}
+
+async function ensureTherapistCapabilityServicesLoaded(): Promise<AdminService[]> {
+    try {
+        const response = await fetch('/services?active_only=true');
+        if (!response.ok) throw new Error('Gagal memuat layanan');
+        const services = await response.json();
+        window._therapistCapabilityServices = Array.isArray(services) ? services : [];
+    } catch (error) {
+        window._therapistCapabilityServices = [];
+    }
+    return window._therapistCapabilityServices || [];
+}
+
+function therapistCapabilityPicker(selectedIds: Array<number | string> = []): string {
+    const selected = new Set(selectedIds.map(id => String(id)));
+    const services = window._therapistCapabilityServices || [];
+    const options = services.length
+        ? services.map(service => `
+            <label class="therapist-capability-option" data-search="${escapeHtml(String(service.name || '').toLowerCase())}">
+                <input type="checkbox" value="${service.id}" ${selected.has(String(service.id)) ? 'checked' : ''} data-therapist-action="capability-sync">
+                <span class="therapist-capability-check"><i class="fas fa-check"></i></span>
+                <span>${escapeHtml(service.name || 'Layanan')}</span>
+            </label>`).join('')
+        : '<div class="therapist-capability-empty">Belum ada layanan aktif tersedia.</div>';
+    return `
+        <div class="form-group therapist-capability-field">
+            <label>Layanan/Terapi yang Dikuasai</label>
+            <input type="hidden" name="service_ids" id="therapist-service-ids" value="[]">
+            <input type="search" class="therapist-capability-search" placeholder="Cari layanan aktif..." data-therapist-action="capability-filter">
+            <div class="therapist-capability-list">${options}</div>
+            <small id="therapist-capability-help" class="therapist-capability-help"></small>
+        </div>`;
+}
+
+async function openAddTherapistModal(): Promise<void> {
+    ensureTherapistEventDelegation();
+    await ensureTherapistCapabilityServicesLoaded();
+    const modalHtml = `
+        <div class="modal-overlay" id="therapist-modal-overlay">
+            <div class="modal-content therapist-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-user-plus"></i> Tambah Terapis Baru</h3>
+                    <button type="button" class="modal-close" data-therapist-action="close-modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form action="/add_therapist" method="post" class="therapist-modal-form">
                     <div class="form-group">
                         <label>Nama Lengkap</label>
-                        <input type="text" name="name" required placeholder="Ketik nama terapis...">
+                        <input type="text" name="name" required placeholder="Ketik nama terapis..." autofocus>
                     </div>
+                    ${therapistCapabilityPicker()}
                     <div class="form-group">
                         <label>Jenis Kelamin</label>
                         <select name="gender">
@@ -54,132 +251,117 @@ function renderTherapists(data: Therapist[]): void {
                         <input type="text" name="specialization" placeholder="Contoh: Terapi nyeri, ruqyah, refleksi...">
                     </div>
                     <div class="form-group">
-                        <label>Izin Gender Pasien</label>
-                        <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;cursor:pointer;text-transform:none;letter-spacing:0;">
-                            <input type="checkbox" name="can_handle_any_gender" value="true" style="width:16px;height:16px;margin-top:2px;accent-color:var(--primary);">
-                            <span style="display:flex;flex-direction:column;gap:2px;">
-                                <strong style="font-size:13px;color:#312e81;">Bisa menangani beda gender</strong>
-                                <small style="font-size:11px;line-height:1.35;color:#475569;">Centang jika terapis ini boleh dipilih untuk pasien laki-laki dan perempuan.</small>
+                        <label class="therapist-gender-permission">
+                            <input type="checkbox" name="can_handle_any_gender" value="true">
+                            <span>
+                                <strong>Bisa menangani beda gender</strong>
+                                <small>Centang jika terapis ini boleh dipilih untuk pasien laki-laki dan perempuan.</small>
                             </span>
                         </label>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Tambah Terapis
-                    </button>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-therapist-action="close-modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Simpan Terapis
+                        </button>
+                    </div>
                 </form>
             </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    syncTherapistCapabilitySelection();
+}
 
-            <!-- RIGHT: Daftar terapis -->
-            <div class="card" style="padding:0;">
-                <div class="card-header" style="padding:18px 20px 12px;">
-                    <h3><i class="fas fa-id-badge"></i> Direktori Terapis
-                        <span style="font-size:12px; font-weight:500; color:var(--text-muted); margin-left:6px;">${data.length} terdaftar</span>
-                    </h3>
-                    <div style="display:flex; gap:8px; font-size:12px;">
-                        <span style="background:#ecfdf5; color:#059669; padding:4px 10px; border-radius:999px; font-weight:600; border:1px solid #a7f3d0;">
-                            ${activeCount} Aktif
-                        </span>
-                        <span style="background:#f3f4f6; color:#6b7280; padding:4px 10px; border-radius:999px; font-weight:600; border:1px solid #e5e7eb;">
-                            ${inactiveCount} Nonaktif
-                        </span>
-                    </div>
-                </div>
-                <div style="padding:0 20px 12px; display:flex; gap:8px; flex-wrap:wrap;">
-                    ${filterButton('active', 'Aktif', activeCount)}
-                    ${filterButton('inactive', 'Nonaktif', inactiveCount)}
-                    ${filterButton('all', 'Semua', data.length)}
-                </div>`;
+async function openEditTherapistModal(id: number | string): Promise<void> {
+    ensureTherapistEventDelegation();
+    const therapist = window._therapistMap?.[id];
+    if (!therapist || typeof therapist === 'string') return;
+    await ensureTherapistCapabilityServicesLoaded();
+    const selectedIds = (therapist.service_capabilities || [])
+        .filter(item => item.is_active !== false)
+        .map(item => item.service_id || item.id)
+        .filter(Boolean) as Array<number | string>;
 
-    if (visibleTherapists.length === 0) {
-        html += `<div style="padding:50px; text-align:center; color:var(--text-muted);">
-            <i class="fas fa-user-slash" style="font-size:40px; opacity:0.15; display:block; margin-bottom:14px;"></i>
-            <p>${data.length === 0 ? 'Belum ada data terapis.' : 'Tidak ada terapis pada filter ini.'}</p>
-        </div>`;
-    } else {
-        html += `<div style="padding:14px; display:flex; flex-direction:column; gap:8px;">`;
-        visibleTherapists.forEach(therapist => {
-            const isActive = therapist.is_active;
-            const genderColor = therapist.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
-            const genderBg = therapist.gender === 'Laki-laki' ? '#eff6ff' : '#fdf2f8';
-            const genderIcon = therapist.gender === 'Laki-laki' ? 'fa-male' : 'fa-female';
-
-            html += `
-            <div style="display:flex; align-items:center; gap:12px; padding:13px 15px;
-                        background:${isActive ? '#fafbff' : '#f9fafb'}; border-radius:12px;
-                        border:1px solid ${isActive ? '#e0e7ff' : '#e5e7eb'};
-                        opacity:${isActive ? 1 : 0.7}; transition:all 0.2s;"
-                 onmouseover="this.style.borderColor='#c7d2fe'; this.style.background='#f0f4ff';"
-                 onmouseout="this.style.borderColor='${isActive ? '#e0e7ff' : '#e5e7eb'}'; this.style.background='${isActive ? '#fafbff' : '#f9fafb'}';">
-
-                <!-- Avatar -->
-                <div style="width:44px; height:44px; border-radius:50%; background:${genderBg};
-                            display:flex; align-items:center; justify-content:center;
-                            font-size:20px; color:${genderColor}; flex-shrink:0;
-                            box-shadow:0 2px 8px ${genderColor}22;">
-                    <i class="fas ${genderIcon}"></i>
-                </div>
-
-                <!-- Info -->
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; font-size:14px; color:${isActive ? 'var(--text-main)' : 'var(--text-muted)'};">
-                        ${escapeHtml(therapist.name)}
-                    </div>
-                    <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
-                        <i class="fas fa-tag" style="font-size:10px; margin-right:3px;"></i>
-                        ${escapeHtml(therapist.specialization) || 'Belum ada spesialisasi'}
-                    </div>
-                </div>
-
-                <!-- Badge status -->
-                <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0;">
-                    <span class="badge ${isActive ? 'badge-ok' : 'badge-low'}">
-                        <i class="fas fa-circle" style="font-size:6px;"></i>
-                        ${isActive ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                    ${therapist.can_handle_any_gender ? `<span class="badge" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;">Lintas gender</span>` : ''}
-                </div>
-
-                <!-- Actions - pakai ID agar aman dari karakter khusus -->
-                <div style="display:flex; gap:6px; flex-shrink:0;">
-                    <button onclick="openEditModal(${therapist.id})"
-                        title="Edit Terapis"
-                        style="width:32px; height:32px; border-radius:8px; border:1px solid #e0e7ff;
-                               background:#f0f4ff; color:var(--primary); cursor:pointer;
-                               display:flex; align-items:center; justify-content:center;
-                               font-size:13px; transition:all 0.15s;"
-                        onmouseover="this.style.background='var(--primary)'; this.style.color='white'; this.style.borderColor='var(--primary)';"
-                        onmouseout="this.style.background='#f0f4ff'; this.style.color='var(--primary)'; this.style.borderColor='#e0e7ff';">
-                        <i class="fas fa-pen"></i>
-                    </button>
-                    <button onclick="toggleTherapist(${therapist.id}, this)"
-                        title="${isActive ? 'Klik untuk menonaktifkan terapis' : 'Klik untuk mengaktifkan terapis'}"
-                        class="activation-action mini ${isActive ? 'is-on' : 'is-off'}">
-                        <i class="fas ${isActive ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
-                        <span>
-                            <strong>${isActive ? 'Aktif' : 'Nonaktif'}</strong>
-                            <small>${isActive ? 'Matikan' : 'Aktifkan'}</small>
-                        </span>
-                    </button>
-                    <button onclick="deleteTherapist(${therapist.id})"
-                        title="Hapus Terapis"
-                        style="width:32px; height:32px; border-radius:8px; border:1px solid #fecaca;
-                               background:#fef2f2; color:var(--danger); cursor:pointer;
-                               display:flex; align-items:center; justify-content:center;
-                               font-size:13px; transition:all 0.15s;"
-                        onmouseover="this.style.background='var(--danger)'; this.style.color='white'; this.style.borderColor='var(--danger)';"
-                        onmouseout="this.style.background='#fef2f2'; this.style.color='var(--danger)'; this.style.borderColor='#fecaca';">
-                        <i class="fas fa-trash-alt"></i>
+    const modalHtml = `
+        <div class="modal-overlay" id="therapist-modal-overlay">
+            <div class="modal-content therapist-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-pen"></i> Edit Terapis</h3>
+                    <button type="button" class="modal-close" data-therapist-action="close-modal">
+                        <i class="fas fa-times"></i>
                     </button>
                 </div>
-            </div>`;
-        });
-        html += `</div>`;
-    }
+                <form action="/update_therapist" method="post" class="therapist-modal-form">
+                    <input type="hidden" name="therapist_id" value="${therapist.id}">
+                    <div class="form-group">
+                        <label>Nama Lengkap</label>
+                        <input type="text" name="name" required value="${escapeHtml(therapist.name)}" autofocus>
+                    </div>
+                    ${therapistCapabilityPicker(selectedIds)}
+                    <div class="form-group">
+                        <label>Jenis Kelamin</label>
+                        <select name="gender">
+                            <option value="Laki-laki" ${therapist.gender === 'Laki-laki' ? 'selected' : ''}>Laki-laki</option>
+                            <option value="Perempuan" ${therapist.gender === 'Perempuan' ? 'selected' : ''}>Perempuan</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Spesialisasi</label>
+                        <input type="text" name="specialization" value="${escapeHtml(therapist.specialization || '')}" placeholder="Contoh: Terapi nyeri, ruqyah, refleksi...">
+                    </div>
+                    <div class="form-group">
+                        <label class="therapist-gender-permission">
+                            <input type="checkbox" name="can_handle_any_gender" value="true" ${therapist.can_handle_any_gender ? 'checked' : ''}>
+                            <span>
+                                <strong>Bisa menangani beda gender</strong>
+                                <small>Centang jika terapis ini boleh dipilih untuk pasien laki-laki dan perempuan.</small>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-therapist-action="close-modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Simpan Perubahan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    syncTherapistCapabilitySelection();
+}
 
-    html += `</div></div>`;
+function filterTherapistCapabilityChoices(value: string): void {
+    const query = String(value || '').trim().toLowerCase();
+    document.querySelectorAll('.therapist-capability-option').forEach(option => {
+        const text = String((option as HTMLElement).dataset.search || '');
+        (option as HTMLElement).style.display = !query || text.includes(query) ? '' : 'none';
+    });
+}
 
-    const displayArea = document.getElementById('display-area');
-    if (displayArea) displayArea.innerHTML = html;
+function syncTherapistCapabilitySelection(): void {
+    const hidden = document.getElementById('therapist-service-ids');
+    const helper = document.getElementById('therapist-capability-help');
+    if (!hidden || !helper) return;
+    const checked = Array.from(document.querySelectorAll('.therapist-capability-option input:checked'))
+        .map(input => Number((input as HTMLInputElement).value))
+        .filter(id => id > 0);
+    document.querySelectorAll('.therapist-capability-option').forEach(option => {
+        const input = option.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        option.classList.toggle('is-selected', !!input?.checked);
+    });
+    (hidden as HTMLInputElement).value = JSON.stringify(checked);
+    helper.textContent = checked.length
+        ? `${checked.length} layanan dipilih. Dropdown kunjungan akan dibatasi sesuai pilihan ini.`
+        : 'Terapis belum memiliki layanan yang ditangani. Semua layanan tetap tersedia saat catat kunjungan.';
+    helper.classList.toggle('is-warning', checked.length === 0);
+}
+
+function closeTherapistModal(): void {
+    const modal = document.getElementById('therapist-modal-overlay');
+    if (modal) modal.remove();
 }
 
 async function toggleTherapist(id: number | string, btn: HTMLButtonElement): Promise<void> {
@@ -239,3 +421,8 @@ window.renderTherapists = renderTherapists;
 window.toggleTherapist = toggleTherapist;
 window.deleteTherapist = deleteTherapist;
 window.setTherapistFilter = setTherapistFilter;
+window.openAddTherapistModal = openAddTherapistModal;
+window.openEditTherapistModal = openEditTherapistModal;
+window.closeTherapistModal = closeTherapistModal;
+window.filterTherapistCapabilityChoices = filterTherapistCapabilityChoices;
+window.syncTherapistCapabilitySelection = syncTherapistCapabilitySelection;

@@ -575,6 +575,7 @@ def _resolve_invoice_path(path: str) -> str:
     roots = _allowed_invoice_roots()
     app_data_dir = os.path.abspath(get_app_data_dir())
     project_root = _project_root()
+    basename = os.path.basename(normalized)
 
     if os.path.isabs(normalized):
         candidates = [normalized]
@@ -585,7 +586,17 @@ def _resolve_invoice_path(path: str) -> str:
             os.path.join(app_data_dir, "invoices", normalized),
         ]
 
+    # Fallback: jika path absolut tidak cocok atau file tidak ada, coba cari
+    # berdasarkan nama file di folder invoices saat ini (handle perbedaan
+    # direktori data antara mode source dan executable).
+    fallback_candidates = [
+        os.path.join(app_data_dir, "invoices", basename),
+        os.path.join(project_root, "invoices", basename),
+    ]
+
     safe_candidates = [os.path.realpath(os.path.abspath(candidate)) for candidate in candidates if _is_within_allowed_roots(candidate, roots)]
+    if not safe_candidates:
+        safe_candidates = [os.path.realpath(os.path.abspath(c)) for c in fallback_candidates if _is_within_allowed_roots(c, roots)]
     if not safe_candidates:
         raise HTTPException(status_code=403, detail="Akses file invoice di luar folder aplikasi tidak diizinkan.")
 

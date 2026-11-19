@@ -1,5 +1,5 @@
 // ─── INVENTORY ────────────────────────────────────────────────────────────────
-// Layout: Tabel klik-untuk-pilih (kiri besar) | Forms (kanan)
+// Action-based workspace: table-first selection with focused modal workflows.
 
 const INVENTORY_UNIT_OPTIONS = ['pcs', 'unit', 'ml', 'gr', 'botol', 'saset', 'box', 'pack', 'strip', 'tablet', 'kapsul', 'dus'];
 
@@ -11,6 +11,20 @@ type InventoryPackageMeta = {
     packageSize: number;
 };
 
+let inventoryDelegationReady = false;
+
+interface Window {
+    _inventoryCatalog?: InventoryItem[];
+    _selectedInventoryId?: number | null;
+    goToInventoryPage?: (page: number) => void;
+    openAddInventoryModal?: () => void;
+    submitAddInventory?: (event: SubmitEvent) => Promise<void>;
+    openInventoryStockModal?: () => void;
+    submitInventoryStock?: (event: SubmitEvent) => Promise<void>;
+    filterInventoryPicker?: () => void;
+    selectInventoryPickerItem?: () => void;
+}
+
 function inventoryItemType(value: unknown): 'consumable' | 'non_consumable' {
     const normalized = String(value || 'consumable').trim().toLowerCase().replace(/[\s-]+/g, '_');
     return normalized === 'non_consumable' || normalized === 'nonconsumable' || normalized === 'asset' || normalized === 'reusable'
@@ -19,7 +33,16 @@ function inventoryItemType(value: unknown): 'consumable' | 'non_consumable' {
 }
 
 function inventoryItemTypeLabel(value: unknown): string {
-    return inventoryItemType(value) === 'non_consumable' ? 'Non-consumable' : 'Consumable';
+    return inventoryItemType(value) === 'non_consumable' ? 'Non Consumable' : 'Consumable';
+}
+
+function inventoryStockBadge(label: string, iconClass: string, badgeClass: string): string {
+    return `<span class="badge ${badgeClass} inventory-badge">${iconClass ? `<i class="${iconClass}"></i>` : ''}${escapeHtml(label)}</span>`;
+}
+
+function goToInventoryPage(page: number): void {
+    (window as any)._inventoryPage = page;
+    loadTab('inventory');
 }
 
 function inventoryItemTypeSelect(value: unknown = 'consumable'): string {
@@ -65,93 +88,187 @@ function packageLabel(item: InventoryItem): string {
     return `1 ${packageUnit} = ${packageSize} ${unit}`;
 }
 
+function inventoryStatus(item: InventoryItem): string {
+    return Number(item.quantity || 0) <= Number(item.min_stock || 0) ? 'Kritis' : 'Aman';
+}
+
+function selectedInventory(): InventoryItem | null {
+    const selectedId = Number(window._selectedInventoryId || 0);
+    return (window._inventoryCatalog || []).find(item => Number(item.id) === selectedId) || null;
+}
+
+function inventoryById(id: number | string): InventoryItem | null {
+    const itemId = Number(id || 0);
+    return (window._inventoryCatalog || []).find(item => Number(item.id) === itemId) || null;
+}
+
+function ensureInventoryEventDelegation(): void {
+    if (inventoryDelegationReady) return;
+    inventoryDelegationReady = true;
+
+    document.addEventListener('click', (event) => {
+        const actionElement = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-inventory-action]');
+        if (!actionElement) return;
+        const action = actionElement.dataset.inventoryAction || '';
+        if (!action) return;
+        event.preventDefault();
+
+        switch (action) {
+            case 'open-add':
+                openAddInventoryModal();
+                break;
+            case 'open-stock':
+                openInventoryStockModal();
+                break;
+            case 'select-row':
+                selectInventory(actionElement as HTMLTableRowElement);
+                break;
+            case 'edit':
+                editInventoryFromCache(actionElement.dataset.id || '');
+                break;
+            case 'delete':
+                deleteInventoryFromCache(actionElement.dataset.id || '');
+                break;
+            case 'page':
+                goToInventoryPage(Number(actionElement.dataset.page || 1));
+                break;
+            case 'close-modal':
+                closeModal();
+                break;
+            case 'stock-mode':
+                setInventoryStockMode(actionElement.dataset.mode || 'in');
+                break;
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const target = event.target as HTMLInputElement | null;
+        const action = target?.dataset?.inventoryAction || '';
+        if (action === 'picker-filter') filterInventoryPicker();
+        if (action === 'stock-preview') updateInventoryStockPreview();
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target as HTMLElement | null;
+        const action = target?.dataset?.inventoryAction || '';
+        if (action === 'picker-select') selectInventoryPickerItem();
+        if (action === 'stock-preview') updateInventoryStockPreview();
+    });
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target as HTMLFormElement | null;
+        const action = form?.dataset?.inventoryFormAction || '';
+        if (action === 'add') submitAddInventory(event);
+        if (action === 'stock') submitInventoryStock(event);
+        if (action === 'edit') submitEditInventory(event);
+    });
+}
+
+function inventoryPickerOptions(items: InventoryItem[], selectedId?: number | null): string {
+    if (!items.length) return '<option value="">Belum ada produk/peralatan tersedia.</option>';
+    const prompt = selectedId ? '' : '<option value="" selected>Pilih peralatan</option>';
+    return prompt + items.map(item => {
+        const { unit } = inventoryPackageMeta(item);
+        const selected = Number(item.id) === selectedId ? ' selected' : '';
+        const label = `${item.item_name || item.name || '-'} | ${inventoryItemTypeLabel(item.item_type)} | ${inventoryStatus(item)} | stok ${Number(item.quantity || 0)} ${unit}`;
+        return `<option value="${escapeHtml(item.id)}"${selected}>${escapeHtml(label)}</option>`;
+    }).join('');
+}
+
+function inventoryPickerHtml(selectedId?: number | null): string {
+    const items = window._inventoryCatalog || [];
+    return `
+        <div class="action-picker">
+            <label for="inventory-correction-search">Cari Peralatan</label>
+            <div class="action-picker-search">
+                <i class="fas fa-search"></i>
+                <input type="search" id="inventory-correction-search" autocomplete="off"
+                    placeholder="Nama, jenis, stok, status, atau satuan"
+                    data-inventory-action="picker-filter">
+            </div>
+            <select id="inventory-correction-select" class="action-picker-results" size="4"
+                data-inventory-action="picker-select">
+                ${inventoryPickerOptions(items, selectedId)}
+            </select>
+            <div id="inventory-correction-empty" class="action-picker-empty ${items.length ? 'hidden' : ''}">Belum ada produk/peralatan tersedia.</div>
+            <div id="inventory-correction-info" class="selected-item-summary"></div>
+        </div>`;
+}
+
+function updateInventorySelectionSummary(): void {
+    const item = selectedInventory();
+    const summary = document.getElementById('inventory-row-selection');
+    if (!summary) return;
+    if (!item) {
+        summary.innerHTML = '<i class="fas fa-hand-pointer"></i> Pilih row untuk mengisi action secara otomatis, atau buka action dan cari peralatan.';
+        summary.classList.remove('has-selection');
+        return;
+    }
+    const { unit } = inventoryPackageMeta(item);
+    summary.innerHTML = `<i class="fas fa-check-circle"></i> <strong>${escapeHtml(item.item_name || item.name || '-')}</strong><span>Stok ${Number(item.quantity || 0)} ${escapeHtml(unit)} &middot; ${escapeHtml(inventoryItemTypeLabel(item.item_type))} &middot; ${escapeHtml(inventoryStatus(item))}</span>`;
+    summary.classList.add('has-selection');
+}
+
 function renderInventory(data: InventoryItem[]): void {
+    ensureInventoryEventDelegation();
+    window._inventoryCatalog = data || [];
+    if (window._selectedInventoryId && !selectedInventory()) window._selectedInventoryId = null;
     const criticalCount = data.filter(i => Number(i.quantity || 0) <= Number(i.min_stock || 0)).length;
     const safeCount = data.length - criticalCount;
 
+    // Pagination
+    const currentPage = (window as any)._inventoryPage || 1;
+    const itemsPerPage = 10;
+    const totalPages = Math.ceil(data.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = data.slice(startIndex, endIndex);
+
     const html = `
         <!-- ── Stat Cards ── -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
-            <div class="stat-card" style="padding:16px; margin-bottom:0; border-left:3px solid var(--success);">
-                <div class="stat-icon green" style="width:38px;height:38px;font-size:16px;"><i class="fas fa-check-circle"></i></div>
+        <div class="inventory-stats-grid">
+            <div class="stat-card border-success">
+                <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
                 <div class="stat-details"><h4>Stok Aman</h4><h2>${safeCount}</h2></div>
             </div>
-            <div class="stat-card" style="padding:16px; margin-bottom:0; border-left:3px solid var(--warning);">
-                <div class="stat-icon orange" style="width:38px;height:38px;font-size:16px;"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stat-card border-warning">
+                <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
                 <div class="stat-details"><h4>Stok Kritis</h4><h2 style="color:${criticalCount > 0 ? 'var(--warning)' : 'var(--text-main)'}">${criticalCount}</h2></div>
             </div>
         </div>
 
-        <!-- ── Main: Tabel kiri | Forms kanan ── -->
-        <div class="card stock-quick-add-card inventory">
-            <div class="stock-quick-add-head">
-                <div>
-                    <h3><i class="fas fa-plus-circle"></i> Tambah Peralatan Baru</h3>
-                    <span>Form cepat agar admin tidak perlu scroll ke bawah.</span>
-                </div>
-            </div>
-            <form action="/add_inventory" method="post" class="stock-quick-add-form inventory-add-form">
-                <div class="unit-help-note">
-                    <strong>Satuan dasar</strong> = stok terkecil yang dihitung sistem. <strong>Satuan kemasan</strong> = bungkus besar. Contoh: dasar <b>pcs</b>, kemasan <b>box</b>, isi <b>100</b> berarti 1 box = 100 pcs.
-                </div>
-                <div class="form-group inventory-item-name-field">
-                    <label>Nama Alat</label>
-                    <input type="text" name="item_name" required placeholder="Alkohol, kapas">
-                </div>
-                <div class="form-group inventory-item-type-field">
-                    <label>Jenis Item</label>
-                    ${inventoryItemTypeSelect('consumable')}
-                </div>
-                <div class="form-group inventory-base-unit-field">
-                    <label>Satuan Dasar</label>
-                    ${unitSelectHtml('unit', 'pcs')}
-                </div>
-                <div class="form-group inventory-package-unit-field">
-                    <label>Satuan Kemasan</label>
-                    ${unitSelectHtml('package_unit', '', true)}
-                </div>
-                <div class="form-group inventory-initial-stock-field">
-                    <label>Stok Awal</label>
-                    <input type="number" name="initial_qty" required placeholder="0" min="0">
-                </div>
-                <div class="form-group inventory-min-stock-field">
-                    <label>Batas Aman</label>
-                    <input type="number" name="min_stock" required placeholder="10" min="0">
-                </div>
-                <div class="form-group inventory-package-size-field">
-                    <label>Isi per Kemasan</label>
-                    <input type="number" name="package_size" required value="1" min="1">
-                </div>
-                <button type="submit" class="btn btn-primary inventory-save-btn"><i class="fas fa-save"></i> Simpan</button>
-            </form>
+        <div class="stock-action-bar">
+            <button type="button" class="btn btn-primary" data-inventory-action="open-add">
+                <i class="fas fa-plus"></i> Tambah Peralatan
+            </button>
+            <button type="button" class="btn btn-secondary btn-secondary-auto" data-inventory-action="open-stock">
+                <i class="fas fa-sliders-h"></i> Koreksi / Update Stok
+            </button>
         </div>
+        <div id="inventory-row-selection" class="table-selection-summary" aria-live="polite"></div>
 
-        <div style="display:flex; gap:18px; align-items:flex-start;">
-
-            <!-- KIRI: Tabel (klik untuk pilih) -->
-            <div class="card" style="padding:0; flex:1; min-width:0;">
-                <div class="card-header" style="padding:16px 20px 12px;">
-                    <h3><i class="fas fa-clipboard-list"></i> Monitoring Stok (${data.length} item)</h3>
-                    <span style="font-size:12px; color:var(--primary); font-weight:500;"><i class="fas fa-hand-pointer"></i> Klik baris untuk pilih</span>
-                </div>
-                <div style="overflow-x:auto;">
-                    <table id="inventory-table" style="width:100%; border-collapse:collapse; font-size:13px;">
-                        <thead>
-                            <tr style="background:#f8fafc;">
-                                <th style="padding:11px 16px; text-align:left; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Nama Peralatan</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Jenis</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Stok Tersisa</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Kemasan</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Batas Aman</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Progress</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px;">Status</th>
-                                <th style="padding:11px 16px; text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; width:70px;">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.length === 0
-            ? `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Inventori masih kosong.</td></tr>`
-            : data.map(i => {
+        <!-- ── Tabel Monitoring Stok (DI ATAS) ── -->
+        <div class="card inventory-table-card">
+            <div class="card-header">
+                <h3><i class="fas fa-clipboard-list"></i> Monitoring Stok (${data.length} item)</h3>
+                <span class="table-hint-text"><i class="fas fa-hand-pointer"></i> Klik baris untuk pilih</span>
+            </div>
+            <div class="inventory-table-wrapper">
+                <table id="inventory-table" class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th class="text-left">Nama Peralatan</th>
+                            <th class="text-center">Jenis</th>
+                            <th class="text-center">Stok / Kemasan</th>
+                            <th class="text-center">Batas</th>
+                            <th class="text-center">Progress</th>
+                            <th class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${paginatedData.length === 0
+            ? `<tr><td colspan="6" class="table-empty-state">Inventori masih kosong.</td></tr>`
+            : paginatedData.map(i => {
                 const quantity = Number(i.quantity || 0);
                 const minStock = Number(i.min_stock || 0);
                 const itemType = inventoryItemType(i.item_type);
@@ -160,154 +277,66 @@ function renderInventory(data: InventoryItem[]): void {
                 const pct = minStock > 0 ? Math.min(100, Math.round(quantity / minStock * 100)) : 100;
                 const barColor = isLow ? 'var(--danger)' : (pct < 150 ? 'var(--warning)' : 'var(--success)');
                 const statusBadge = isLow
-                    ? `<span class="badge badge-low"><i class="fas fa-exclamation-triangle"></i> Kritis</span>`
-                    : `<span class="badge badge-ok"><i class="fas fa-check-circle"></i> Aman</span>`;
+                    ? inventoryStockBadge('Kritis', 'fas fa-exclamation-triangle', 'badge-low')
+                    : inventoryStockBadge('Aman', 'fas fa-check-circle', 'badge-ok');
+                const typeBadge = inventoryStockBadge(inventoryItemTypeLabel(itemType), '', itemType === 'consumable' ? 'badge-ok' : 'badge-low');
                 return `
-                                    <tr data-id="${i.id}" data-name="${escapeHtml(i.item_name)}" data-type="${itemType}" data-qty="${quantity}" data-min="${minStock}" data-unit="${escapeHtml(unit)}" data-package-unit="${escapeHtml(packageUnit)}" data-package-size="${packageSize}"
-                                        onclick="selectInventory(this)"
-                                        style="cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.15s;"
-                                        onmouseover="if(!this.classList.contains('row-selected'))this.style.background='#f0f4ff'"
-                                        onmouseout="if(!this.classList.contains('row-selected'))this.style.background=''">
-                                        <td style="padding:11px 16px; font-weight:600;">${escapeHtml(i.item_name)}</td>
-                                        <td style="padding:11px 16px; text-align:center;">
-                                            <span class="badge ${itemType === 'consumable' ? 'badge-ok' : 'badge-low'}">${escapeHtml(inventoryItemTypeLabel(itemType))}</span>
-                                        </td>
-                                        <td style="padding:11px 16px; text-align:center;">
-                                            <span style="font-size:16px; font-weight:700; color:${isLow ? 'var(--danger)' : 'var(--text-main)'};">${escapeHtml(i.stock_display || i.quantity)}</span>
-                                        </td>
-                                        <td style="padding:11px 16px; text-align:center; color:var(--text-muted);">${escapeHtml(packageLabel(i))}</td>
-                                        <td style="padding:11px 16px; text-align:center; color:var(--text-muted);">${minStock} ${escapeHtml(unit)}</td>
-                                        <td style="padding:11px 16px; text-align:center;">
-                                            <div style="background:#f1f5f9;border-radius:999px;height:6px;width:72px;overflow:hidden;margin:0 auto;">
-                                                <div style="height:100%;width:${Math.min(100, pct)}%;background:${barColor};border-radius:999px;transition:width 0.4s;"></div>
-                                            </div>
-                                            <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">${pct}%</div>
-                                        </td>
-                                        <td style="padding:11px 16px; text-align:center;">${statusBadge}</td>
-                                        <td style="padding:11px 16px; text-align:center;" onclick="event.stopPropagation()">
-                                            <div style="display:flex; gap:6px; justify-content:center;">
-                                                <button onclick="editInventory(${i.id}, '${escapeHtml(i.item_name)}', ${quantity}, '${escapeHtml(unit)}', ${minStock}, '${escapeHtml(packageUnit)}', ${packageSize}, '${itemType}')"
-                                                        title="Edit Alat"
-                                                        style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:14px; padding:4px; transition:color 0.2s;"
-                                                        onmouseover="this.style.color='#4338ca'" onmouseout="this.style.color='var(--primary)'">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button onclick="deleteInventory(${i.id}, '${escapeHtml(i.item_name)}')"
-                                                        title="Hapus Alat"
-                                                        style="background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:14px; padding:4px; transition:color 0.2s;"
-                                                        onmouseover="this.style.color='#b91c1c'" onmouseout="this.style.color='var(--danger)'">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>`;
+                                <tr data-id="${i.id}" data-name="${escapeHtml(i.item_name)}" data-type="${itemType}" data-qty="${quantity}" data-min="${minStock}" data-unit="${escapeHtml(unit)}" data-package-unit="${escapeHtml(packageUnit)}" data-package-size="${packageSize}"
+                                    data-inventory-action="select-row" class="${window._selectedInventoryId === Number(i.id) ? 'row-selected' : ''}">
+                                    <td class="table-cell-name" title="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</td>
+                                    <td class="table-cell-center">
+                                        ${typeBadge}
+                                    </td>
+                                    <td class="table-cell-center">
+                                        <span class="stock-display-main" style="color:${isLow ? 'var(--danger)' : 'var(--text-main)'}">${escapeHtml(i.stock_display || i.quantity)}</span>
+                                        <span class="stock-display-sub" title="${escapeHtml(packageLabel(i))}">${escapeHtml(packageLabel(i))}</span>
+                                    </td>
+                                    <td class="table-cell-center text-app-muted">${minStock} ${escapeHtml(unit)}</td>
+                                    <td class="table-cell-center">
+                                        <div class="stock-progress-bar">
+                                            <div class="stock-progress-fill" style="width:${Math.min(100, pct)}%;background:${barColor}"></div>
+                                        </div>
+                                    </td>
+                                    <td class="table-cell-center">
+                                        <div class="table-action-buttons">
+                                            <button type="button" data-inventory-action="edit" data-id="${i.id}"
+                                                    title="Edit Alat"
+                                                    class="table-icon-btn edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button type="button" data-inventory-action="delete" data-id="${i.id}"
+                                                    title="Hapus Alat"
+                                                    class="table-icon-btn delete">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>`;
             }).join('')
         }
-                        </tbody>
-                    </table>
+                    </tbody>
+                </table>
+            </div>
+            ${totalPages > 1 ? `
+            <div class="table-pagination">
+                <span class="pagination-info">Halaman ${currentPage} dari ${totalPages}</span>
+                <div class="pagination-buttons">
+                    <button type="button" class="btn btn-secondary btn-secondary-auto" ${currentPage <= 1 ? 'disabled' : ''} data-inventory-action="page" data-page="${currentPage - 1}">
+                        <i class="fas fa-chevron-left"></i> Sebelumnya
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-secondary-auto" ${currentPage >= totalPages ? 'disabled' : ''} data-inventory-action="page" data-page="${currentPage + 1}">
+                        Selanjutnya <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
+            ` : ''}
+        </div>
 
-            <!-- KANAN: Forms -->
-            <div style="display:flex; flex-direction:column; gap:18px; width:320px; flex-shrink:0;">
-
-                <!-- Form Sesuaikan Stok (klik baris untuk pilih) -->
-                <div class="card" style="height:fit-content; border-top:3px solid var(--warning);">
-                    <div class="card-header">
-                        <h3><i class="fas fa-sliders-h" style="color:var(--warning);"></i> Koreksi Stok Manual</h3>
-                    </div>
-                    <div class="stock-workflow-note">
-                        Stok alat untuk layanan otomatis berkurang saat kunjungan disimpan. Gunakan form ini untuk tambah stok baru atau koreksi manual di luar kunjungan, misalnya alat rusak, hilang, stok opname, atau salah input.
-                    </div>
-                    <form action="/update_inventory" method="post" onsubmit="prepareInventoryStockSubmit(event)">
-                        <input type="hidden" name="item_id" id="inv-selected-id">
-                        <input type="hidden" name="quantity_change" id="inv-change-input" value="">
-                        <div class="form-group">
-                            <label>Peralatan Terpilih</label>
-                            <div id="inv-selected-badge" style="padding:9px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#d97706;font-weight:500;min-height:38px;">
-                                <i class="fas fa-arrow-left"></i> Klik baris di tabel
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Jenis Pergerakan</label>
-                            <div class="stock-mode-picker" data-target="inventory">
-                                <button type="button" class="active" data-mode="in" onclick="setInventoryStockMode('in')"><i class="fas fa-arrow-down"></i> Tambah Stok</button>
-                                <button type="button" data-mode="out" onclick="setInventoryStockMode('out')"><i class="fas fa-arrow-up"></i> Koreksi Keluar</button>
-                            </div>
-                            <input type="hidden" id="inv-stock-mode" value="in">
-                            <small style="display:block;margin-top:7px;color:var(--text-muted);line-height:1.45;">
-                                Koreksi Keluar bukan untuk transaksi layanan normal. Pakai hanya jika stok fisik perlu dikurangi manual.
-                            </small>
-                        </div>
-                        <div class="form-group">
-                            <label>Jumlah</label>
-                            <input type="number" required placeholder="Contoh: 10" id="inv-change-amount" min="1" oninput="updateInventoryStockPreview()">
-                        </div>
-                        <div class="form-group">
-                            <label>Satuan Transaksi</label>
-                            <select name="multiplier" id="inv-multiplier" onchange="updateInventoryStockPreview()">
-                                <option value="1">Satuan dasar</option>
-                            </select>
-                            <small class="unit-field-hint">Pilih kemasan jika stok masuk/keluar berupa box, pack, atau dus.</small>
-                            <div id="inv-stock-preview" class="stock-preview">Pilih item, jenis pergerakan, dan jumlah.</div>
-                        </div>
-                        <input type="hidden" name="note" id="inv-stock-note" value="">
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#f59e0b,#ef4444); box-shadow:0 4px 12px rgba(245,158,11,0.35);"
-                            onclick="if(!document.getElementById('inv-selected-id').value){ showToast('Pilih peralatan di tabel terlebih dahulu!', 'warning'); return false; }">
-                            <i class="fas fa-sync-alt"></i> Catat Pergerakan
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Form Tambah Peralatan Baru -->
-                <div class="card" style="display:none; height:fit-content; border-top:3px solid var(--info);">
-                    <div class="card-header">
-                        <h3><i class="fas fa-plus-circle" style="color:var(--info);"></i> Tambah Peralatan</h3>
-                    </div>
-                    <form action="/add_inventory" method="post">
-                        <div class="unit-help-note compact">
-                            Dasar = stok terkecil. Kemasan = bungkus besar. Contoh: 1 box = 100 pcs.
-                        </div>
-                        <div class="form-group">
-                            <label>Nama Alat</label>
-                            <input type="text" name="item_name" required placeholder="Contoh: Alkohol, kapas, sarung tangan...">
-                        </div>
-                        <div class="form-group">
-                            <label>Jenis Item</label>
-                            ${inventoryItemTypeSelect('consumable')}
-                        </div>
-                        <div class="form-group">
-                            <label>Satuan Dasar</label>
-                            ${unitSelectHtml('unit', 'pcs')}
-                        </div>
-                        <div class="form-group">
-                            <label>Satuan Kemasan</label>
-                            ${unitSelectHtml('package_unit', '', true)}
-                        </div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                            <div class="form-group">
-                                <label>Stok Awal</label>
-                                <input type="number" name="initial_qty" required placeholder="0" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Batas Aman</label>
-                                <input type="number" name="min_stock" required placeholder="10" min="0">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Isi per Kemasan</label>
-                            <input type="number" name="package_size" required value="1" min="1">
-                        </div>
-                        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#3b82f6,#6366f1); box-shadow:0 4px 12px rgba(59,130,246,0.35);">
-                            <i class="fas fa-save"></i> Simpan Alat Baru
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>`;
+        `;
 
     const displayArea = document.getElementById('display-area');
     if (displayArea) displayArea.innerHTML = html;
+    updateInventorySelectionSummary();
 }
 
 // ── ROW SELECTION ─────────────────────────────────────────────────────────────
@@ -320,39 +349,167 @@ function selectInventory(row: HTMLTableRowElement): void {
     });
     // Select clicked
     row.classList.add('row-selected');
-    row.style.background = '#fef3c7';
-
-    // Fill form
-    const id = row.dataset.id;
-    const name = row.dataset.name;
-    const qty = row.dataset.qty;
-    const itemType = row.dataset.type || 'consumable';
-    const unit = row.dataset.unit;
-    const packageUnit = row.dataset.packageUnit || '';
-    const packageSize = Math.max(1, Number(row.dataset.packageSize || 1));
-
-    const selectedInput = document.getElementById('inv-selected-id') as HTMLInputElement | null;
-    if (selectedInput) selectedInput.value = id || '';
-    const multiplier = document.getElementById('inv-multiplier') as HTMLSelectElement | null;
-    if (multiplier) {
-        multiplier.innerHTML = `<option value="1">${escapeHtml(unit)}</option>`;
-        if (packageUnit && packageUnit !== unit && packageSize > 1) {
-            multiplier.innerHTML += `<option value="${packageSize}">${escapeHtml(packageUnit)} (1 = ${packageSize} ${escapeHtml(unit)})</option>`;
-        }
-    }
-    const badge = document.getElementById('inv-selected-badge');
-    if (badge) {
-        badge.innerHTML = `<i class="fas fa-box-open" style="color:#f59e0b;"></i> <strong>${escapeHtml(name)}</strong> <span style="color:#94a3b8;font-size:11px;">(${escapeHtml(inventoryItemTypeLabel(itemType))}, stok: ${escapeHtml(qty)} ${escapeHtml(unit)})</span>`;
-        badge.style.background = '#fffbeb';
-        badge.style.borderColor = '#fcd34d';
-        badge.style.color = '#92400e';
-    }
-    updateInventoryStockPreview();
-    const inp = document.getElementById('inv-change-amount') as HTMLInputElement | null;
-    if (inp) inp.focus();
+    window._selectedInventoryId = Number(row.dataset.id || 0) || null;
+    updateInventorySelectionSummary();
 }
 
 // ── CRUD ACTIONS ─────────────────────────────────────────────────────────────
+
+async function submitInventoryActionForm(event: SubmitEvent, endpoint: string): Promise<void> {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const originalText = submit?.innerHTML || '';
+    if (submit) {
+        submit.disabled = true;
+        submit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
+    try {
+        const response = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+        const data = await response.json() as ApiResponse;
+        if (!response.ok || data.status !== 'success') {
+            throw new Error(inventoryText(data.detail || data.message, 'Gagal menyimpan perubahan inventory.'));
+        }
+        closeModal();
+        showToast(data.message || 'Perubahan inventory berhasil disimpan.', 'success');
+        loadTab('inventory');
+    } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Gagal menyimpan perubahan inventory.', 'error');
+        if (submit) {
+            submit.disabled = false;
+            submit.innerHTML = originalText;
+        }
+    }
+}
+
+function openAddInventoryModal(): void {
+    const html = `
+        <form class="action-modal-form" data-inventory-form-action="add">
+            <div class="unit-help-note compact">Form ini selalu membuat item baru. Auto-deduct layanan hanya berlaku untuk item consumable.</div>
+            <div class="form-group">
+                <label>Nama Peralatan</label>
+                <input type="text" name="item_name" required placeholder="Alkohol, kapas">
+            </div>
+            <div class="form-group">
+                <label>Jenis Item</label>
+                ${inventoryItemTypeSelect('consumable')}
+            </div>
+            <div class="action-form-grid">
+                <div class="form-group"><label>Satuan Dasar</label>${unitSelectHtml('unit', 'pcs')}</div>
+                <div class="form-group"><label>Satuan Kemasan</label>${unitSelectHtml('package_unit', '', true)}</div>
+                <div class="form-group"><label>Stok Awal</label><input type="number" name="initial_qty" required value="0" min="0"></div>
+                <div class="form-group"><label>Batas Aman</label><input type="number" name="min_stock" required value="10" min="0"></div>
+                <div class="form-group"><label>Isi per Kemasan</label><input type="number" name="package_size" required value="1" min="1"></div>
+            </div>
+            <div class="sale-modal-actions">
+                <button type="button" class="btn btn-modal-cancel" data-inventory-action="close-modal">Batal</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan Peralatan</button>
+            </div>
+        </form>`;
+    openModal('Tambah Peralatan', html);
+}
+
+async function submitAddInventory(event: SubmitEvent): Promise<void> {
+    await submitInventoryActionForm(event, '/add_inventory');
+}
+
+function filterInventoryPicker(): void {
+    const query = inventoryText((document.getElementById('inventory-correction-search') as HTMLInputElement | null)?.value).toLowerCase();
+    const select = document.getElementById('inventory-correction-select') as HTMLSelectElement | null;
+    if (!select) return;
+    const selectedId = Number(select.value || 0);
+    const items = (window._inventoryCatalog || []).filter(item => {
+        const { unit } = inventoryPackageMeta(item);
+        const searchable = `${item.item_name || item.name || ''} ${inventoryItemTypeLabel(item.item_type)} ${Number(item.quantity || 0)} ${unit} ${inventoryStatus(item)}`.toLowerCase();
+        return !query || searchable.includes(query);
+    });
+    select.innerHTML = inventoryPickerOptions(items, selectedId);
+    const empty = document.getElementById('inventory-correction-empty');
+    if (empty) {
+        empty.textContent = items.length ? '' : 'Belum ada produk/peralatan tersedia.';
+        empty.classList.toggle('hidden', items.length > 0);
+    }
+    selectInventoryPickerItem();
+}
+
+function selectInventoryPickerItem(): void {
+    const select = document.getElementById('inventory-correction-select') as HTMLSelectElement | null;
+    const itemId = Number(select?.value || 0);
+    const item = (window._inventoryCatalog || []).find(candidate => Number(candidate.id) === itemId) || null;
+    const info = document.getElementById('inventory-correction-info');
+    if (info) {
+        const { unit } = item ? inventoryPackageMeta(item) : { unit: '' };
+        info.innerHTML = item
+            ? `<strong>${escapeHtml(item.item_name || item.name || '-')}</strong><span>Stok ${Number(item.quantity || 0)} ${escapeHtml(unit)} &middot; ${escapeHtml(inventoryItemTypeLabel(item.item_type))} &middot; ${escapeHtml(inventoryStatus(item))}</span>`
+            : 'Pilih peralatan untuk melihat stok, satuan, jenis, dan status.';
+        info.classList.toggle('has-selection', Boolean(item));
+    }
+    const selectedInput = document.getElementById('inv-selected-id') as HTMLInputElement | null;
+    if (selectedInput) selectedInput.value = item ? String(item.id) : '';
+    const multiplier = document.getElementById('inv-multiplier') as HTMLSelectElement | null;
+    if (multiplier) {
+        multiplier.innerHTML = item ? `<option value="1">${escapeHtml(inventoryPackageMeta(item).unit)}</option>` : '<option value="1">Satuan dasar</option>';
+        if (item) {
+            const { unit, packageUnit, packageSize } = inventoryPackageMeta(item);
+            if (packageUnit && packageUnit !== unit && packageSize > 1) {
+                multiplier.innerHTML += `<option value="${packageSize}">${escapeHtml(packageUnit)} (1 = ${packageSize} ${escapeHtml(unit)})</option>`;
+            }
+        }
+    }
+    updateInventoryStockPreview();
+}
+
+function openInventoryStockModal(): void {
+    const selectedId = Number(selectedInventory()?.id || 0) || null;
+    const html = `
+        <form class="action-modal-form" data-inventory-form-action="stock">
+            ${inventoryPickerHtml(selectedId)}
+            <input type="hidden" name="item_id" id="inv-selected-id">
+            <input type="hidden" name="quantity_change" id="inv-change-input">
+            <div class="form-group">
+                <label>Jenis Pergerakan</label>
+                <div class="stock-mode-picker" data-target="inventory">
+                    <button type="button" class="active" data-mode="in" data-inventory-action="stock-mode"><i class="fas fa-arrow-down"></i> Tambah Stok</button>
+                    <button type="button" data-mode="out" data-inventory-action="stock-mode"><i class="fas fa-arrow-up"></i> Koreksi Keluar</button>
+                </div>
+                <input type="hidden" id="inv-stock-mode" value="in">
+                <small class="unit-field-hint">Gunakan koreksi keluar hanya untuk penyesuaian stok fisik di luar layanan normal.</small>
+            </div>
+            <div class="action-form-grid">
+                <div class="form-group">
+                    <label>Jumlah</label>
+                    <input type="number" required id="inv-change-amount" min="1" placeholder="Contoh: 10" data-inventory-action="stock-preview">
+                </div>
+                <div class="form-group">
+                    <label>Satuan Transaksi</label>
+                    <select name="multiplier" id="inv-multiplier" data-inventory-action="stock-preview"><option value="1">Satuan dasar</option></select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Catatan Koreksi</label>
+                <textarea name="note" id="inv-stock-note" rows="2" placeholder="Contoh: Stok opname atau barang rusak"></textarea>
+            </div>
+            <div id="inv-stock-preview" class="stock-preview hidden"></div>
+            <div class="sale-modal-actions">
+                <button type="button" class="btn btn-modal-cancel" data-inventory-action="close-modal">Batal</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Terapkan Koreksi</button>
+            </div>
+        </form>`;
+    openModal('Koreksi / Update Stok Peralatan', html);
+    selectInventoryPickerItem();
+}
+
+async function submitInventoryStock(event: SubmitEvent): Promise<void> {
+    prepareInventoryStockSubmit(event);
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    const selectedId = document.getElementById('inv-selected-id') as HTMLInputElement | null;
+    if (!selectedId?.value) {
+        showToast('Pilih peralatan terlebih dahulu.', 'warning');
+        return;
+    }
+    await submitInventoryActionForm(event, '/update_inventory');
+}
 
 function setInventoryStockMode(mode: InventoryStockMode | string): void {
     const cleanMode = mode === 'out' ? 'out' : 'in';
@@ -381,9 +538,14 @@ function updateInventoryStockPreview(): void {
     const action = mode === 'out' ? 'keluar/terpakai' : 'masuk';
     const selectedUnit = multiplierSelect?.selectedOptions?.[0]?.textContent || 'satuan';
     preview.classList.toggle('danger', mode === 'out');
-    preview.textContent = selected && total > 0
-        ? `Stok akan ${action}: ${amount} ${selectedUnit} = ${total} satuan dasar.`
-        : 'Pilih item, jenis pergerakan, dan jumlah.';
+    
+    if (selected && total > 0) {
+        preview.textContent = `Stok akan ${action}: ${amount} ${selectedUnit} = ${total} satuan dasar.`;
+        preview.classList.remove('hidden');
+    } else {
+        preview.textContent = 'Pilih item, jenis pergerakan, dan jumlah.';
+        preview.classList.add('hidden');
+    }
 }
 
 function prepareInventoryStockSubmit(event: SubmitEvent): void {
@@ -395,7 +557,7 @@ function prepareInventoryStockSubmit(event: SubmitEvent): void {
     const hidden = document.getElementById('inv-change-input') as HTMLInputElement | null;
     const note = document.getElementById('inv-stock-note') as HTMLInputElement | null;
     if (hidden) hidden.value = String(mode === 'out' ? -amount : amount);
-    if (note) note.value = `${mode === 'out' ? 'Keluar' : 'Masuk'} ${amount} ${multiplierSelect?.selectedOptions?.[0]?.textContent || 'satuan'}`;
+    if (note && !note.value.trim()) note.value = `${mode === 'out' ? 'Keluar' : 'Masuk'} ${amount} ${multiplierSelect?.selectedOptions?.[0]?.textContent || 'satuan'}`;
     if (amount <= 0) {
         event.preventDefault();
         showToast('Isi jumlah barang terlebih dahulu.', 'warning');
@@ -413,7 +575,7 @@ function editInventory(
     itemType: string = 'consumable'
 ): void {
     const html = `
-        <form id="edit-inventory-form" onsubmit="submitEditInventory(event)">
+        <form id="edit-inventory-form" data-inventory-form-action="edit">
             <input type="hidden" name="item_id" value="${id}">
             <div class="unit-help-note compact">
                 <strong>Satuan dasar</strong> adalah stok terkecil. <strong>Satuan kemasan</strong> adalah bungkus besar. Contoh: dasar pcs, kemasan box, isi 100.
@@ -426,7 +588,7 @@ function editInventory(
                 <label>Jenis Item</label>
                 ${inventoryItemTypeSelect(itemType)}
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="grid grid-cols-2 gap-2.5">
                 <div class="form-group">
                     <label>Stok Saat Ini</label>
                     <input type="number" name="quantity" value="${qty}" required min="0">
@@ -436,7 +598,7 @@ function editInventory(
                     ${unitSelectHtml('unit', unit)}
                 </div>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="grid grid-cols-2 gap-2.5">
                 <div class="form-group">
                     <label>Satuan Kemasan</label>
                     ${unitSelectHtml('package_unit', packageUnit, true)}
@@ -450,13 +612,32 @@ function editInventory(
                 <label>Batas Aman (Min Stok)</label>
                 <input type="number" name="min_stock" value="${minStock}" required min="0">
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-                <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
+            <div class="sale-modal-actions">
+                <button type="button" class="btn btn-modal-cancel" data-inventory-action="close-modal">Batal</button>
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Simpan</button>
             </div>
         </form>
     `;
     openModal('Edit Peralatan', html);
+}
+
+function editInventoryFromCache(id: number | string): void {
+    const item = inventoryById(id);
+    if (!item) {
+        showToast('Data inventori tidak ditemukan. Muat ulang data lalu coba lagi.', 'error');
+        return;
+    }
+    const { unit, packageUnit, packageSize } = inventoryPackageMeta(item);
+    editInventory(
+        item.id,
+        item.item_name || item.name || '',
+        Number(item.quantity || 0),
+        unit,
+        Number(item.min_stock || 0),
+        packageUnit,
+        packageSize,
+        inventoryItemType(item.item_type)
+    );
 }
 
 async function submitEditInventory(event: SubmitEvent): Promise<void> {
@@ -516,7 +697,13 @@ async function deleteInventory(id: number | string, name: string): Promise<void>
     }
 }
 
+async function deleteInventoryFromCache(id: number | string): Promise<void> {
+    const item = inventoryById(id);
+    await deleteInventory(id, item?.item_name || item?.name || 'inventaris');
+}
+
 window.renderInventory = renderInventory;
+window.goToInventoryPage = goToInventoryPage;
 window.selectInventory = selectInventory;
 window.setInventoryStockMode = setInventoryStockMode;
 window.updateInventoryStockPreview = updateInventoryStockPreview;
@@ -524,3 +711,9 @@ window.prepareInventoryStockSubmit = prepareInventoryStockSubmit;
 window.editInventory = editInventory;
 window.submitEditInventory = submitEditInventory;
 window.deleteInventory = deleteInventory;
+window.openAddInventoryModal = openAddInventoryModal;
+window.submitAddInventory = submitAddInventory;
+window.openInventoryStockModal = openInventoryStockModal;
+window.submitInventoryStock = submitInventoryStock;
+window.filterInventoryPicker = filterInventoryPicker;
+window.selectInventoryPickerItem = selectInventoryPickerItem;

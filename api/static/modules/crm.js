@@ -65,6 +65,82 @@ const CRM_MESSAGE_TEMPLATES = {
     custom: "Custom"
 };
 let CRM_TAG_OPTIONS = { service: [], manual: [] };
+let CRM_PATIENT_CACHE = new Map();
+let crmDelegationReady = false;
+const debouncedLoadCRMList = debounce(() => loadCRMList(), 350);
+function ensureCRMEventDelegation() {
+    if (crmDelegationReady)
+        return;
+    crmDelegationReady = true;
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        const actionElement = target?.closest('[data-crm-action]');
+        if (!actionElement)
+            return;
+        const action = actionElement.dataset.crmAction || '';
+        if (!action)
+            return;
+        event.preventDefault();
+        const patientId = actionElement.dataset.patientId || '';
+        switch (action) {
+            case 'refresh-list':
+                loadCRMList();
+                break;
+            case 'open-followup':
+                openCRMFollowup(patientId);
+                break;
+            case 'close-modal':
+                actionElement.closest('.crm-modal-overlay')?.remove();
+                break;
+            case 'save-meta':
+                saveCRMPatientMeta(patientId);
+                break;
+            case 'create-voucher':
+                createCRMSpecialVoucher(patientId);
+                break;
+            case 'generate-message':
+                generateCRMMessage(patientId);
+                break;
+            case 'copy-message':
+                copyCRMMessage();
+                break;
+            case 'open-whatsapp':
+                openCRMWhatsAppLink(patientId, event);
+                break;
+            case 'mark-contacted':
+                markCRMWhatsAppContacted(patientId);
+                break;
+            case 'save-outcome':
+                saveCRMFollowupOutcome(patientId);
+                break;
+        }
+    });
+    document.addEventListener('change', (event) => {
+        const target = event.target;
+        const action = target?.dataset?.crmAction || '';
+        if (action === 'filter')
+            loadCRMList();
+        if (action === 'service-filter')
+            onCRMServiceFilterChange();
+        if (action === 'manual-tag-filter')
+            onCRMManualTagFilterChange();
+        if (action === 'voucher-change')
+            onCRMVoucherSelectChange();
+        if (action === 'message-template')
+            generateCRMMessage(target.dataset.patientId || '');
+    });
+    document.addEventListener('input', (event) => {
+        const target = event.target;
+        if (target?.dataset?.crmAction === 'search')
+            debouncedLoadCRMList();
+    });
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (form?.dataset?.crmFormAction === 'followup') {
+            submitCRMFollowup(event);
+        }
+    });
+}
 function crmCleanText(value, fallback = '') {
     const text = String(value || '').trim();
     return text || fallback;
@@ -184,8 +260,11 @@ async function fetchCRMJson(url) {
     return response.json();
 }
 async function renderCRM() {
+    ensureCRMEventDelegation();
     const display = document.getElementById('display-area');
-    display.innerHTML = renderCRMLoading('Memuat data follow-up pasien...');
+    if (!display.innerHTML.trim()) {
+        display.innerHTML = renderCRMLoading('Memuat data follow-up pasien...');
+    }
     let summary;
     let patients;
     let tagOptions;
@@ -201,9 +280,13 @@ async function renderCRM() {
         ]);
     }
     catch (error) {
+        if (window._activeTabName && window._activeTabName !== 'crm')
+            return;
         display.innerHTML = renderCRMError(error.message || 'Gagal memuat data follow-up pasien.');
         return;
     }
+    if (window._activeTabName && window._activeTabName !== 'crm')
+        return;
     CRM_TAG_OPTIONS = tagOptions || { service: [], manual: [] };
     display.innerHTML = `
         <div class="crm-shell">
@@ -229,12 +312,12 @@ async function renderCRM() {
 
             <div class="card crm-panel">
                 <div class="crm-toolbar crm-toolbar-compact">
-                    <select id="crm-segment-filter">${crmOptions(CRM_SEGMENTS)}</select>
-                    <select id="crm-status-filter">${crmOptions(CRM_STATUSES)}</select>
-                    <select id="crm-service-filter">${crmTagOptions('service', 'Semua layanan', CRM_TAG_OPTIONS)}</select>
-                    <select id="crm-manual-tag-filter">${crmTagOptions('manual', 'Semua tag', CRM_TAG_OPTIONS)}</select>
-                    <input id="crm-search-input" type="search" placeholder="Cari nama / no HP...">
-                    <button type="button" class="crm-refresh-btn" onclick="loadCRMList()">
+                    <select id="crm-segment-filter" data-crm-action="filter">${crmOptions(CRM_SEGMENTS)}</select>
+                    <select id="crm-status-filter" data-crm-action="filter">${crmOptions(CRM_STATUSES)}</select>
+                    <select id="crm-service-filter" data-crm-action="service-filter">${crmTagOptions('service', 'Semua layanan', CRM_TAG_OPTIONS)}</select>
+                    <select id="crm-manual-tag-filter" data-crm-action="manual-tag-filter">${crmTagOptions('manual', 'Semua tag', CRM_TAG_OPTIONS)}</select>
+                    <input id="crm-search-input" type="search" placeholder="Cari nama / no HP..." data-crm-action="search">
+                    <button type="button" class="crm-refresh-btn" data-crm-action="refresh-list">
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
@@ -242,11 +325,6 @@ async function renderCRM() {
             </div>
         </div>
     `;
-    document.getElementById('crm-segment-filter').addEventListener('change', loadCRMList);
-    document.getElementById('crm-status-filter').addEventListener('change', loadCRMList);
-    document.getElementById('crm-service-filter').addEventListener('change', onCRMServiceFilterChange);
-    document.getElementById('crm-manual-tag-filter').addEventListener('change', onCRMManualTagFilterChange);
-    document.getElementById('crm-search-input').addEventListener('input', debounce(loadCRMList, 350));
 }
 function renderCRMLoading(message = 'Memuat data...') {
     return `
@@ -333,6 +411,7 @@ function maskPhone(phone) {
     return `${digits.slice(0, 7)}••••${digits.slice(-2)}`;
 }
 function renderCRMPatients(patients) {
+    CRM_PATIENT_CACHE = new Map((patients || []).map(patient => [Number(patient.id), patient]));
     if (!patients.length) {
         return `
             <div class="dashboard-empty">
@@ -363,7 +442,7 @@ function renderCRMRowCard(patient) {
                 <div class="crm-patient-phone"><i class="fas fa-phone-alt"></i> ${maskPhone(patient.phone)}</div>
                 <div class="crm-patient-tags">${serviceBadges}</div>
                 <div class="crm-recommendation">
-                    <i class="fas fa-lightbulb" style="color:var(--warning); margin-right:4px;"></i>
+                    <i class="fas fa-lightbulb crm-recommendation-icon"></i>
                     ${escapeHtml(recommendation)}
                 </div>
             </div>
@@ -378,16 +457,16 @@ function renderCRMRowCard(patient) {
 
             <div class="crm-status-block">
                 <div class="crm-status-label-top">Terakhir: ${escapeHtml(lastVisit)} (${escapeHtml(staleText)})</div>
-                <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                <div class="crm-status-flex">
                     <span class="badge ${crmFollowupBadge(patient.followup_status)}">${escapeHtml(followupLabel)}</span>
                     ${dueBadge}
                 </div>
                 ${patient.follow_up_date ? `<div class="crm-next-date"><i class="far fa-calendar-alt"></i> Follow-up: ${escapeHtml(patient.follow_up_date)}</div>` : ''}
-                ${patient.followup_outcome ? `<div class="crm-phone-muted" style="font-style:italic; font-size:10px;">Hasil: ${escapeHtml(outcomeLabel)}</div>` : ''}
+                ${patient.followup_outcome ? `<div class="crm-outcome-note">Hasil: ${escapeHtml(outcomeLabel)}</div>` : ''}
             </div>
 
             <div class="crm-action-block">
-                <button type="button" class="btn btn-primary crm-detail-btn" onclick="openCRMFollowup(${patient.id})">
+                <button type="button" class="btn btn-primary crm-detail-btn" data-crm-action="open-followup" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}">
                     Detail
                 </button>
             </div>
@@ -472,7 +551,7 @@ function renderCRMManualTagEditor(patient) {
         <div class="form-group">
             <label>Tag Manual</label>
             <div class="crm-checkbox-grid">${checkboxes || '<span class="crm-subtext">Belum ada opsi tag manual.</span>'}</div>
-            <input type="text" id="crm-custom-tags-input" placeholder="Tambah tag custom, pisahkan dengan koma" style="margin-top:8px;">
+            <input type="text" id="crm-custom-tags-input" class="crm-custom-tags-input" placeholder="Tambah tag custom, pisahkan dengan koma">
         </div>
     `;
 }
@@ -520,22 +599,17 @@ async function loadCRMList() {
     }
 }
 async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = false) {
-    let patient;
+    const cachedPatient = CRM_PATIENT_CACHE.get(Number(patientId));
+    let patient = cachedPatient || {
+        id: patientId,
+        name: 'Memuat pasien...',
+        recommendation: 'Mengambil data follow-up pasien.',
+        tags: [],
+        contact_preference: {},
+    };
     let history = [];
     let messageLogs = [];
     let vouchers = { special: [], general: [] };
-    try {
-        patient = await fetchCRMJson(`/crm/patient/${patientId}`);
-        [history, messageLogs, vouchers] = await Promise.all([
-            fetchCRMJson(`/crm/patient/${patientId}/followups`).catch(() => []),
-            fetchCRMJson(`/crm/patient/${patientId}/message-logs`).catch(() => []),
-            fetchCRMJson(`/crm/patient/${patientId}/vouchers`).catch(() => ({ special: [], general: [] })),
-        ]);
-    }
-    catch (error) {
-        alert(error.message || 'Gagal membuka data follow-up pasien.');
-        return;
-    }
     const overlay = document.createElement('div');
     overlay.className = 'crm-modal-overlay';
     overlay.innerHTML = `
@@ -545,9 +619,9 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                     <h3>${escapeHtml(patient.name)}</h3>
                     <p>${escapeHtml(patient.recommendation)}</p>
                 </div>
-                <button type="button" onclick="this.closest('.crm-modal-overlay').remove()"><i class="fas fa-times"></i></button>
+                <button type="button" data-crm-action="close-modal"><i class="fas fa-times"></i></button>
             </div>
-            <form id="crm-followup-form">
+            <form id="crm-followup-form" data-crm-form-action="followup">
                 <input type="hidden" name="patient_id" value="${patient.id}">
                 <div class="crm-followup-form-body">
                     <div class="crm-followup-layout">
@@ -574,8 +648,8 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                 <h4>Tag & Izin Kontak</h4>
                                 ${renderCRMManualTagEditor(patient)}
                                 ${renderCRMContactPreferenceEditor(patient)}
-                                <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-                                    <button type="button" class="crm-row-btn" onclick="saveCRMPatientMeta(${patient.id})">
+                                <div class="crm-modal-actions-end">
+                                    <button type="button" class="crm-row-btn" data-crm-action="save-meta" data-patient-id="${escapeHtml(patient.id)}">
                                         <i class="fas fa-save"></i> Simpan Tag & Izin
                                     </button>
                                 </div>
@@ -584,16 +658,16 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                         <div class="crm-followup-column crm-followup-right-column">
                             <div class="crm-history-box crm-followup-history-box">
                                 <h4>Riwayat follow-up</h4>
-                                ${renderCRMFollowupHistory(history)}
+                                <div id="crm-followup-history-list">${renderCRMInlineLoading('Memuat riwayat...')}</div>
                             </div>
                             <div class="crm-message-box">
                             <div class="crm-voucher-tools" id="crm-voucher-tools">
                                 <h4><i class="fas fa-ticket-alt"></i> Voucher Follow-up</h4>
                                 <div class="crm-voucher-row">
-                                    <select id="crm-selected-voucher" onchange="onCRMVoucherSelectChange()">
-                                        ${renderCRMVoucherOptions(vouchers)}
+                                    <select id="crm-selected-voucher" data-crm-action="voucher-change">
+                                        <option value="">Memuat voucher...</option>
                                     </select>
-                                    <label class="crm-lock-override" id="crm-general-voucher-confirm-wrap" style="margin:0;">
+                                    <label class="crm-lock-override crm-voucher-confirm-wrap" id="crm-general-voucher-confirm-wrap">
                                         <input type="checkbox" id="crm-general-voucher-confirm">
                                         Pakai voucher umum
                                     </label>
@@ -609,7 +683,7 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                     </select>
                                     <input type="number" id="crm-new-voucher-value" min="0" step="0.01" placeholder="Nilai diskon">
                                     <input type="date" id="crm-new-voucher-end">
-                                    <button type="button" class="crm-row-btn" onclick="createCRMSpecialVoucher(${patient.id})">
+                                    <button type="button" class="crm-row-btn" data-crm-action="create-voucher" data-patient-id="${escapeHtml(patient.id)}">
                                         <i class="fas fa-plus"></i> Buat Voucher Khusus
                                     </button>
                                 </div>
@@ -624,43 +698,43 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                     <i class="fas fa-info-circle"></i> Pasien tidak ingin menerima pesan promosi (JANGAN PROMO).
                                 </div>
                                 <div class="whatsapp-template-row">
-                                    <select id="crm-message-template" onchange="generateCRMMessage(${patient.id})">
+                                    <select id="crm-message-template" data-crm-action="message-template" data-patient-id="${escapeHtml(patient.id)}">
                                         ${Object.entries(CRM_MESSAGE_TEMPLATES).map(([value, label]) => `
                                             <option value="${value}">${escapeHtml(label)}</option>
                                         `).join('')}
                                     </select>
-                                    <button type="button" class="btn-action" onclick="generateCRMMessage(${patient.id})">
+                                    <button type="button" class="btn-action" data-crm-action="generate-message" data-patient-id="${escapeHtml(patient.id)}">
                                         <i class="fas fa-magic"></i> Generate
                                     </button>
                                 </div>
                                 <textarea id="crm-generated-message" class="whatsapp-message-textarea" placeholder="Isi pesan akan tampil di sini. Bisa diedit manual."></textarea>
                                 <div class="whatsapp-actions crm-followup-action-row">
-                                    <button type="button" class="btn-outline" onclick="copyCRMMessage()">
+                                    <button type="button" class="btn-outline" data-crm-action="copy-message">
                                         <i class="fas fa-copy"></i> Copy Pesan
                                     </button>
-                                    <button type="button" class="btn-wa" id="crm-btn-open-wa" data-crm-wa-open>
-                                        <i class="fab fa-whatsapp"></i> Buka WhatsApp
+                                    <button type="button" class="btn-wa" id="crm-btn-open-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}">
+                                        <i class="fab fa-whatsapp"></i> Kirim via WhatsApp
                                     </button>
-                                    <button type="button" class="btn-outline" onclick="markCRMWhatsAppContacted(${patient.id})">
+                                    <button type="button" class="btn-outline" data-crm-mark-contacted data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}">
                                         <i class="fas fa-check"></i> Sudah Dihubungi
                                     </button>
                                 </div>
-                                <span class="crm-subtext">Hanya redirect ke WA Web/App. Tombol <b>Sudah Dihubungi</b> akan mencatat log.</span>
+                                <span class="crm-subtext">Pesan dikirim lewat WhatsApp Klinik. Jika belum login, buka tab WhatsApp dan scan QR.</span>
                             </div>
-                            </div>
-                            <div class="crm-history-box crm-log-box">
+                        </div>
+                        <div class="crm-history-box crm-log-box">
                             <h4>Riwayat WhatsApp</h4>
-                            <div id="crm-message-log-list">${renderCRMMessageLogs(messageLogs)}</div>
+                            <div id="crm-message-log-list">${renderCRMInlineLoading('Memuat riwayat WhatsApp...')}</div>
                         </div>
                         <div class="crm-history-box crm-outcome-box">
                             <h4>Hasil Follow-up</h4>
-                            <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;">
+                            <div class="crm-outcome-grid">
                                 <select id="crm-followup-outcome">${crmOptions(CRM_OUTCOMES)}</select>
                                 <input type="date" id="crm-outcome-follow-up-date" value="${escapeHtml(patient.follow_up_date || '')}">
                             </div>
-                            <textarea id="crm-followup-outcome-note" rows="3" placeholder="Catatan hasil follow-up..." style="margin-top:8px;"></textarea>
-                            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-                                <button type="button" class="crm-row-btn" onclick="saveCRMFollowupOutcome(${patient.id})">
+                            <textarea id="crm-followup-outcome-note" rows="3" placeholder="Catatan hasil follow-up..." class="crm-outcome-note-textarea"></textarea>
+                            <div class="crm-outcome-actions">
+                                <button type="button" class="crm-row-btn" data-crm-action="save-outcome" data-patient-id="${escapeHtml(patient.id)}">
                                     <i class="fas fa-clipboard-check"></i> Simpan Hasil
                                 </button>
                             </div>
@@ -675,8 +749,6 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
         </div>
     `;
     document.body.appendChild(overlay);
-    document.getElementById('crm-followup-form').addEventListener('submit', submitCRMFollowup);
-    bindCRMFollowupModalButtons(overlay, patient.id);
     window._currentCRMPatient = patient;
     onCRMVoucherSelectChange();
     generateCRMMessage(patient.id);
@@ -686,6 +758,43 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
     if (focusVoucher) {
         setTimeout(() => document.getElementById('crm-new-voucher-name')?.focus(), 80);
     }
+    const detailPromise = cachedPatient
+        ? Promise.resolve(cachedPatient)
+        : fetchCRMJson(`/crm/patient/${patientId}`);
+    Promise.all([
+        detailPromise.catch(() => patient),
+        fetchCRMJson(`/crm/patient/${patientId}/followups`).catch(() => []),
+        fetchCRMJson(`/crm/patient/${patientId}/message-logs`).catch(() => []),
+        fetchCRMJson(`/crm/patient/${patientId}/vouchers`).catch(() => ({ special: [], general: [] })),
+    ]).then(([freshPatient, freshHistory, freshMessageLogs, freshVouchers]) => {
+        patient = freshPatient || patient;
+        history = Array.isArray(freshHistory) ? freshHistory : [];
+        messageLogs = Array.isArray(freshMessageLogs) ? freshMessageLogs : [];
+        vouchers = freshVouchers || { special: [], general: [] };
+        CRM_PATIENT_CACHE.set(Number(patientId), patient);
+        window._currentCRMPatient = patient;
+        const historyList = document.getElementById('crm-followup-history-list');
+        const messageLogList = document.getElementById('crm-message-log-list');
+        const voucherSelect = document.getElementById('crm-selected-voucher');
+        if (historyList)
+            historyList.innerHTML = renderCRMFollowupHistory(history);
+        if (messageLogList)
+            messageLogList.innerHTML = renderCRMMessageLogs(messageLogs);
+        if (voucherSelect)
+            voucherSelect.innerHTML = renderCRMVoucherOptions(vouchers);
+        onCRMVoucherSelectChange();
+        generateCRMMessage(patient.id);
+    }).catch(() => {
+        const historyList = document.getElementById('crm-followup-history-list');
+        const messageLogList = document.getElementById('crm-message-log-list');
+        const voucherSelect = document.getElementById('crm-selected-voucher');
+        if (historyList)
+            historyList.innerHTML = renderCRMErrorMini('Riwayat follow-up gagal dimuat.');
+        if (messageLogList)
+            messageLogList.innerHTML = renderCRMErrorMini('Riwayat WhatsApp gagal dimuat.');
+        if (voucherSelect)
+            voucherSelect.innerHTML = renderCRMVoucherOptions({ special: [], general: [] });
+    });
 }
 async function openCRMWhatsApp(patientId) {
     try {
@@ -695,21 +804,11 @@ async function openCRMWhatsApp(patientId) {
         alert(error.message || 'Gagal membuka WhatsApp follow-up.');
     }
 }
-function bindCRMFollowupModalButtons(modalRoot, patientId) {
-    const waBtn = modalRoot.querySelector('[data-crm-wa-open]');
-    if (!waBtn)
-        return;
-    waBtn.onclick = async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (waBtn.disabled || waBtn.dataset.opening === 'true')
-            return;
-        waBtn.dataset.opening = 'true';
-        window.setTimeout(() => {
-            delete waBtn.dataset.opening;
-        }, 500);
-        await openCRMWhatsAppLink(patientId, event);
-    };
+function renderCRMInlineLoading(message) {
+    return `<div class="crm-inline-state"><i class="fas fa-spinner fa-spin"></i><span>${escapeHtml(message)}</span></div>`;
+}
+function renderCRMErrorMini(message) {
+    return `<div class="crm-inline-state error"><i class="fas fa-exclamation-circle"></i><span>${escapeHtml(message)}</span></div>`;
 }
 function renderCRMFollowupHistory(history) {
     if (!history.length) {
@@ -997,10 +1096,11 @@ async function openCRMWhatsAppLink(patientId, event) {
         return;
     const textarea = document.getElementById('crm-generated-message');
     const message = normalizeCRMMessageText(textarea?.value || '');
-    const pref = window._currentCRMPatient?.contact_preference || {};
-    const tags = window._currentCRMPatient?.tags || [];
+    const patient = window._currentCRMPatient || {};
+    const pref = patient.contact_preference || {};
+    const tags = patient.tags || [];
     const dontContact = pref.jangan_dihubungi || tags.some(t => t.value === 'jangan-dihubungi');
-    const phone = window._currentCRMPatient?.phone;
+    const phone = patient.phone;
     if (dontContact) {
         alert('Warning: Pasien ini memiliki preferensi JANGAN DIHUBUNGI.');
         return;
@@ -1009,49 +1109,55 @@ async function openCRMWhatsAppLink(patientId, event) {
         alert('Nomor HP tidak valid.');
         return;
     }
-    // Format phone to 628...
-    let formattedPhone = String(phone).replace(/\D/g, '');
-    if (formattedPhone.startsWith('0'))
-        formattedPhone = '62' + formattedPhone.slice(1);
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-    // Optionally mark contacted or log silently
-    try {
-        const form = new FormData();
-        form.append('template_type', document.getElementById('crm-message-template')?.value || 'custom');
-        form.append('custom_message', message);
-        await fetch(`/crm/patient/${patientId}/whatsapp-link`, { method: 'POST', body: form });
-        const logs = await fetchCRMJson(`/crm/patient/${patientId}/message-logs`);
-        const logList = document.getElementById('crm-message-log-list');
-        if (logList)
-            logList.innerHTML = renderCRMMessageLogs(logs);
+    const digits = String(phone).replace(/\D/g, '');
+    const chatId = digits.startsWith('62') ? digits : '62' + digits.replace(/^0/, '');
+    const url = `https://wa.me/${chatId}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+    showToast('Membuka obrolan WhatsApp di browser.', 'success');
+}
+async function readCRMActionPayload(response, fallbackMessage) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+        return { detail: fallbackMessage };
     }
-    catch (e) {
-        console.warn('Gagal push log', e);
+    try {
+        return await response.json();
+    }
+    catch (error) {
+        return { detail: fallbackMessage };
     }
 }
 async function markCRMWhatsAppContacted(patientId) {
     const form = document.getElementById('crm-followup-form');
-    const formData = new FormData();
     const followUpDate = form?.querySelector('[name="follow_up_date"]')?.value || '';
-    const logId = document.getElementById('crm-whatsapp-log-id')?.value || '';
-    if (logId)
-        formData.append('log_id', logId);
-    if (followUpDate)
-        formData.append('follow_up_date', followUpDate);
-    const response = await fetch(`/crm/patient/${patientId}/whatsapp-confirm`, {
-        method: 'POST',
-        body: formData,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        alert(data.detail || 'Gagal mencatat aktivitas WhatsApp.');
+    const button = form?.querySelector('[data-crm-mark-contacted]');
+    const fallbackMessage = 'Gagal memperbarui status follow-up. Periksa log aplikasi.';
+    if (button?.disabled)
         return;
+    if (button)
+        button.disabled = true;
+    try {
+        const response = await fetch(`/crm/patient/${patientId}/mark-whatsapp-contacted`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ follow_up_date: followUpDate }),
+        });
+        const data = await readCRMActionPayload(response, fallbackMessage);
+        if (!response.ok || data.status !== 'success') {
+            alert(data.detail || fallbackMessage);
+            return;
+        }
+        showToast(data.message || 'Status follow-up diperbarui menjadi Sudah Dihubungi.', 'success');
+        form?.closest('.crm-modal-overlay')?.remove();
+        await renderCRM();
     }
-    showToast(data.message || 'Aktivitas WhatsApp dicatat.', 'success');
-    form?.closest('.crm-modal-overlay')?.remove();
-    await renderCRM();
+    catch (error) {
+        alert(fallbackMessage);
+    }
+    finally {
+        if (button && button.isConnected)
+            button.disabled = false;
+    }
 }
 async function copyCRMMessage() {
     const textarea = document.getElementById('crm-generated-message');

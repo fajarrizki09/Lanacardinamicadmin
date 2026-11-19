@@ -1,0 +1,100 @@
+/* Font Awesome Icon Fix - Explicit Content Values */
+/* This file provides explicit ::before content for icons used in the dashboard */
+
+.fa-user-injured::before {
+  content: "\f728";
+}
+
+.fa-stethoscope::before {
+  content: "\f0f1";
+}
+
+.fa-money-bill-wave::before {
+  content: "\f53a";
+}
+
+.fa-box-open::before {
+  content: "\f49e";
+}
+
+.fa-leaf::before {
+  content: "\f06c";
+}
+
+.fa-user-plus::before {
+  content: "\f234";
+}
+
+.fa-notes-medical::before {
+  content: "\f481";
+}
+
+.fa-calendar-plus::before {
+  content: "\f271";
+}
+
+.fa-user-md::before {
+  content: "\f0f0";
+}
+
+.fa-pills::before {
+  content: "\f484";
+}
+
+.fa-syringe::before {
+  content: "\f48e";
+}
+
+.fa-chart-line::before {
+  content: "\f201";
+}
+
+.fa-file-invoice::before {
+  content: "\f570";
+}
+
+.fa-cog::before,
+.fa-gear::before {
+  content: "\f013";
+}
+
+.fa-receipt::before {
+  content: "\f543";
+}
+
+.fa-check-circle::before {
+  content: "\f058";
+}
+
+.fa-exclamation-triangle::before {
+  content: "\f071";
+}
+
+.fa-times::before {
+  content: "\f00d";
+}
+
+.fa-check::before {
+  content: "\f00c";
+}
+
+/* Ensure Font Awesome styles are applied */
+.fas::before,
+.far::before,
+.fab::before {
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-style: normal;
+  display: inline-block;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.far::before {
+  font-weight: 400;
+}
+
+.fab::before {
+  font-family: "Font Awesome 6 Brands";
+  font-weight: 400;
+}

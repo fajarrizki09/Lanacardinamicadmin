@@ -20,7 +20,6 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
 .env
 .venv
 .venv/
@@ -35,7 +34,8 @@ tmp/
 temp/
 *.tmp
 *.temp
-
+*.bak
+*.backup
 *.db
 *.db-journal
 *.db-shm
@@ -51,6 +51,11 @@ logs/
 exports/
 *.log
 exe_out*.txt
+status.txt
+git_status.txt
+files_changed.txt
+.git_reflog.txt
+afety patch*
 *.zip
 *_Smoke.pdf
 *PAGECHECK*.pdf
@@ -60,10 +65,23 @@ invoice_*check*.png
 dummy_invoice.pdf
 laporan_manual.pdf
 laporan_manual.xlsx
-
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 .DS_Store
+
+# local WhatsApp/Baileys runtime data
+openwa_server/data/
+openwa_server/node_modules/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/*.exe
+src-tauri/runtime/
+
+# managed
+**.data.json
+**.node-persist**
+**_IGNORE_**
+# end managed

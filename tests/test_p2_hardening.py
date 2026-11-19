@@ -98,10 +98,18 @@ class TestP2Hardening(IsolatedP2DatabaseTestCase):
         inventory_ts = (root / "api" / "static" / "ts" / "inventory.ts").read_text(encoding="utf-8")
         herbals_ts = (root / "api" / "static" / "ts" / "herbals.ts").read_text(encoding="utf-8")
 
-        self.assertIn("<strong>${escapeHtml(name)}</strong>", inventory_ts)
-        self.assertIn("stok: ${escapeHtml(qty)} ${escapeHtml(unit)}", inventory_ts)
-        self.assertIn("<strong>${escapeHtml(name)}</strong>", herbals_ts)
-        self.assertIn("stok: ${escapeHtml(stock)} ${escapeHtml(unit)}", herbals_ts)
+        self.assertIn("<strong>${escapeHtml(item.item_name || item.name || '-')}</strong>", inventory_ts)
+        self.assertIn("${escapeHtml(unit)} &middot; ${escapeHtml(inventoryItemTypeLabel(item.item_type))}", inventory_ts)
+        self.assertIn('data-inventory-action="edit" data-id="${i.id}"', inventory_ts)
+        self.assertIn("function editInventoryFromCache", inventory_ts)
+        self.assertIn('data-inventory-action="delete" data-id="${i.id}"', inventory_ts)
+        self.assertIn("function deleteInventoryFromCache", inventory_ts)
+        self.assertIn("<strong>${escapeHtml(item.name)}</strong>", herbals_ts)
+        self.assertIn("${escapeHtml(item.unit)} &middot; ${formatRupiah(item.price)}", herbals_ts)
+        self.assertIn('data-herbal-action="edit" data-id="${h.id}"', herbals_ts)
+        self.assertIn("function editHerbalFromCache", herbals_ts)
+        self.assertIn('data-herbal-action="delete" data-id="${h.id}"', herbals_ts)
+        self.assertIn("function deleteHerbalFromCache", herbals_ts)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ const TECHNICAL_ERROR_PATTERN = /(sqlalchemy|sqlite3|traceback|operationalerror|
 const ADMIN_IDLE_LOCK_MS = 15 * 60 * 1000;
 let adminIdleTimer = null;
 let adminIdleListenersReady = false;
+let tabLoadSequence = 0;
 
 function sanitizeAppErrorMessage(value, fallback = USER_FRIENDLY_ERROR_MESSAGE) {
     let message = '';
@@ -86,6 +87,7 @@ window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
 
 document.addEventListener("DOMContentLoaded", async () => {
     resetUIZoomToDefault();
+    initShellPreferences();
     const unlocked = await ensureAdminUnlocked();
     if (!unlocked) return;
     await ensureFirstRunSetup();
@@ -100,6 +102,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             updatePageHeader(target);
         });
     });
+    document.querySelectorAll('[data-quick-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+            const tab = button.getAttribute('data-quick-tab');
+            document.querySelector<HTMLElement>(`.nav-links li[data-tab="${tab}"]`)?.click();
+        });
+    });
 
     // Initial load
     initModals();
@@ -107,6 +115,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadClinicSettings();
     loadTab('dashboard');
 });
+
+function initShellPreferences() {
+    const collapseButton = document.getElementById('sidebar-collapse-toggle');
+    const themeButton = document.getElementById('theme-toggle');
+    const collapsed = localStorage.getItem('lancar_sidebar_collapsed') === '1';
+    const theme = localStorage.getItem('lancar_theme') || 'light';
+
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    updateShellButtons();
+
+    collapseButton?.addEventListener('click', () => {
+        const nextCollapsed = !document.body.classList.contains('sidebar-collapsed');
+        document.body.classList.toggle('sidebar-collapsed', nextCollapsed);
+        localStorage.setItem('lancar_sidebar_collapsed', nextCollapsed ? '1' : '0');
+        updateShellButtons();
+    });
+
+    themeButton?.addEventListener('click', () => {
+        const nextDark = !document.body.classList.contains('theme-dark');
+        document.body.classList.toggle('theme-dark', nextDark);
+        localStorage.setItem('lancar_theme', nextDark ? 'dark' : 'light');
+        updateShellButtons();
+    });
+}
+
+function updateShellButtons() {
+    const collapseIcon = document.querySelector('#sidebar-collapse-toggle i');
+    const collapseButton = document.getElementById('sidebar-collapse-toggle');
+    const themeIcon = document.querySelector('#theme-toggle i');
+    const isCollapsed = document.body.classList.contains('sidebar-collapsed');
+    const isDark = document.body.classList.contains('theme-dark');
+
+    if (collapseIcon) collapseIcon.className = `fas ${isCollapsed ? 'fa-angles-right' : 'fa-angles-left'}`;
+    if (collapseButton) {
+        collapseButton.setAttribute('aria-label', isCollapsed ? 'Buka sidebar' : 'Tutup sidebar');
+        collapseButton.setAttribute('title', isCollapsed ? 'Buka sidebar' : 'Tutup sidebar');
+    }
+    if (themeIcon) themeIcon.className = `fas ${isDark ? 'fa-sun' : 'fa-moon'}`;
+}
 
 function resetUIZoomToDefault() {
     document.body.style.zoom = '100%';
@@ -126,6 +174,10 @@ async function ensureFirstRunSetup() {
     }
 }
 
+function nextFrame(): Promise<void> {
+    return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
 function renderFirstRunWizard(message = '') {
     let overlay = document.getElementById('first-run-overlay');
     if (!overlay) {
@@ -135,11 +187,11 @@ function renderFirstRunWizard(message = '') {
         document.body.appendChild(overlay);
     }
     overlay.innerHTML = `
-        <form id="first-run-form" style="width:min(620px,calc(100vw - 28px));max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:12px;box-shadow:0 24px 80px rgba(15,23,42,.22);padding:22px;border:1px solid #e2e8f0;">
+        <form id="first-run-form" class="runtime-modal-panel" style="width:min(620px,calc(100vw - 28px));max-height:calc(100vh - 32px);overflow:auto;background:var(--color-surface);color:var(--color-text);border-radius:12px;box-shadow:0 24px 80px rgba(15,23,42,.22);padding:22px;border:1px solid var(--color-border);">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px;">
                 <div>
-                    <h2 style="margin:0;color:#0f172a;font-size:21px;line-height:1.25;">Setup Awal Klinik</h2>
-                    <p style="margin:6px 0 0;color:#64748b;font-size:13px;line-height:1.5;">Isi data dasar agar invoice, layanan, dan dashboard siap dipakai.</p>
+                    <h2 style="margin:0;color:var(--color-text);font-size:21px;line-height:1.25;">Setup Awal Klinik</h2>
+                    <p style="margin:6px 0 0;color:var(--color-text-muted);font-size:13px;line-height:1.5;">Isi data dasar agar invoice, layanan, dan dashboard siap dipakai.</p>
                 </div>
                 <button type="button" id="first-run-skip" class="btn btn-secondary" style="width:auto;">Lewati</button>
             </div>
@@ -150,8 +202,8 @@ function renderFirstRunWizard(message = '') {
                 <div class="form-group"><label>Logo Klinik (opsional)</label><input id="first-clinic-logo" type="text" placeholder="Path logo"></div>
                 <div class="form-group"><label>Prefix Invoice</label><input id="first-invoice-prefix" type="text" value="INV" maxlength="8"></div>
             </div>
-            <div style="margin-top:14px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
-                <strong style="display:block;margin-bottom:9px;color:#0f172a;font-size:13px;">Layanan Awal</strong>
+            <div style="margin-top:14px;padding:12px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface-muted);">
+                <strong style="display:block;margin-bottom:9px;color:var(--color-text);font-size:13px;">Layanan Awal</strong>
                 <div class="first-service-grid" style="display:grid;grid-template-columns:1.2fr .6fr .6fr;gap:8px;margin-bottom:8px;">
                     <input type="text" value="Terapi Reguler" placeholder="Nama layanan">
                     <input type="text" value="titik" placeholder="Satuan">
@@ -163,7 +215,7 @@ function renderFirstRunWizard(message = '') {
                     <input type="text" value="sesi" placeholder="Satuan">
                     <input type="number" value="50000" min="0" placeholder="Harga">
                 </div>
-                <small style="color:#64748b;">Minimal satu layanan. Maksimal tiga layanan awal pada wizard ini.</small>
+                <small style="color:var(--color-text-muted);">Minimal satu layanan. Maksimal tiga layanan awal pada wizard ini.</small>
             </div>
             <div id="first-run-message" style="min-height:18px;margin:12px 0;color:#dc2626;font-size:12px;">${escapeHtml(message)}</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -263,46 +315,46 @@ function renderAdminLock(message = '') {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'admin-lock-overlay';
-        overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#f8fafc;display:grid;place-items:center;font-family:Inter,Arial,sans-serif;overflow:auto;padding:18px;box-sizing:border-box;';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:var(--color-bg);display:grid;place-items:center;font-family:Inter,Arial,sans-serif;overflow:auto;padding:18px;box-sizing:border-box;';
         document.body.appendChild(overlay);
     }
 
     overlay.innerHTML = `
-        <div id="admin-lock-panel" style="width:min(420px,calc(100vw - 36px));background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.14);padding:24px;box-sizing:border-box;">
+        <div id="admin-lock-panel" class="runtime-modal-panel" style="width:min(420px,calc(100vw - 36px));background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border);border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.14);padding:24px;box-sizing:border-box;">
             <form id="admin-lock-form">
                 <div style="width:46px;height:46px;border-radius:10px;background:#ecfdf5;color:#047857;display:grid;place-items:center;margin-bottom:16px;">
                     <i class="fas fa-lock"></i>
                 </div>
-                <h1 id="admin-lock-title" style="font-size:20px;line-height:1.25;margin:0 0 8px;color:#0f172a;">Masukkan PIN Admin</h1>
-                <p id="admin-lock-copy" style="margin:0 0 18px;color:#64748b;font-size:13px;line-height:1.5;">PIN diperlukan untuk membuka dashboard dan menjalankan aksi sensitif.</p>
-                <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">PIN Admin</label>
-                <input id="admin-lock-pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" required style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:20px;letter-spacing:7px;text-align:center;">
+                <h1 id="admin-lock-title" style="font-size:20px;line-height:1.25;margin:0 0 8px;color:var(--color-text);">Masukkan PIN Admin</h1>
+                <p id="admin-lock-copy" style="margin:0 0 18px;color:var(--color-text-muted);font-size:13px;line-height:1.5;">PIN diperlukan untuk membuka dashboard dan menjalankan aksi sensitif.</p>
+                <label style="display:block;font-size:12px;font-weight:700;color:var(--color-text-muted);margin-bottom:6px;">PIN Admin</label>
+                <input id="admin-lock-pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" required style="width:100%;box-sizing:border-box;border:1px solid var(--color-border);border-radius:8px;padding:11px 12px;font-size:20px;letter-spacing:7px;text-align:center;">
                 <div id="admin-lock-confirm-wrap" style="display:none;margin-top:10px;">
-                    <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">Ulangi PIN</label>
-                    <input id="admin-lock-confirm" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:20px;letter-spacing:7px;text-align:center;">
+                    <label style="display:block;font-size:12px;font-weight:700;color:var(--color-text-muted);margin-bottom:6px;">Ulangi PIN</label>
+                    <input id="admin-lock-confirm" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" style="width:100%;box-sizing:border-box;border:1px solid var(--color-border);border-radius:8px;padding:11px 12px;font-size:20px;letter-spacing:7px;text-align:center;">
                 </div>
                 <div id="admin-lock-message" style="min-height:18px;margin:10px 0;color:#dc2626;font-size:12px;">${escapeHtml(message)}</div>
                 <button type="submit" id="admin-lock-submit" class="btn btn-primary" style="width:100%;justify-content:center;">
                     <i class="fas fa-unlock"></i> Lanjut
                 </button>
             </form>
-            <div id="admin-lock-reset-box" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+            <div id="admin-lock-reset-box" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--color-border);">
                 <div style="display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;margin-bottom:12px;">
                     <span style="width:28px;height:28px;border-radius:8px;background:#ecfeff;color:#0e7490;display:grid;place-items:center;"><i class="fas fa-life-ring"></i></span>
                     <div>
-                        <strong id="admin-lock-reset-title" style="display:block;font-size:13px;line-height:1.3;color:#0f172a;">Lupa PIN?</strong>
-                        <span id="admin-lock-reset-copy" style="display:block;color:#64748b;font-size:12px;line-height:1.45;margin-top:2px;">Minta kode reset dari server lisensi, lalu buat PIN admin baru di komputer ini.</span>
+                        <strong id="admin-lock-reset-title" style="display:block;font-size:13px;line-height:1.3;color:var(--color-text);">Lupa PIN?</strong>
+                        <span id="admin-lock-reset-copy" style="display:block;color:var(--color-text-muted);font-size:12px;line-height:1.45;margin-top:2px;">Minta kode reset dari pusat lisensi, lalu buat PIN admin baru di komputer ini.</span>
                     </div>
                 </div>
                 <button type="button" id="admin-lock-reset-request" class="btn btn-secondary" style="width:100%;justify-content:center;">
                     <i class="fas fa-paper-plane"></i> Minta Kode Reset
                 </button>
                 <form id="admin-lock-reset-form" style="display:none;margin-top:12px;">
-                    <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Kode Reset Server Lisensi</label>
+                    <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Kode Reset Lisensi</label>
                     <input id="admin-lock-reset-token" type="text" inputmode="numeric" autocomplete="one-time-code" required style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:14px;margin-bottom:10px;">
                     <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">PIN Admin Baru</label>
                     <input id="admin-lock-reset-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" required style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:18px;letter-spacing:6px;text-align:center;">
-                    <small style="display:block;color:#64748b;font-size:11px;line-height:1.35;margin:5px 0 12px;">PIN tetap disimpan lokal. Server lisensi hanya memberi izin reset.</small>
+                    <small style="display:block;color:#64748b;font-size:11px;line-height:1.35;margin:5px 0 12px;">PIN tetap tersimpan di komputer ini. Pusat lisensi hanya memberi izin reset.</small>
                     <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Konfirmasi PIN Baru</label>
                     <input id="admin-lock-reset-confirm-pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" required style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:18px;letter-spacing:6px;text-align:center;">
                     <button type="submit" id="admin-lock-reset-submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:14px;">
@@ -395,7 +447,7 @@ async function ensureAdminUnlocked(initialMessage = '') {
                     resetRequestButton.disabled = true;
                     resetRequestButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim...';
                     resetMessage.style.color = '#0f766e';
-                    resetMessage.textContent = 'Menghubungi server lisensi untuk membuat permintaan reset...';
+                    resetMessage.textContent = 'Menghubungi pusat lisensi untuk membuat permintaan reset...';
 
                     try {
                         const response = await appFetchRaw('/admin_pin/reset/request', { method: 'POST' });
@@ -406,14 +458,14 @@ async function ensureAdminUnlocked(initialMessage = '') {
                         const suffix = data.reset_request_id ? ` ID permintaan: ${data.reset_request_id}` : '';
                         resetMessage.style.color = '#0f766e';
                         resetMessage.textContent = `${data.message || 'Permintaan reset PIN dikirim.'}${suffix}`;
-                        resetForm.dataset.resetToken = data.reset_token || '';
+                        resetForm.dataset.resetReady = 'true';
                         form.style.display = 'none';
                         resetRequestButton.style.display = 'none';
                         resetBox.style.marginTop = '0';
                         resetBox.style.paddingTop = '0';
                         resetBox.style.borderTop = 'none';
                         if (resetTitle) resetTitle.textContent = 'Reset PIN Admin';
-                        if (resetCopy) resetCopy.textContent = 'Masukkan kode reset dari server lisensi, lalu buat PIN admin baru.';
+                        if (resetCopy) resetCopy.textContent = 'Masukkan kode reset dari pusat lisensi, lalu buat PIN admin baru.';
                         resetForm.style.display = 'block';
                         document.getElementById('admin-lock-reset-token')?.focus();
                     } catch (error) {
@@ -428,7 +480,7 @@ async function ensureAdminUnlocked(initialMessage = '') {
                 resetForm.addEventListener('submit', async (event) => {
                     event.preventDefault();
                     const resetSubmit = document.getElementById('admin-lock-reset-submit');
-                    const resetToken = resetForm.dataset.resetToken || '';
+                    const resetReady = resetForm.dataset.resetReady === 'true';
                     const resetPin = document.getElementById('admin-lock-reset-token')?.value.trim() || '';
                     const newPin = document.getElementById('admin-lock-reset-new-pin')?.value.trim() || '';
                     const confirmPin = document.getElementById('admin-lock-reset-confirm-pin')?.value.trim() || '';
@@ -436,12 +488,12 @@ async function ensureAdminUnlocked(initialMessage = '') {
 
                     if (!resetPin) {
                         resetMessage.style.color = '#dc2626';
-                        resetMessage.textContent = 'Kode reset dari server lisensi wajib diisi.';
+                        resetMessage.textContent = 'Kode reset lisensi wajib diisi.';
                         return;
                     }
-                    if (!resetToken) {
+                    if (!resetReady) {
                         resetMessage.style.color = '#dc2626';
-                        resetMessage.textContent = 'Token reset belum tersedia. Klik Minta Kode Reset ulang.';
+                        resetMessage.textContent = 'Kode reset belum siap. Klik Minta Kode Reset ulang.';
                         return;
                     }
                     if (!/^[0-9]{4,8}$/.test(newPin)) {
@@ -462,7 +514,6 @@ async function ensureAdminUnlocked(initialMessage = '') {
 
                     try {
                         const formData = new FormData();
-                        formData.set('reset_token', resetToken);
                         formData.set('reset_pin', resetPin);
                         formData.set('new_pin', newPin);
                         const response = await appFetchRaw('/admin_pin/reset/confirm', { method: 'POST', body: formData });
@@ -511,7 +562,7 @@ function applyClinicSettings(settings) {
 
     window._clinicName = clinicName;
     window._clinicSettings = settings || {};
-    document.title = `${clinicName} - Admin Dashboard`;
+    document.title = `${clinicName} - Aplikasi Klinik`;
     if (sidebarClinicName) {
         sidebarClinicName.textContent = clinicName;
         sidebarClinicName.title = clinicName;
@@ -651,8 +702,9 @@ document.addEventListener('submit', async (e) => {
 function updatePageHeader(target) {
     const title = document.getElementById('page-title');
     const subtitle = title.nextElementSibling;
+    const breadcrumb = document.getElementById('breadcrumb');
     const headers = {
-        dashboard: ['Dashboard Utama', 'Ringkasan Sistem & Statistik'],
+        dashboard: ['Dashboard', 'Ringkasan Klinik & Aktivitas Hari Ini'],
         patients: ['Manajemen Pasien', 'Data Registrasi & Direktori'],
         visits: ['Kunjungan Pasien', 'Pencatatan Kunjungan & Riwayat Terapi'],
         therapists: ['Direktori Terapis', 'Data Terapis & Spesialisasi'],
@@ -663,19 +715,44 @@ function updatePageHeader(target) {
         'owner-report': ['Laporan Owner', 'Ringkasan bisnis klinik dan performa pasien'],
         audit: ['Log Aktivitas', 'Riwayat perubahan dan aksi penting'],
         crm: ['Follow-up Pasien', 'Kategori pasien, WhatsApp, dan hasil follow-up'],
+        'whatsapp-gateway': ['WhatsApp Klinik', 'Login WhatsApp, cek akun, dan kirim follow-up'],
         invoices: ['Manajemen Transaksi', 'Rekaman Tagihan Kunjungan & Penjualan Produk / Herbal'],
         vouchers: ['Voucher & Diskon', 'Kelola voucher, rule kunjungan, dan simulasi harga akhir'],
         settings: ['Pengaturan Sistem', 'Konfigurasi Klinik, Lisensi & Ekspor Data'],
-        help: ['Bantuan & Support', 'Panduan cepat, folder data, dan kontak support'],
+        help: ['Bantuan', 'Panduan cepat, folder data, dan kontak bantuan'],
     };
     const [t, s] = headers[target] || ['', ''];
     title.textContent = t;
     subtitle.textContent = s;
+    if (breadcrumb) {
+        const group = {
+            dashboard: 'Operasional',
+            patients: 'Operasional',
+            visits: 'Operasional',
+            therapists: 'Operasional',
+            services: 'Operasional',
+            inventory: 'Operasional',
+            herbals: 'Operasional',
+            invoices: 'Operasional',
+            crm: 'Komunikasi',
+            'whatsapp-gateway': 'Komunikasi',
+            analytics: 'Analisis',
+            'owner-report': 'Analisis',
+            vouchers: 'Analisis',
+            audit: 'Sistem',
+            settings: 'Sistem',
+            help: 'Sistem',
+        }[target] || 'Workspace';
+        breadcrumb.innerHTML = `<span>${group}</span><i class="fas fa-chevron-right"></i><strong>${t}</strong>`;
+    }
 }
 
 async function loadTab(tabName) {
+    const loadId = ++tabLoadSequence;
+    window._activeTabName = tabName;
     const displayArea = document.getElementById('display-area');
     const loader = document.getElementById('loader');
+    let loadingTimer: number | null = null;
 
     // Destroy existing DataTable instance if navigating away from patient-backed tabs
     if (window._patientsDT && tabName !== 'patients' && tabName !== 'visits') {
@@ -683,9 +760,16 @@ async function loadTab(tabName) {
         window._patientsDT = null;
     }
 
-    displayArea.style.display = 'none';
-    loader.style.display = 'flex';
-    displayArea.innerHTML = '';
+    displayArea.classList.remove('hidden');
+    displayArea.style.display = 'block';
+    loadingTimer = window.setTimeout(() => {
+        if (loadId !== tabLoadSequence) return;
+        displayArea.classList.add('is-tab-loading');
+        displayArea.innerHTML = renderTabSkeleton(tabName);
+        loader.style.display = 'flex';
+    }, 180);
+    await nextFrame();
+    if (loadId !== tabLoadSequence) return;
 
     try {
         if (tabName === 'dashboard') {
@@ -697,6 +781,8 @@ async function loadTab(tabName) {
             await renderVisits();
         } else if (tabName === 'crm') {
             await renderCRM();
+        } else if (tabName === 'whatsapp-gateway') {
+            await renderWhatsAppGateway();
         } else if (tabName === 'owner-report') {
             await renderOwnerReport();
         } else if (tabName === 'audit') {
@@ -717,8 +803,10 @@ async function loadTab(tabName) {
                 endpoint += `?period=${period}&page=${page}&page_size=100&search=${encodeURIComponent(search)}`;
             }
             const response = await fetch(endpoint);
+            if (loadId !== tabLoadSequence) return;
             if (!response.ok) throw new Error('Network response was not ok');
             const data = await response.json();
+            if (loadId !== tabLoadSequence) return;
 
             if (tabName === 'therapists') renderTherapists(data);
             else if (tabName === 'services') renderServices(data);
@@ -729,10 +817,18 @@ async function loadTab(tabName) {
             else if (tabName === 'settings') renderSettings(data);
         }
 
+        if (loadId !== tabLoadSequence) return;
+        if (loadingTimer !== null) window.clearTimeout(loadingTimer);
         loader.style.display = 'none';
+        displayArea.classList.remove('is-tab-loading');
+        displayArea.classList.remove('hidden');
         displayArea.style.display = 'block';
     } catch (e) {
+        if (loadId !== tabLoadSequence) return;
+        if (loadingTimer !== null) window.clearTimeout(loadingTimer);
         loader.style.display = 'none';
+        displayArea.classList.remove('is-tab-loading');
+        displayArea.classList.remove('hidden');
         displayArea.style.display = 'block';
         displayArea.innerHTML = `
             <div class="card" style="border-left: 5px solid var(--danger);">
@@ -741,4 +837,26 @@ async function loadTab(tabName) {
             </div>
         `;
     }
+}
+
+function renderTabSkeleton(tabName = '') {
+    const isVisit = tabName === 'visits';
+    return `
+        <div class="ui-skeleton-page ${isVisit ? 'is-visit' : ''}" aria-hidden="true">
+            <div class="ui-skeleton-row">
+                <div class="ui-skeleton-card"></div>
+                <div class="ui-skeleton-card"></div>
+                <div class="ui-skeleton-card"></div>
+                <div class="ui-skeleton-card"></div>
+            </div>
+            <div class="ui-skeleton-layout">
+                <div class="ui-skeleton-panel">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+                <div class="ui-skeleton-panel">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+        </div>
+    `;
 }

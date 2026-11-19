@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Form, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from api.admin_pin import require_admin_pin
 from api.database_manager import db
 from database import Patient
+from helpers.openwa_client import OpenWAClient, OpenWAConfig, OpenWAError, phone_to_chat_id
 from helpers.crm_analysis_helper import (
     build_crm_conversion_report,
     build_crm_daily_tasks,
@@ -31,6 +33,30 @@ CRM_LOAD_ERROR = "Gagal memuat data follow-up pasien. Silakan coba lagi."
 CRM_SAVE_ERROR = "Gagal menyimpan data follow-up pasien. Silakan coba lagi."
 CRM_VOUCHER_ERROR = "Gagal menyimpan voucher khusus pasien. Silakan coba lagi."
 CRM_WHATSAPP_ERROR = "Gagal memproses WhatsApp follow-up. Silakan coba lagi."
+
+
+class MarkWhatsAppContactedPayload(BaseModel):
+    follow_up_date: str = ""
+
+
+def _whatsapp_client(include_secret=True):
+    from settings import AppSettings
+
+    settings = AppSettings()
+    cfg = settings.get_openwa_settings(include_secret=include_secret)
+    base_url = cfg.get("openwa_base_url") or "http://127.0.0.1:3000/api"
+    api_token = ""
+    if str(base_url).rstrip("/") == "http://127.0.0.1:3000/api":
+        from api.routes.whatsapp import get_local_openwa_api_token
+        api_token = get_local_openwa_api_token()
+    return OpenWAClient(
+        OpenWAConfig(
+            base_url=base_url,
+            session_id=cfg.get("openwa_session_id") or "",
+            timeout_seconds=15,
+            api_token=api_token,
+        )
+    ), cfg
 
 
 def _internal_error(message=CRM_LOAD_ERROR):
@@ -190,17 +216,88 @@ async def confirm_crm_patient_whatsapp(
         _internal_error(CRM_WHATSAPP_ERROR)
 
 
-@router.post("/patient/{patient_id}/mark-whatsapp-contacted")
-async def mark_crm_patient_whatsapp_contacted(
+@router.post("/patient/{patient_id}/whatsapp-send")
+async def send_crm_patient_whatsapp(
     request: Request,
     patient_id: int,
-    follow_up_date: str = Form(""),
+    template_type: str = Form("routine"),
+    custom_message: str = Form(""),
+    voucher_rule_id: str = Form(""),
+    allow_general_voucher: bool = Form(False),
 ):
     try:
-        # require_admin_pin(request)  # Relaxed for operator flow
         with db.Session() as session:
-            followup_id = mark_whatsapp_contacted(session, patient_id, follow_up_date or None)
-        return {"status": "success", "id": followup_id, "message": "Aktivitas WhatsApp dicatat sebagai sudah dihubungi."}
+            rows = build_crm_patients(session)
+            row = next((item for item in rows if item["id"] == patient_id), None)
+            if not row:
+                raise HTTPException(status_code=404, detail="Pasien tidak ditemukan.")
+            voucher = get_voucher_for_crm_message(
+                session,
+                patient_id,
+                voucher_rule_id,
+                allow_general=allow_general_voucher,
+            ) if str(voucher_rule_id or "").strip() else None
+            log_data = create_crm_whatsapp_log(
+                session,
+                row,
+                template_type=template_type,
+                custom_message=custom_message or None,
+                override_lock=False,
+                mark_opened=False,
+                voucher=voucher,
+            )
+            if log_data.get("blocked"):
+                return {
+                    "status": "blocked",
+                    "message": log_data.get("lock_warning") or "Pesan WhatsApp diblokir oleh aturan CRM.",
+                    "data": log_data,
+                }
+
+        client, cfg = _whatsapp_client(include_secret=True)
+        if not cfg.get("openwa_enabled"):
+            raise HTTPException(status_code=400, detail="WhatsApp belum aktif. Buka tab WhatsApp untuk menyiapkan login.")
+        target = phone_to_chat_id(log_data.get("phone"))
+        if not target:
+            raise HTTPException(status_code=400, detail="Nomor WhatsApp pasien tidak valid.")
+        result = client.send_text(chat_id=target, text=log_data.get("message") or "")
+
+        with db.Session() as session:
+            confirm_result = confirm_crm_whatsapp_log(session, patient_id, log_id=log_data.get("log_id"))
+        db.log_audit("crm_whatsapp_sent_baileys", "patient", patient_id, "Pesan CRM dikirim via Baileys.", {
+            "template_type": template_type,
+            "log_id": log_data.get("log_id"),
+        })
+        return {
+            "status": "success",
+            "message": "Pesan WhatsApp dikirim via Baileys.",
+            "data": result,
+            "log_id": log_data.get("log_id"),
+            "followup_id": confirm_result.get("followup_id"),
+        }
+    except HTTPException:
+        raise
+    except OpenWAError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        _internal_error(CRM_WHATSAPP_ERROR)
+
+
+@router.post("/patient/{patient_id}/mark-whatsapp-contacted")
+async def mark_crm_patient_whatsapp_contacted(
+    patient_id: int,
+    payload: MarkWhatsAppContactedPayload,
+):
+    try:
+        with db.Session() as session:
+            followup_id = mark_whatsapp_contacted(session, patient_id, payload.follow_up_date or None)
+        return {
+            "status": "success",
+            "id": followup_id,
+            "followup_status": "contacted",
+            "message": "Status follow-up diperbarui menjadi Sudah Dihubungi.",
+        }
     except HTTPException:
         raise
     except ValueError as e:

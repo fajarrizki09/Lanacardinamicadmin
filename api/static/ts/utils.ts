@@ -24,6 +24,10 @@ function escapeHtml(unsafe: MessageLike): string {
         .replace(/'/g, "&#039;");
 }
 
+function jsStringLiteral(value: MessageLike): string {
+    return escapeHtml(JSON.stringify(String(value ?? '')));
+}
+
 function formatRupiah(amount: MessageLike): string {
     const value = Number(amount || 0);
     const safeValue = Number.isFinite(value) ? Math.round(value) : 0;
@@ -97,8 +101,8 @@ function showAlert(message: MessageLike, type: DialogType = "info"): void {
             @keyframes fadeInOverlay { from{opacity:0} to{opacity:1} }
             @keyframes slideUpBox { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         </style>
-        <div style="
-            background:#fff; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+        <div class="system-dialog-panel" style="
+            background:var(--color-surface); color:var(--color-text); border:1px solid var(--color-border); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25);
             width:100%; max-width:360px; overflow:hidden;
             animation: slideUpBox 0.2s ease; font-family:'Inter',sans-serif;
         ">
@@ -106,8 +110,8 @@ function showAlert(message: MessageLike, type: DialogType = "info"): void {
                 <i class="${icon}" style="color:#fff; font-size:18px;"></i>
                 <span style="color:#fff; font-weight:700; font-size:15px;">${escapeHtml(clinicName)}</span>
             </div>
-            <div style="padding:20px 22px;">
-                <p style="margin:0; color:#1e293b; font-size:14px; line-height:1.6;">${escapeHtml(displayMessage)}</p>
+            <div class="system-dialog-body" style="padding:20px 22px;">
+                <p style="margin:0; color:var(--color-text); font-size:14px; line-height:1.6;">${escapeHtml(displayMessage)}</p>
             </div>
             <div style="padding:0 22px 18px; text-align:right;">
                 <button id="_customAlertOk"
@@ -152,7 +156,7 @@ function showToast(message: MessageLike, type: ToastType = "info"): void {
     }
 
     const toast = document.createElement('div');
-    toast.className = `toast toast-${toastType}`;
+    toast.className = `toast toast-${toastType} tw-toast tw-toast-${toastType}`;
     toast.setAttribute('role', toastType === 'error' ? 'alert' : 'status');
     toast.innerHTML = `
         <span class="toast-message">${escapeHtml(displayMessage)}</span>
@@ -183,7 +187,7 @@ function showConfirm(message: MessageLike, type: DialogType = "warning", options
         const maxWidth = options.maxWidth || '380px';
         const bodyContent = options.html
             ? String(message)
-            : `<p style="margin:0; color:#1e293b; font-size:14px; line-height:1.6; white-space:pre-line;">${escapeHtml(formatUserMessage(message))}</p>`;
+            : `<p style="margin:0; color:var(--color-text); font-size:14px; line-height:1.6; white-space:pre-line;">${escapeHtml(formatUserMessage(message))}</p>`;
         const overlay = document.createElement('div');
         overlay.id = '_customConfirmOverlay';
         overlay.style.cssText = `
@@ -197,8 +201,8 @@ function showConfirm(message: MessageLike, type: DialogType = "warning", options
                 @keyframes fadeInOverlay { from{opacity:0} to{opacity:1} }
                 @keyframes slideUpBox { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
             </style>
-            <div style="
-                background:#fff; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+            <div class="system-dialog-panel" style="
+                background:var(--color-surface); color:var(--color-text); border:1px solid var(--color-border); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25);
                 width:100%; max-width:${maxWidth}; overflow:hidden;
                 animation: slideUpBox 0.2s ease; font-family:'Inter',sans-serif;
             ">
@@ -206,16 +210,16 @@ function showConfirm(message: MessageLike, type: DialogType = "warning", options
                     <i class="${icon}" style="color:#fff; font-size:18px;"></i>
                     <span style="color:#fff; font-weight:700; font-size:15px;">Konfirmasi - ${escapeHtml(clinicName)}</span>
                 </div>
-                <div style="padding:24px 22px;">
+                <div class="system-dialog-body" style="padding:24px 22px;">
                     ${bodyContent}
                 </div>
                 <div style="padding:0 22px 20px; display:flex; justify-content:flex-end; gap:10px;">
-                    <button id="_customConfirmNo"
-                        style="background:#f1f5f9; color:#475569; border:none; border-radius:8px;
+                    <button id="_customConfirmNo" class="system-dialog-cancel"
+                        style="background:var(--color-surface-muted); color:var(--color-text); border:1px solid var(--color-border); border-radius:8px;
                                padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;
                                transition:background 0.15s;"
-                        onmouseover="this.style.background='#e2e8f0'"
-                        onmouseout="this.style.background='#f1f5f9'">${escapeHtml(cancelText)}</button>
+                        onmouseover="this.style.background='var(--color-surface-raised)'"
+                        onmouseout="this.style.background='var(--color-surface-muted)'">${escapeHtml(cancelText)}</button>
                     <button id="_customConfirmYes"
                         style="background:${color}; color:#fff; border:none; border-radius:8px;
                                padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer;

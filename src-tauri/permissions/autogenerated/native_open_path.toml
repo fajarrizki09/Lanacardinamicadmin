@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-native-open-path"
+description = "Enables the native_open_path command without any pre-configured scope."
+commands.allow = ["native_open_path"]
+
+[[permission]]
+identifier = "deny-native-open-path"
+description = "Denies the native_open_path command without any pre-configured scope."
+commands.deny = ["native_open_path"]

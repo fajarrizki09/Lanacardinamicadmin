@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 from helpers.payment_gateway import get_available_gateway_providers
 
@@ -21,13 +22,14 @@ GATEWAY_PROVIDERS = get_available_gateway_providers()
 
 
 def allocate_payment_amounts(total_paid, component_totals):
-    remaining = max(0, float(total_paid or 0))
+    """Allocate payment amounts using Decimal for precision."""
+    remaining = Decimal(str(total_paid or 0)).max(Decimal('0'))
     allocations = []
     for total in component_totals:
-        component_total = max(0, float(total or 0))
+        component_total = Decimal(str(total or 0)).max(Decimal('0'))
         paid = min(component_total, remaining)
-        remaining = max(0, remaining - paid)
-        allocations.append(int(round(paid)))
+        remaining = (remaining - paid).max(Decimal('0'))
+        allocations.append(int(paid.quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
     return allocations
 
 
@@ -43,7 +45,7 @@ def normalize_visit_payment(
     status = str(payment_status or "").strip().lower() or "unpaid"
     method = str(payment_method or "").strip().lower()
     provider = str(payment_provider or "manual").strip().lower() or "manual"
-    total = float(total_amount or 0)
+    total = Decimal(str(total_amount or 0))
 
     if status not in VALID_PAYMENT_STATUSES:
         raise ValueError("Status pembayaran tidak valid.")
@@ -106,14 +108,14 @@ def normalize_visit_payment(
         return {
             "payment_status": status,
             "payment_method": method,
-            "amount_paid": total,
+            "amount_paid": int(total.quantize(Decimal('1'), rounding=ROUND_HALF_UP)),
             "paid_at": paid_at or datetime.now().isoformat(),
         }
 
     if status == "partial":
         if not method:
             raise ValueError("Metode pembayaran wajib diisi untuk pembayaran sebagian.")
-        paid_amount = float(amount_paid or 0)
+        paid_amount = Decimal(str(amount_paid or 0))
         if paid_amount <= 0:
             raise ValueError("Jumlah bayar sebagian wajib lebih besar dari 0.")
         if paid_amount >= total:
@@ -121,7 +123,7 @@ def normalize_visit_payment(
         return {
             "payment_status": status,
             "payment_method": method,
-            "amount_paid": paid_amount,
+            "amount_paid": int(paid_amount.quantize(Decimal('1'), rounding=ROUND_HALF_UP)),
             "paid_at": paid_at or datetime.now().isoformat(),
         }
 

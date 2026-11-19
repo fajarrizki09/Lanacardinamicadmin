@@ -1,5 +1,69 @@
 // ─── GLOBAL MODALS ────────────────────────────────────────────────────────────
 
+let runtimeModalDelegationReady = false;
+
+function ensureRuntimeModalEventDelegation(): void {
+    if (runtimeModalDelegationReady) return;
+    runtimeModalDelegationReady = true;
+
+    document.addEventListener('click', async (event) => {
+        const target = event.target as HTMLElement | null;
+        if (!target) return;
+
+        if (target.id === 'full-edit-modal') {
+            closeFullEditModal();
+            return;
+        }
+        if (target.id === 'therapist-modal' || target.id === 'generic-modal') {
+            closeModal();
+            return;
+        }
+
+        const actionElement = target.closest<HTMLElement>('[data-modal-action]');
+        if (!actionElement) return;
+        const action = actionElement.dataset.modalAction || '';
+        if (!action) return;
+        event.preventDefault();
+
+        switch (action) {
+            case 'submit-full-edit':
+                submitFullEdit();
+                break;
+            case 'close-full-edit':
+                closeFullEditModal();
+                break;
+            case 'delete-patient': {
+                const id = (document.getElementById('fe-id') as HTMLInputElement | null)?.value || '';
+                const ok = await showConfirm('Hapus pasien ini beserta SELURUH riwayat kunjungannya secara permanen?');
+                if (ok) deletePatient(id);
+                break;
+            }
+            case 'delete-visit': {
+                const visitId = Number(actionElement.dataset.visitId || 0);
+                const ok = await showConfirm('Hapus kunjungan ini?');
+                if (ok) deleteVisit(visitId);
+                break;
+            }
+            case 'close-generic':
+                closeModal();
+                break;
+            case 'submit-edit':
+                submitEdit();
+                break;
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.dataset?.modalAction === 'refresh-full-edit-therapists') {
+            _refreshFullEditTherapistOptions();
+        }
+        if (target?.classList.contains('fe-v-therapist')) {
+            _syncFullEditTherapistHelp(target.closest('.fe-visit-row'), (document.getElementById('fe-gender') as HTMLSelectElement | null)?.value || '');
+        }
+    });
+}
+
 function initModals() {
     if (document.getElementById('modal-container')) return;
 
@@ -8,23 +72,23 @@ function initModals() {
 
     container.innerHTML = `
         <!-- ── FULL EDIT MODAL (Pasien & Kunjungan) ──────────────────────────── -->
-        <div id="full-edit-modal" onclick="if(event.target===this)closeFullEditModal()"
+        <div id="full-edit-modal"
              style="display:none; position:fixed; inset:0; z-index:9999;
                     background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);
                     align-items:center; justify-content:center;">
-            <div style="background:var(--bg-color); border-radius:16px; width:1100px; max-width:96vw; max-height:90vh; display:flex; flex-direction:column;
+            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height:90vh; display:flex; flex-direction:column;
                         box-shadow:0 24px 64px rgba(0,0,0,0.3); animation:modalIn 0.2s ease; overflow:hidden;">
                 
                 <!-- HEADER -->
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; background:white; border-bottom:1px solid var(--border-color);">
+                <div class="runtime-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border);">
                     <h3 style="font-size:18px; font-weight:700; margin:0; color:var(--text-main);">
                         <i class="fas fa-user-edit" style="color:var(--primary); margin-right:8px;"></i> Edit Pasien & Riwayat Kunjungan
                     </h3>
                     <div style="display:flex; gap:12px;">
-                        <button onclick="submitFullEdit()" class="btn btn-primary" style="padding:8px 16px; font-size:13px;">
+                        <button type="button" data-modal-action="submit-full-edit" class="btn btn-primary" style="padding:8px 16px; font-size:13px;">
                             <i class="fas fa-save"></i> Simpan Semua Perubahan
                         </button>
-                        <button onclick="closeFullEditModal()" style="background:none; border:none; font-size:24px; color:var(--text-muted); cursor:pointer; line-height:1;">&times;</button>
+                        <button type="button" class="runtime-modal-close" data-modal-action="close-full-edit" style="background:none; border:none; font-size:24px; color:var(--text-muted); cursor:pointer; line-height:1;">&times;</button>
                     </div>
                 </div>
 
@@ -44,18 +108,18 @@ function initModals() {
                             <div class="form-group" style="margin:0;"><label>Telepon</label><input type="text" id="fe-phone"></div>
                             <div class="form-group" style="margin:0;"><label>Alamat</label><input type="text" id="fe-address"></div>
                             <div class="form-group" style="margin:0;"><label>Jenis Kelamin</label>
-                                <select id="fe-gender" onchange="_refreshFullEditTherapistOptions()"><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select>
+                                <select id="fe-gender" data-modal-action="refresh-full-edit-therapists"><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select>
                             </div>
                         </div>
                     </div>
 
                     <!-- Visits Section -->
                     <div class="card" style="margin:0; padding:0; overflow:hidden;">
-                        <div style="padding:14px 18px; background:#f8fafc; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+                        <div class="runtime-modal-header" style="padding:14px 18px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; align-items:center;">
                             <h4 style="margin:0; font-size:14px; color:var(--text-main);">
                                 <i class="fas fa-history" style="color:var(--text-muted); margin-right:6px;"></i> Riwayat Kunjungan
                             </h4>
-                            <span id="fe-visit-count" style="font-size:12px; color:var(--text-muted); font-weight:600; background:#e2e8f0; padding:3px 8px; border-radius:12px;"></span>
+                            <span id="fe-visit-count" style="font-size:12px; color:var(--color-text-muted); font-weight:600; background:var(--color-surface-raised); padding:3px 8px; border-radius:12px;"></span>
                         </div>
                         <div id="fe-visits-container" style="max-height:360px; overflow-y:auto; padding:10px;">
                             <!-- Injected by JS -->
@@ -63,7 +127,7 @@ function initModals() {
                     </div>
                     
                     <div style="text-align:right;">
-                        <button onclick="showConfirm('Hapus pasien ini beserta SELURUH riwayat kunjungannya secara permanen?').then(res => { if(res) deletePatient(document.getElementById('fe-id').value); });" 
+                        <button type="button" data-modal-action="delete-patient"
                                 style="background:none; border:none; color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline;">
                             <i class="fas fa-trash-alt"></i> Hapus Pasien Secara Permanen
                         </button>
@@ -74,19 +138,18 @@ function initModals() {
         </div>
 
         <!-- ── THERAPIST EDIT MODAL ──────────────────────────────────────────────── -->
-        <div id="therapist-modal" onclick="if(event.target===this)closeModal()"
+        <div id="therapist-modal"
              style="display:none; position:fixed; inset:0; z-index:9999;
                     background:rgba(15,23,42,0.55); backdrop-filter:blur(4px);
                     align-items:center; justify-content:center;">
-            <div style="background:white; border-radius:16px; padding:28px; width:560px; max-width:94vw; max-height:90vh; overflow:auto;
+            <div class="runtime-modal-panel" style="background:var(--color-surface); border-radius:16px; padding:28px; width:560px; max-width:94vw; max-height:90vh; overflow:auto;
                         box-shadow:0 24px 64px rgba(0,0,0,0.2); animation: modalIn 0.2s ease;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px;">
                     <h3 style="font-size:16px; font-weight:700; color:var(--text-main);">
                         <i class="fas fa-user-edit" style="color:var(--primary); margin-right:8px;"></i> Edit Terapis
                     </h3>
-                    <button onclick="closeModal()"
-                        style="background:none; border:none; font-size:22px; color:var(--text-muted); cursor:pointer; line-height:1; padding:4px 8px; border-radius:6px;"
-                        onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">
+                    <button type="button" class="runtime-modal-close runtime-modal-icon-close" data-modal-action="close-generic"
+                        style="background:none; border:none; font-size:22px; color:var(--text-muted); cursor:pointer; line-height:1; padding:4px 8px; border-radius:6px;">
                         &times;
                     </button>
                 </div>
@@ -108,21 +171,21 @@ function initModals() {
                 </div>
                 <div class="form-group">
                     <label>Izin Gender Pasien</label>
-                    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;cursor:pointer;text-transform:none;letter-spacing:0;">
+                    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface-muted);cursor:pointer;text-transform:none;letter-spacing:0;">
                         <input type="checkbox" id="edit-any-gender" value="true" style="width:16px;height:16px;margin-top:2px;accent-color:var(--primary);">
                         <span style="display:flex;flex-direction:column;gap:2px;">
-                            <strong style="font-size:13px;color:#312e81;">Bisa menangani beda gender</strong>
-                            <small style="font-size:11px;line-height:1.35;color:#475569;">Centang jika terapis ini boleh dipilih untuk pasien laki-laki dan perempuan.</small>
+                            <strong style="font-size:13px;color:var(--color-text);">Bisa menangani beda gender</strong>
+                            <small style="font-size:11px;line-height:1.35;color:var(--color-text-muted);">Centang jika terapis ini boleh dipilih untuk pasien laki-laki dan perempuan.</small>
                         </span>
                     </label>
                 </div>
                 <div style="display:flex; gap:10px; margin-top:22px;">
-                    <button onclick="closeModal()"
+                    <button type="button" class="runtime-modal-close" data-modal-action="close-generic"
                         style="flex:1; padding:11px; border:1.5px solid var(--border-color); border-radius:8px;
                                background:transparent; color:var(--text-muted); font-weight:600; cursor:pointer; font-size:14px;">
                         Batal
                     </button>
-                    <button onclick="submitEdit()"
+                    <button type="button" data-modal-action="submit-edit"
                         style="flex:2; padding:11px; background:linear-gradient(135deg,var(--primary),var(--primary-light));
                                border:none; border-radius:8px; color:white; font-weight:700; cursor:pointer; font-size:14px;
                                box-shadow:0 4px 12px rgba(79,70,229,0.35);">
@@ -133,17 +196,16 @@ function initModals() {
             </div>
         </div>
         <!-- ── GENERIC MODAL ────────────────────────────────────────────────────── -->
-        <div id="generic-modal" onclick="if(event.target===this)closeModal()"
+        <div id="generic-modal"
              style="display:none; position:fixed; inset:0; z-index:9999;
                     background:rgba(15,23,42,0.55); backdrop-filter:blur(4px);
                     align-items:center; justify-content:center;">
-            <div style="background:white; border-radius:16px; padding:28px; width:620px; max-width:94vw; max-height:90vh; overflow:auto;
+            <div class="runtime-modal-panel" style="background:var(--color-surface); border-radius:16px; padding:28px; width:620px; max-width:94vw; max-height:90vh; overflow:auto;
                         box-shadow:0 24px 64px rgba(0,0,0,0.2); animation: modalIn 0.2s ease;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px;">
                     <h3 id="generic-modal-title" style="font-size:16px; font-weight:700; color:var(--text-main);"></h3>
-                    <button onclick="closeModal()"
-                        style="background:none; border:none; font-size:22px; color:var(--text-muted); cursor:pointer; line-height:1; padding:4px 8px; border-radius:6px;"
-                        onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">
+                    <button type="button" class="runtime-modal-icon-close" data-modal-action="close-generic"
+                        style="background:none; border:none; font-size:22px; color:var(--text-muted); cursor:pointer; line-height:1; padding:4px 8px; border-radius:6px;">
                         &times;
                     </button>
                 </div>
@@ -152,6 +214,7 @@ function initModals() {
         </div>
     `;
     document.body.appendChild(container);
+    ensureRuntimeModalEventDelegation();
 
     // Append styles directly
     const style = document.createElement('style');
@@ -162,8 +225,15 @@ function initModals() {
         }
         .edit-btn-hover { opacity:0.3; transition:opacity 0.2s; }
         [id^="pcard-"]:hover .edit-btn-hover { opacity:1; }
+        .runtime-modal-icon-close:hover {
+            background: var(--color-surface-muted) !important;
+        }
+        .fe-delete-visit-btn:hover {
+            background: var(--danger) !important;
+            color: white !important;
+        }
         .fe-visit-row, .visit-edit-grid {
-            background:white;
+            background:var(--color-surface);
             border:1px solid var(--border-color);
             border-radius:10px;
             padding:12px;
@@ -212,7 +282,7 @@ function initModals() {
             min-height:32px;
             font-size:10px;
             line-height:1.25;
-            color:#64748b;
+            color:var(--color-text-muted);
         }
         .visit-therapist-select, .fe-v-therapist {
             width: 100%;
@@ -223,7 +293,7 @@ function initModals() {
             font-size: 12px;
             line-height: 1.35;
             max-width: 260px;
-            color: #b45309;
+            color: var(--color-warning);
         }
         .fe-visit-notes {
             white-space:normal;
@@ -382,7 +452,7 @@ function openFullEditModal(idx) {
             row.innerHTML = `
                 <div class="fe-visit-field">
                     <label>Tanggal & Jam</label>
-                    <input type="datetime-local" class="fe-v-date" value="${localISOTime}" style="width:100%; border:1px solid var(--border-color); border-radius:6px; background:#f8fafc; color:var(--text-main); font-weight:500;">
+                    <input type="datetime-local" class="fe-v-date" value="${localISOTime}" style="width:100%; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface-muted); color:var(--color-text); font-weight:500;">
                 </div>
                 <div class="form-group visit-therapist-field">
                     <label>Terapis</label>
@@ -406,11 +476,9 @@ function openFullEditModal(idx) {
                     <textarea class="fe-v-notes fe-visit-notes" rows="3">${escapeHtml(v.medical_notes || '')}</textarea>
                 </div>
                 <div class="fe-visit-delete-cell">
-                    <button type="button" onclick="showConfirm('Hapus kunjungan ini?').then(res => { if(res) deleteVisit(${v.id}); });" 
+                    <button type="button" data-modal-action="delete-visit" data-visit-id="${escapeHtml(v.id)}" class="fe-delete-visit-btn"
                             title="Hapus Kunjungan"
-                            style="width:34px; height:34px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:var(--danger); cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s;"
-                            onmouseover="this.style.background='var(--danger)'; this.style.color='white';"
-                            onmouseout="this.style.background='#fef2f2'; this.style.color='var(--danger)';">
+                            style="width:34px; height:34px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:var(--danger); cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -418,8 +486,6 @@ function openFullEditModal(idx) {
             container.appendChild(row);
             const therapistSelect = row.querySelector('.fe-v-therapist');
             _syncFullEditTherapistHelp(row, p.gender, String(v.therapist_id || ''));
-            therapistSelect?.addEventListener('change', () => _syncFullEditTherapistHelp(row, document.getElementById('fe-gender').value));
-
         });
     }
 

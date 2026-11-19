@@ -27,28 +27,138 @@ type InvoiceApiPayload = ApiResponse & {
     pdf_status?: string;
 };
 
-function openInvoice(path: string): void {
-    fetch('/open_invoice?path=' + encodeURIComponent(path))
-        .then(res => res.json())
-        .then(data => {
-            if (data.status && data.status.toLowerCase() !== 'success') {
-                showToast('Gagal membuka file: ' + (data.detail || 'File tidak ditemukan'), 'error');
-            }
-        })
-        .catch(() => showToast('Koneksi gagal saat mencoba membuka file invoice PDF.', 'error'));
+let invoiceDelegationReady = false;
+
+function invoiceDataValue(value: unknown): string {
+    return escapeHtml(String(value || '').replace(/\\/g, '/'));
 }
 
-function printInvoice(path: string): void {
-    fetch('/print_invoice?path=' + encodeURIComponent(path))
-        .then(res => res.json())
-        .then(data => {
-            if (data.status && data.status.toLowerCase() === 'success') {
-                showToast(data.message || 'Memulai proses cetak ke printer default...', 'success');
-            } else {
-                showToast('Gagal mencetak: ' + (data.detail || 'File tidak ditemukan'), 'error');
-            }
-        })
-        .catch(() => showToast('Koneksi gagal saat mencoba mencetak file invoice PDF.', 'error'));
+function ensureInvoiceEventDelegation(): void {
+    if (invoiceDelegationReady) return;
+    invoiceDelegationReady = true;
+
+    document.addEventListener('input', (event) => {
+        const target = event.target as HTMLInputElement | null;
+        if (target?.dataset?.action === 'invoice-search') {
+            onInvoiceSearchInput(target.value);
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        const button = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-invoice-action]');
+        if (!button) return;
+        const action = button.dataset.invoiceAction || '';
+        if (!action) return;
+
+        event.preventDefault();
+        const sourceId = button.dataset.sourceId || '';
+        const amount = Number(button.dataset.amount || 0);
+        const method = button.dataset.paymentMethod || 'cash';
+        const path = button.dataset.path || '';
+        const url = button.dataset.url || '';
+        const reference = button.dataset.reference || '';
+        const invoiceType = button.dataset.invoiceType || '';
+        const status = button.dataset.status || '';
+
+        switch (action) {
+            case 'close-modal':
+                closeModal();
+                break;
+            case 'submit-void':
+                if (invoiceType === 'visit' || invoiceType === 'herbal') {
+                    submitVoidInvoice(invoiceType, sourceId);
+                }
+                break;
+            case 'submit-manual-payment':
+                submitManualInvoicePayment(sourceId, status, amount);
+                break;
+            case 'open-payment-url':
+                openGatewayPaymentUrl(url);
+                break;
+            case 'check-gateway-status':
+                checkGatewayStatus(reference);
+                break;
+            case 'create-gateway-payment':
+                createGatewayPayment(sourceId, amount, method, button as HTMLButtonElement);
+                break;
+            case 'manual-payment':
+                manualInvoicePayment(sourceId, status, amount, method);
+                break;
+            case 'open-invoice':
+                openInvoice(path);
+                break;
+            case 'reveal-invoice':
+                revealInvoice(path);
+                break;
+            case 'print-invoice':
+                printInvoice(path, button.dataset.printSource as NativePrintFileSource || 'invoice');
+                break;
+            case 'generate-herbal':
+                generateInvoiceForHerbal(sourceId);
+                break;
+            case 'generate-visit':
+                generateInvoiceForVisit(Number(sourceId));
+                break;
+            case 'void-invoice':
+                if (invoiceType === 'visit' || invoiceType === 'herbal') {
+                    voidInvoice(invoiceType, sourceId);
+                }
+                break;
+            case 'period':
+                window._invoicesPeriod = button.dataset.period || 'all';
+                window._invoicesPage = 1;
+                loadTab('invoices');
+                break;
+            case 'page-prev':
+                window._invoicesPage = Math.max(1, (window._invoicesPage || 1) - 1);
+                loadTab('invoices');
+                break;
+            case 'page-next':
+                window._invoicesPage = (window._invoicesPage || 1) + 1;
+                loadTab('invoices');
+                break;
+        }
+    });
+}
+
+async function openInvoice(path: string): Promise<void> {
+    try {
+        const data = await window.LancarApi!.openInvoiceFile<ApiResponse>(path, 'open');
+        if (data.status && data.status.toLowerCase() !== 'success') {
+            showToast('Gagal membuka file: ' + window.LancarApi!.getErrorMessage(data, 'File tidak ditemukan'), 'error');
+        }
+    } catch (error) {
+        showToast(sanitizeAppErrorMessage(error, 'Koneksi gagal saat mencoba membuka file invoice PDF.'), 'error');
+    }
+}
+
+async function revealInvoice(path: string): Promise<void> {
+    try {
+        const data = await window.LancarApi!.openInvoiceFile<ApiResponse>(path, 'reveal');
+        if (data.status && data.status.toLowerCase() !== 'revealed') {
+            showToast('Gagal membuka lokasi file: ' + window.LancarApi!.getErrorMessage(data, 'File tidak ditemukan'), 'error');
+        }
+    } catch (error) {
+        showToast(sanitizeAppErrorMessage(error, 'Lokasi invoice PDF tidak dapat dibuka.'), 'error');
+    }
+}
+
+async function printInvoice(path: string, source: NativePrintFileSource = 'invoice'): Promise<void> {
+    try {
+        const data = await window.LancarApi!.printFile<ApiResponse & { message?: string }>(path, source);
+        const status = String(data.status || '').toLowerCase();
+        if (status === 'printed' || status === 'success') {
+            showToast(data.message || 'Memulai proses cetak ke printer default...', 'success');
+            return;
+        }
+        if (status === 'open_fallback') {
+            showToast(data.message || 'Print langsung tidak tersedia. File dibuka di viewer.', 'info');
+            return;
+        }
+        showToast('Gagal mencetak: ' + window.LancarApi!.getErrorMessage(data, 'File tidak ditemukan'), 'error');
+    } catch (error) {
+        showToast(sanitizeAppErrorMessage(error, 'Koneksi gagal saat mencoba mencetak file invoice PDF.'), 'error');
+    }
 }
 
 function generateInvoiceForVisit(visitId: InvoiceId): void {
@@ -64,9 +174,9 @@ function generateInvoiceForVisit(visitId: InvoiceId): void {
             // Tangkap HTTP error (4xx, 5xx) sebelum parsing JSON
             if (!res.ok) {
                 return res.json().then(err => {
-                    throw new Error(err.detail || `Server error ${res.status}`);
+                    throw new Error(err.detail || 'Invoice belum bisa dibuat.');
                 }).catch(() => {
-                    throw new Error(`Server error ${res.status} - periksa log server`);
+                    throw new Error('Invoice belum bisa dibuat. Coba lagi beberapa saat.');
                 });
             }
             return res.json();
@@ -78,7 +188,7 @@ function generateInvoiceForVisit(visitId: InvoiceId): void {
                 window._invoicesPage = 1;
                 loadTab('invoices');
             } else {
-                showToast("Gagal membuat invoice: " + (data.detail || "Terjadi kesalahan server"), "error");
+                showToast("Gagal membuat invoice: " + (data.detail || "Terjadi kesalahan saat membuat invoice."), "error");
             }
         })
         .catch(err => showToast("Gagal membuat invoice: " + sanitizeAppErrorMessage(err, "Gagal membuat invoice."), "error"));
@@ -101,9 +211,9 @@ function generateInvoiceForHerbal(identifier: InvoiceId): void {
         .then(res => {
             if (!res.ok) {
                 return res.json().then(err => {
-                    throw new Error(err.detail || `Server error ${res.status}`);
+                    throw new Error(err.detail || 'Invoice herbal belum bisa dibuat.');
                 }).catch(() => {
-                    throw new Error(`Server error ${res.status} - periksa log server`);
+                    throw new Error('Invoice herbal belum bisa dibuat. Coba lagi beberapa saat.');
                 });
             }
             return res.json();
@@ -114,7 +224,7 @@ function generateInvoiceForHerbal(identifier: InvoiceId): void {
                 window._invoicesPage = 1;
                 loadTab('invoices');
             } else {
-                showToast("Gagal membuat invoice herbal: " + (data.detail || "Terjadi kesalahan server"), "error");
+                showToast("Gagal membuat invoice herbal: " + (data.detail || "Terjadi kesalahan saat membuat invoice herbal."), "error");
             }
         })
         .catch(err => showToast("Gagal membuat invoice herbal: " + sanitizeAppErrorMessage(err, "Gagal membuat invoice herbal."), "error"));
@@ -200,16 +310,6 @@ async function createGatewayPayment(invoiceId: InvoiceId, amount: number | strin
     }
     const actionButton = button || null;
     const originalHtml = actionButton ? actionButton.innerHTML : '';
-    let paymentWindow: Window | null = null;
-    try {
-        paymentWindow = window.open('', '_blank');
-        if (paymentWindow) {
-            paymentWindow.opener = null;
-            paymentWindow.document.write('<!doctype html><title>Membuat Link Pembayaran</title><p style="font-family:system-ui,sans-serif;padding:24px;">Membuat link pembayaran...</p>');
-        }
-    } catch (e) {
-        paymentWindow = null;
-    }
     const form = new FormData();
     form.append('source_type', source.source_type);
     form.append('source_id', source.source_id);
@@ -230,13 +330,7 @@ async function createGatewayPayment(invoiceId: InvoiceId, amount: number | strin
         const paymentUrl = _absolutePaymentUrl(data.payment?.payment_url || '');
         const isInternalPayment = String(data.payment?.payment_provider || '').toLowerCase() === 'gateway_mock';
         if (paymentUrl && !isInternalPayment) {
-            if (paymentWindow) {
-                paymentWindow.location.href = paymentUrl;
-            } else {
-                showToast('Link berhasil dibuat. Popup browser diblokir, klik ikon buka link pada invoice.', 'warning');
-            }
-        } else if (paymentWindow) {
-            paymentWindow.close();
+            await openDesktopExternalUrl(paymentUrl, 'payment');
         }
         showToast(
             isInternalPayment
@@ -247,7 +341,6 @@ async function createGatewayPayment(invoiceId: InvoiceId, amount: number | strin
         window._invoicesPage = 1;
         loadTab('invoices');
     } catch (error) {
-        if (paymentWindow) paymentWindow.close();
         showToast(sanitizeAppErrorMessage(error, 'Gagal membuat link pembayaran.'), 'error');
     } finally {
         if (actionButton) {
@@ -257,13 +350,17 @@ async function createGatewayPayment(invoiceId: InvoiceId, amount: number | strin
     }
 }
 
-function openGatewayPaymentUrl(paymentUrl: string): void {
+async function openGatewayPaymentUrl(paymentUrl: string): Promise<void> {
     const url = _absolutePaymentUrl(paymentUrl);
     if (!url) {
         showToast('Link pembayaran belum tersedia.', 'warning');
         return;
     }
-    window.open(url, '_blank', 'noopener');
+    try {
+        await openDesktopExternalUrl(url, 'payment');
+    } catch (error) {
+        showToast(sanitizeAppErrorMessage(error, 'Link pembayaran tidak diizinkan.'), 'error');
+    }
 }
 
 async function checkGatewayStatus(paymentReference: string): Promise<void> {
@@ -289,16 +386,16 @@ async function checkGatewayStatus(paymentReference: string): Promise<void> {
 async function voidInvoice(type: 'visit' | 'herbal', identifier: InvoiceId): Promise<void> {
     const idText = String(identifier || '');
     const html = `
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+        <div class="invoice-modal-text">
             Invoice akan ditandai VOID. Ini tidak otomatis mengubah stok atau membuat retur.
         </div>
         <div class="form-group">
             <label>Alasan Pembatalan</label>
             <textarea id="void-invoice-reason" rows="4" minlength="5" required placeholder="Contoh: Invoice salah cetak / transaksi dibatalkan"></textarea>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
-            <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
-            <button type="button" class="btn btn-primary" onclick="submitVoidInvoice('${type}', '${idText.replace(/'/g, "\\'")}')" style="background:#ef4444;">
+        <div class="invoice-modal-actions">
+            <button type="button" class="btn btn-cancel" data-invoice-action="close-modal">Batal</button>
+            <button type="button" class="btn btn-primary btn-danger" data-invoice-action="submit-void" data-invoice-type="${type}" data-source-id="${escapeHtml(idText)}">
                 <i class="fas fa-ban"></i> Void Invoice
             </button>
         </div>
@@ -363,12 +460,11 @@ function manualInvoicePayment(invoiceId: InvoiceId, status: PaymentStatus, amoun
         return;
     }
     const isPartial = status === 'partial';
-    const escapedId = String(invoiceId || '').replace(/'/g, "\\'");
     const safeMethod = ['cash', 'qris', 'transfer', 'ewallet'].includes(String(currentMethod || '').toLowerCase())
         ? String(currentMethod).toLowerCase()
         : 'cash';
     const html = `
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+        <div class="invoice-modal-text">
             ${isPartial ? 'Catat pembayaran sebagian manual.' : 'Tandai transaksi sebagai lunas manual.'}
         </div>
         <div class="form-group">
@@ -384,12 +480,12 @@ function manualInvoicePayment(invoiceId: InvoiceId, status: PaymentStatus, amoun
             <div class="form-group">
                 <label>Jumlah DP</label>
                 <input type="number" id="manual-payment-amount" min="1" max="${Math.max(0, Math.round(Number(amount || 0) - 1))}" placeholder="Masukkan jumlah bayar">
-                <small style="display:block;margin-top:6px;color:var(--text-muted);">Total tagihan: ${formatRupiah(amount)}</small>
+                <small class="invoice-modal-amount">Total tagihan: ${formatRupiah(amount)}</small>
             </div>
         ` : `<input type="hidden" id="manual-payment-amount" value="${Math.round(Number(amount || 0))}">`}
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
-            <button type="button" class="btn" onclick="closeModal()" style="background:#f1f5f9;color:#475569;">Batal</button>
-            <button type="button" class="btn btn-primary" onclick="submitManualInvoicePayment('${escapedId}', '${status}', ${Number(amount || 0)})">
+        <div class="invoice-modal-actions">
+            <button type="button" class="btn btn-cancel" data-invoice-action="close-modal">Batal</button>
+            <button type="button" class="btn btn-primary" data-invoice-action="submit-manual-payment" data-source-id="${escapeHtml(String(invoiceId || ''))}" data-status="${status}" data-amount="${Number(amount || 0)}">
                 <i class="fas fa-check-circle"></i> ${isPartial ? 'Simpan DP' : 'Tandai Lunas'}
             </button>
         </div>
@@ -456,6 +552,7 @@ async function submitManualInvoicePayment(invoiceId: InvoiceId, status: PaymentS
 
 
 function renderInvoices(data: InvoiceItem[]): void {
+    ensureInvoiceEventDelegation();
     window._invoicesPage = window._invoicesPage || 1;
     const totalIncome = data.reduce((s, i) => s + ((i.invoice_status === 'void') ? 0 : (i.price || 0)), 0);
     const totalHerbal = data.filter(i => String(i.id).startsWith('h')).length;
@@ -472,46 +569,44 @@ function renderInvoices(data: InvoiceItem[]): void {
 
     let html = `
         <!-- Summary bar -->
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:20px;">
-            <div class="stat-card" style="margin-bottom:0; border-left:3px solid var(--info);">
+        <div class="invoice-stats-grid">
+            <div class="stat-card total">
                 <div class="stat-icon blue"><i class="fas fa-file-invoice"></i></div>
                 <div class="stat-details"><h4>Total Transaksi</h4><h2>${data.length}</h2></div>
             </div>
-            <div class="stat-card" style="margin-bottom:0; border-left:3px solid #3b82f6;">
+            <div class="stat-card visits">
                 <div class="stat-icon purple"><i class="fas fa-stethoscope"></i></div>
                 <div class="stat-details"><h4>Kunjungan</h4><h2>${totalVisits}</h2></div>
             </div>
-            <div class="stat-card" style="margin-bottom:0; border-left:3px solid #10b981;">
+            <div class="stat-card herbal">
                 <div class="stat-icon green"><i class="fas fa-leaf"></i></div>
                 <div class="stat-details"><h4>Herbal</h4><h2>${totalHerbal}</h2></div>
             </div>
-            <div class="stat-card" style="margin-bottom:0; border-left:3px solid var(--success);">
+            <div class="stat-card income">
                 <div class="stat-icon green"><i class="fas fa-money-bill-wave"></i></div>
                 <div class="stat-details">
                     <h4>Total Pemasukan</h4>
-                    <h2 style="font-size:20px;">${formatRupiah(totalIncome)}</h2>
+                    <h2>${formatRupiah(totalIncome)}</h2>
                 </div>
             </div>
         </div>
 
-        <div class="card" style="padding:0;">
-            <div class="card-header" style="padding:18px 20px 12px; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <h3 style="margin:0;"><i class="fas fa-file-invoice-dollar"></i> Semua Transaksi (Kunjungan & Herbal)</h3>
-                    <span style="font-size:12px; color:var(--text-muted); display:inline-block; margin-top:4px;">Periode aktif: ${periodTitle}. Halaman ${window._invoicesPage}. Menampilkan maksimal 100 transaksi.</span>
+        <div class="card invoice-card-wrapper">
+            <div class="invoice-header">
+                <div class="invoice-header-title">
+                    <h3><i class="fas fa-file-invoice-dollar"></i> Semua Transaksi (Kunjungan & Herbal)</h3>
+                    <span class="invoice-header-meta">Periode aktif: ${periodTitle}. Halaman ${window._invoicesPage}. Menampilkan maksimal 100 transaksi.</span>
                 </div>
                 
                 <!-- Period Filter Pills -->
-                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                <div class="invoice-controls">
                 <input type="search" id="invoice-search-input" value="${escapeHtml(window._invoicesSearch || '')}" placeholder="Cari transaksi..."
-                       oninput="onInvoiceSearchInput(this.value)"
-                       style="width:180px; padding:7px 10px; border:1px solid var(--border-color); border-radius:8px; font-size:12px;">
-                <div style="display:flex; background:var(--background-alt); border:1px solid var(--border-color); border-radius:20px; overflow:hidden;">
+                       data-action="invoice-search"
+                       class="invoice-search-input">
+                <div class="invoice-period-filter">
                     ${Object.entries(periodMap).map(([k, v]) => `
-                        <button onclick="window._invoicesPeriod='${k}'; window._invoicesPage=1; loadTab('invoices')" 
-                                style="border:none; background:${(window._invoicesPeriod || 'all') === k ? 'var(--primary)' : 'transparent'}; 
-                                       color:${(window._invoicesPeriod || 'all') === k ? 'white' : 'var(--text-muted)'}; 
-                                       padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;">
+                        <button type="button" data-invoice-action="period" data-period="${escapeHtml(k)}"
+                                class="${(window._invoicesPeriod || 'all') === k ? 'active' : ''}">
                             ${v}
                         </button>
                     `).join('')}
@@ -521,10 +616,10 @@ function renderInvoices(data: InvoiceItem[]): void {
 
     if (data.length === 0) {
         html += `
-            <div style="padding:60px; text-align:center; color:var(--text-muted);">
-                <i class="fas fa-history" style="font-size:48px; opacity:0.15; display:block; margin-bottom:16px;"></i>
-                <p style="font-size:15px; font-weight:500;">Belum ada Data Transaksi.</p>
-                <p style="font-size:12px; margin-top:8px;">Data transaksi kunjungan pasien dan penjualan produk/herbal akan otomatis muncul di sini.</p>
+            <div class="invoice-empty-state">
+                <i class="fas fa-history"></i>
+                <p>Belum ada Data Transaksi.</p>
+                <small>Data transaksi kunjungan pasien dan penjualan produk/herbal akan otomatis muncul di sini.</small>
             </div>`;
     } else {
         html += `<div class="table-container"><table class="invoice-table"><thead><tr>
@@ -539,7 +634,7 @@ function renderInvoices(data: InvoiceItem[]): void {
             // Backslash di dalam string JS inline akan diinterpretasikan sebagai escape sequences (\U, \H dll)
             // sehingga seluruh path rusak. Server-side _resolve_invoice_path sudah handle forward slash.
             const rawPath = (i.path || '').replace(/\\/g, '/');
-            const safePath = rawPath.replace(/'/g, "\\'");
+            const safePath = invoiceDataValue(rawPath);
 
             const strId = String(i.id);
             const isHerbal = strId.startsWith('h_') || strId.startsWith('hg_');
@@ -572,28 +667,36 @@ function renderInvoices(data: InvoiceItem[]): void {
                 : '';
             const providerBadgeStyle = _paymentProviderBadgeStyle(provider);
             const providerBadge = `<span class="invoice-provider-badge" title="Provider Pembayaran" style="background:${providerBadgeStyle.bg};color:${providerBadgeStyle.color};">${_paymentProviderLabel(provider)}</span>`;
+            const statusBadgeClass = isVoid
+                ? 'status-void'
+                : paymentStatus === 'paid'
+                    ? 'status-paid'
+                    : 'status-pending';
+            const statusBadgeText = isVoid
+                ? 'Void'
+                : paymentStatus === 'paid'
+                    ? 'Paid'
+                    : 'Pending';
             const paymentInfo = `
                 <div class="invoice-payment-meta">
-                    <span>Status: <strong>${escapeHtml(_paymentStatusLabel(i.payment_status || 'paid'))}</strong></span>
+                    <span class="status-pill ${statusBadgeClass}"><i class="fas fa-circle"></i>${statusBadgeText}</span>
                     <span>Metode: <strong>${escapeHtml(_paymentMethodLabel(paymentMethod))}</strong></span>
                     ${providerBadge}
                 </div>
                 ${i.payment_reference && !isInternalGateway ? `<div class="invoice-payment-ref">Ref: <strong>${escapeHtml(i.payment_reference)}</strong></div>` : ''}
-                ${hasPaymentUrl ? `<div class="invoice-payment-link"><a href="${escapeHtml(i.payment_url)}" target="_blank" rel="noopener">Link Pembayaran</a></div>` : ''}
+                ${hasPaymentUrl ? `<div class="invoice-payment-link"><button type="button" data-invoice-action="open-payment-url" data-url="${invoiceDataValue(i.payment_url)}">Link Pembayaran</button></div>` : ''}
             `;
             const gatewayActions = (!isVoid && canUseGateway && (provider === 'manual' || hasSupportedGatewayProvider))
                 ? `
                     ${hasPaymentUrl ? `
-                        <button class="invoice-action-btn" onclick="openGatewayPaymentUrl('${String(i.payment_url || '').replace(/'/g, "\\'")}')" title="Buka Link Pembayaran"
-                            style="background:#eff6ff;color:#1d4ed8;border:none;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;font-size:12px;">
-                            <i class="fas fa-external-link-alt"></i>
+                        <button class="invoice-action-btn invoice-action-btn-link" data-invoice-action="open-payment-url" data-url="${invoiceDataValue(i.payment_url)}" title="Buka Link Pembayaran">
+                            <i class="fas fa-external-link-alt"></i><span>Buka Link</span>
                         </button>
-                        ${hasSupportedGatewayProvider ? `<button class="invoice-action-btn" onclick="checkGatewayStatus('${String(i.payment_reference || '').replace(/'/g, "\\'")}')" title="Cek Status"
-                            style="background:#ecfdf5;color:#047857;border:none;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;font-size:12px;">
-                            <i class="fas fa-sync-alt"></i>
+                        ${hasSupportedGatewayProvider ? `<button class="invoice-action-btn invoice-action-btn-check" data-invoice-action="check-gateway-status" data-reference="${invoiceDataValue(i.payment_reference)}" title="Cek Status">
+                            <i class="fas fa-sync-alt"></i><span>Cek Status</span>
                         </button>` : ''}
                     ` : `
-                        <button class="invoice-action-btn invoice-action-btn-text invoice-gateway-create-btn" type="button" onclick="createGatewayPayment('${strId}', ${Number(i.price || 0)}, '${paymentMethod}', this)" title="Buat Link Pembayaran">
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-gateway-create-btn" type="button" data-invoice-action="create-gateway-payment" data-source-id="${escapeHtml(strId)}" data-amount="${Number(i.price || 0)}" data-payment-method="${escapeHtml(paymentMethod)}" title="Buat Link Pembayaran">
                             <i class="fas fa-link"></i><span>Link Bayar</span>
                         </button>
                     `}
@@ -601,19 +704,17 @@ function renderInvoices(data: InvoiceItem[]): void {
                 : '';
             const manualPaymentActions = (!isVoid && ['unpaid', 'pending', 'partial'].includes(paymentStatus))
                 ? `
-                    <button class="invoice-action-btn invoice-action-btn-text" type="button" onclick="manualInvoicePayment('${strId}', 'paid', ${Number(i.price || 0)}, '${paymentMethod}')" title="Tandai Lunas Manual"
-                        style="background:#dcfce7;color:#047857;border:none;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;font-size:12px;">
+                    <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-paid" type="button" data-invoice-action="manual-payment" data-source-id="${escapeHtml(strId)}" data-status="paid" data-amount="${Number(i.price || 0)}" data-payment-method="${escapeHtml(paymentMethod)}" title="Tandai Lunas Manual">
                         <i class="fas fa-check-circle"></i><span>Tandai Lunas</span>
                     </button>
-                    ${paymentStatus !== 'partial' ? `<button class="invoice-action-btn invoice-action-btn-text" type="button" onclick="manualInvoicePayment('${strId}', 'partial', ${Number(i.price || 0)}, '${paymentMethod}')" title="Catat DP Manual"
-                        style="background:#fef3c7;color:#92400e;border:none;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;font-size:12px;">
+                    ${paymentStatus !== 'partial' ? `<button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-partial" type="button" data-invoice-action="manual-payment" data-source-id="${escapeHtml(strId)}" data-status="partial" data-amount="${Number(i.price || 0)}" data-payment-method="${escapeHtml(paymentMethod)}" title="Catat DP Manual">
                         <i class="fas fa-receipt"></i><span>Catat DP</span>
                     </button>` : ''}
                 `
                 : '';
             const paymentLinkAction = (!isVoid && !hasPaymentUrl && paymentStatus === 'unpaid')
                 ? `
-                    <button class="invoice-action-btn invoice-action-btn-text invoice-gateway-create-btn" type="button" onclick="createGatewayPayment('${strId}', ${Number(i.price || 0)}, '${_canUseGateway(paymentMethod) ? paymentMethod : 'qris'}', this)" title="Buat Link Pembayaran">
+                    <button class="invoice-action-btn invoice-action-btn-text invoice-gateway-create-btn" type="button" data-invoice-action="create-gateway-payment" data-source-id="${escapeHtml(strId)}" data-amount="${Number(i.price || 0)}" data-payment-method="${escapeHtml(_canUseGateway(paymentMethod) ? paymentMethod : 'qris')}" title="Buat Link Pembayaran">
                         <i class="fas fa-link"></i><span>Buat Link Pembayaran</span>
                     </button>
                 `
@@ -624,35 +725,27 @@ function renderInvoices(data: InvoiceItem[]): void {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
                         ${stalePdfNotice}
-                        <button class="invoice-action-btn" onclick="openInvoice('${safePath}')" title="Buka PDF Herbal"
-                            style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; border:none; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(99,102,241,0.3);"
-                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(99,102,241,0.45)'"
-                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(99,102,241,0.3)'">
-                            <i class="fas fa-file-pdf"></i>
+                        <button class="invoice-action-btn invoice-action-btn-pdf" data-invoice-action="open-invoice" data-path="${safePath}" title="Buka PDF Herbal">
+                            <i class="fas fa-file-pdf"></i><span>Lihat</span>
                         </button>
-                        <button class="invoice-action-btn" onclick="printInvoice('${safePath}')" title="Print Herbal"
-                            style="background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(16,185,129,0.3);"
-                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.45)'"
-                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(16,185,129,0.3)'">
-                            <i class="fas fa-print"></i>
+                        <button class="invoice-action-btn invoice-action-btn-text" data-invoice-action="reveal-invoice" data-path="${safePath}" title="Reveal Lokasi PDF Herbal">
+                            <i class="fas fa-folder-open"></i><span>Lokasi</span>
                         </button>
-                        ${isVoid ? '' : `<button class="invoice-action-btn" onclick="generateInvoiceForHerbal('${strId.startsWith('hg_') ? 'group:' + numId : numId}')" title="Update PDF dengan status pembayaran terbaru"
-                            style="background:#e0f2fe;color:#0369a1;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
-                            <i class="fas fa-file-circle-check"></i>
+                        <button class="invoice-action-btn invoice-action-btn-print" data-invoice-action="print-invoice" data-path="${safePath}" data-print-source="herbal_invoice" title="Print Herbal">
+                            <i class="fas fa-print"></i><span>Print</span>
+                        </button>
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-update" data-invoice-action="generate-herbal" data-source-id="${escapeHtml(strId.startsWith('hg_') ? 'group:' + numId : numId)}" title="Update PDF dengan status pembayaran terbaru">
+                            <i class="fas fa-file-circle-check"></i><span>Update</span>
                         </button>`}
-                        ${isVoid ? '' : `<button class="invoice-action-btn" onclick="voidInvoice('herbal', '${voidTarget}')" title="Void Invoice Herbal"
-                            style="background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
-                            <i class="fas fa-ban"></i>
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-void" data-invoice-action="void-invoice" data-invoice-type="herbal" data-source-id="${escapeHtml(voidTarget)}" title="Void Invoice Herbal">
+                            <i class="fas fa-ban"></i><span>Void</span>
                         </button>`}
                     `;
                 } else {
                     actionHtml = `
                         ${missingFileNotice}
-                        <button class="invoice-action-btn invoice-action-btn-text" onclick="generateInvoiceForHerbal('${strId.startsWith('hg_') ? 'group:' + numId : numId}')" title="Generate PDF Invoice Herbal"
-                            style="background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:8px; padding:7px 14px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(16,185,129,0.3);"
-                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.45)'"
-                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(16,185,129,0.3)'">
-                            <i class="fas fa-file-signature"></i> ${isMissingFile ? 'Buat Ulang' : 'Buat Invoice'}
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-generate-herbal" data-invoice-action="generate-herbal" data-source-id="${escapeHtml(strId.startsWith('hg_') ? 'group:' + numId : numId)}" title="Generate PDF Invoice Herbal">
+                            <i class="fas fa-file-signature"></i> <span>${isMissingFile ? 'Buat Ulang' : 'Buat Invoice'}</span>
                         </button>
                     `;
                 }
@@ -660,56 +753,48 @@ function renderInvoices(data: InvoiceItem[]): void {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
                         ${stalePdfNotice}
-                        <button class="invoice-action-btn" onclick="openInvoice('${safePath}')" title="Buka PDF"
-                            style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; border:none; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(99,102,241,0.3);"
-                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(99,102,241,0.45)'"
-                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(99,102,241,0.3)'">
-                            <i class="fas fa-file-pdf"></i>
+                        <button class="invoice-action-btn invoice-action-btn-pdf" data-invoice-action="open-invoice" data-path="${safePath}" title="Buka PDF">
+                            <i class="fas fa-file-pdf"></i><span>Lihat</span>
                         </button>
-                        <button class="invoice-action-btn" onclick="printInvoice('${safePath}')" title="Print Langsung"
-                            style="background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(16,185,129,0.3);"
-                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.45)'"
-                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(16,185,129,0.3)'">
-                            <i class="fas fa-print"></i>
+                        <button class="invoice-action-btn invoice-action-btn-text" data-invoice-action="reveal-invoice" data-path="${safePath}" title="Reveal Lokasi PDF">
+                            <i class="fas fa-folder-open"></i><span>Lokasi</span>
                         </button>
-                        ${isVoid ? '' : `<button class="invoice-action-btn" onclick="generateInvoiceForVisit(${numId})" title="Update PDF dengan status pembayaran terbaru"
-                            style="background:#e0f2fe;color:#0369a1;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
-                            <i class="fas fa-file-circle-check"></i>
+                        <button class="invoice-action-btn invoice-action-btn-print" data-invoice-action="print-invoice" data-path="${safePath}" data-print-source="invoice" title="Print Langsung">
+                            <i class="fas fa-print"></i><span>Print</span>
+                        </button>
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-update" data-invoice-action="generate-visit" data-source-id="${escapeHtml(numId)}" title="Update PDF dengan status pembayaran terbaru">
+                            <i class="fas fa-file-circle-check"></i><span>Update</span>
                         </button>`}
-                        ${isVoid ? '' : `<button class="invoice-action-btn" onclick="voidInvoice('visit', '${voidTarget}')" title="Void Invoice"
-                            style="background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:12px;">
-                            <i class="fas fa-ban"></i>
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-void" data-invoice-action="void-invoice" data-invoice-type="visit" data-source-id="${escapeHtml(voidTarget)}" title="Void Invoice">
+                            <i class="fas fa-ban"></i><span>Void</span>
                         </button>`}
                     `;
                 } else {
                     actionHtml = `
                         ${missingFileNotice}
-                        <button class="invoice-action-btn invoice-action-btn-text" onclick="generateInvoiceForVisit(${numId})" title="Generate PDF Invoice"
-                            style="background:linear-gradient(135deg,#f59e0b,#d97706); color:white; border:none; border-radius:8px; padding:7px 14px; font-weight:600; cursor:pointer; font-size:12px; transition:all 0.2s; box-shadow:0 2px 8px rgba(245,158,11,0.3);"
-                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(245,158,11,0.45)'"
-                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(245,158,11,0.3)'">
-                            <i class="fas fa-file-signature"></i> ${isMissingFile ? 'Buat Ulang' : 'Buat Invoice'}
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-generate" data-invoice-action="generate-visit" data-source-id="${escapeHtml(numId)}" title="Generate PDF Invoice">
+                            <i class="fas fa-file-signature"></i> <span>${isMissingFile ? 'Buat Ulang' : 'Buat Invoice'}</span>
                         </button>
                     `;
                 }
             }
 
             html += `<tr>
-                <td style="color:var(--text-muted);">
-                    <i class="fas fa-calendar-alt" style="color:#cbd5e1; margin-right:6px;"></i>
+                <td class="invoice-row-date">
+                    <i class="fas fa-calendar-alt"></i>
                     ${escapeHtml(i.date)}
                 </td>
                 <td>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center; color:white; font-size:11px; font-weight:700; flex-shrink:0;">
+                    <div class="invoice-row-client">
+                        <div class="invoice-row-avatar">
                             ${escapeHtml(i.name).charAt(0).toUpperCase()}
                         </div>
-                        <span style="font-weight:600;">${escapeHtml(i.name)}</span>
-                        ${isVoid ? `<span title="${voidTitle}" style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:800;padding:3px 6px;border-radius:4px;">VOID</span>` : ''}
+                        <span class="invoice-row-name">${escapeHtml(i.name)}</span>
+                        ${isVoid ? `<span class="invoice-void-badge" title="${voidTitle}">VOID</span>` : ''}
                     </div>
                     ${paymentInfo}
                 </td>
-                <td style="text-align:right; font-weight:700; color:${isVoid ? 'var(--text-muted)' : 'var(--success)'};">${formatRupiah(i.price)}</td>
+                <td class="invoice-row-amount ${isVoid ? 'void' : 'paid'}">${formatRupiah(i.price)}</td>
                 <td class="invoice-actions-cell">
                     <div class="invoice-actions">
                         ${manualPaymentActions}
@@ -722,11 +807,11 @@ function renderInvoices(data: InvoiceItem[]): void {
         });
 
         html += `</tbody></table></div>
-            <div style="display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:1px solid var(--border-color);">
-                <button type="button" class="btn btn-secondary" style="width:auto;" ${window._invoicesPage <= 1 ? 'disabled' : ''} onclick="window._invoicesPage=Math.max(1,(window._invoicesPage||1)-1); loadTab('invoices')">
+            <div class="invoice-pagination">
+                <button type="button" class="btn btn-secondary" ${window._invoicesPage <= 1 ? 'disabled' : ''} data-invoice-action="page-prev">
                     <i class="fas fa-chevron-left"></i> Sebelumnya
                 </button>
-                <button type="button" class="btn btn-secondary" style="width:auto;" ${data.length < 100 ? 'disabled' : ''} onclick="window._invoicesPage=(window._invoicesPage||1)+1; loadTab('invoices')">
+                <button type="button" class="btn btn-secondary" ${data.length < 100 ? 'disabled' : ''} data-invoice-action="page-next">
                     Selanjutnya <i class="fas fa-chevron-right"></i>
                 </button>
             </div>`;

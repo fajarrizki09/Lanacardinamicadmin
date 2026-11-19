@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timedelta
 from urllib.parse import quote
+
+logger = logging.getLogger("lancar.crm_analysis_helper")
 
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -74,6 +77,9 @@ MESSAGE_TEMPLATES = {
     "aftercare": "Aftercare",
     "aftercare_polite": "Aftercare",
     "aftercare_neutral": "Aftercare netral",
+    "kondisi": "Kondisi pasien",
+    "kondisi_polite": "Kondisi pasien",
+    "kondisi_neutral": "Kondisi pasien netral",
 }
 
 WHATSAPP_TEMPLATE_ALIASES = {
@@ -101,6 +107,9 @@ WHATSAPP_TEMPLATE_ALIASES = {
     "aftercare": "aftercare",
     "aftercare_polite": "aftercare_polite",
     "aftercare_neutral": "aftercare_neutral",
+    "kondisi": "kondisi",
+    "kondisi_polite": "kondisi_polite",
+    "kondisi_neutral": "kondisi_neutral",
 }
 
 WHATSAPP_TEMPLATE_LABELS = {
@@ -119,6 +128,9 @@ WHATSAPP_TEMPLATE_LABELS = {
     "aftercare": "Aftercare",
     "aftercare_polite": "Aftercare",
     "aftercare_neutral": "Aftercare netral",
+    "kondisi": "Kondisi pasien",
+    "kondisi_polite": "Kondisi pasien",
+    "kondisi_neutral": "Kondisi pasien netral",
 }
 
 WHATSAPP_LOCK_DAYS = {
@@ -353,7 +365,7 @@ def get_manual_tag_options(session=None):
                 if value:
                     options[str(value)] = str(label or value)
         except Exception:
-            pass
+            logger.exception("Gagal memuat opsi tag manual dari database.")
     return [
         {"type": "manual", "value": value, "label": label}
         for value, label in sorted(options.items(), key=lambda item: item[1].lower())
@@ -884,17 +896,31 @@ def _patient_first_name(row):
     return name.split()[0] if name else ""
 
 
+def _time_of_day_greeting() -> str:
+    """Mengembalikan ucapan salam sesuai waktu lokal saat generate pesan."""
+    hour = datetime.now().hour
+    if 4 <= hour < 11:
+        return "Selamat pagi"
+    if 11 <= hour < 15:
+        return "Selamat siang"
+    if 15 <= hour < 18:
+        return "Selamat sore"
+    return "Selamat malam"
+
+
 def build_followup_message(row, template="kontrol", clinic_name="Lancar Dynamic Admin"):
     template = template if template in MESSAGE_TEMPLATES else "kontrol"
     name = row.get("name") or "Bapak/Ibu"
     first_name = name.strip().split()[0] if name.strip() else "Bapak/Ibu"
+    salutation = _patient_salutation(row)
     clinic = (clinic_name or "Lancar Dynamic Admin").strip()
     service = row.get("top_service") or "terapi"
     last_visit = row.get("last_visit") or ""
     last_visit_text = _friendly_date(datetime.strptime(last_visit, "%Y-%m-%d")) if last_visit else ""
     days = row.get("days_since_last_visit")
 
-    intro = f"Assalamu'alaikum {first_name}, ini admin {clinic}."
+    time_greeting = _time_of_day_greeting()
+    intro = f"Assalamu'alaikum {salutation} {first_name}, {time_greeting}. Ini admin {clinic}."
 
     if template == "reaktivasi":
         context = (
@@ -913,6 +939,18 @@ def build_followup_message(row, template="kontrol", clinic_name="Lancar Dynamic 
             else "Semoga kondisi setelah terapi kemarin semakin membaik."
         )
         ask = "Apakah ada keluhan lanjutan atau hal yang perlu kami bantu pantau?"
+    elif template in ("kondisi", "kondisi_polite", "kondisi_neutral"):
+        condition = str(row.get("condition") or row.get("kondisi") or "").strip()
+        if condition:
+            context = f"Kami kaitkan pesan ini dengan kondisi Anda saat ini: {condition}."
+        else:
+            context = "Kami ingin mengecek kondisi Anda setelah kunjungan terakhir."
+        if template == "kondisi_polite":
+            ask = "Mohon beritahu kami jika ada keluhan atau pertanyaan seputar kesehatan Anda."
+        elif template == "kondisi_neutral":
+            ask = "Apakah ada update terkait kondisi kesehatan Anda yang perlu kami ketahui?"
+        else:
+            ask = "Bagaimana kondisi Anda sekarang? Kami siap membantu jika ada keluhan lanjutan."
     else:
         if days is not None:
             context = f"Sudah sekitar {days} hari sejak kunjungan terakhir"
@@ -1377,7 +1415,13 @@ def confirm_crm_whatsapp_log(session, patient_id, log_id=None, follow_up_date=No
 
 
 def mark_whatsapp_contacted(session, patient_id, follow_up_date=None):
-    return confirm_crm_whatsapp_log(session, patient_id, follow_up_date=follow_up_date)["followup_id"]
+    return save_patient_followup(
+        session,
+        patient_id,
+        "contacted",
+        "Kontak WhatsApp dicatat manual.",
+        follow_up_date=follow_up_date,
+    )
 
 
 def build_patient_followup_history(session, patient_id, limit=10):

@@ -89,9 +89,34 @@ app = FastAPI(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
+@app.middleware("http")
+async def add_desktop_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    if response.headers.get("content-type", "").lower().startswith("text/html"):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' data:; "
+                "connect-src 'self' http://127.0.0.1:*; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "frame-ancestors 'none'"
+            ),
+        )
+    return response
+
+
 def _is_local_token_exempt_path(path):
     return (
         path in {"/", "/license"}
+        or path == "/_desktop/shutdown"
         or path.startswith("/static/")
         or path.startswith("/payments/gateway/pay/")
         or path.startswith("/payments/gateway/mock/pay/")
@@ -184,6 +209,14 @@ def read_root(request: Request, _license=Depends(require_valid_license)):
             "app_token": get_local_app_token(),
             "cache_buster": str(int(time.time())),
         },
+    )
+
+
+@app.get("/test-dashboard", response_class=HTMLResponse)
+def test_dashboard(request: Request):
+    return templates.TemplateResponse(
+        "test_dashboard.html",
+        {"request": request},
     )
 
 
@@ -330,7 +363,10 @@ async def admin_pin_change(current_pin: str = Form(...), new_pin: str = Form(...
 @app.post("/admin_pin/reset/request")
 async def admin_pin_reset_request():
     from helpers.license import LicenseNetworkError, request_admin_pin_reset
+    from settings import AppSettings
 
+    if not AppSettings().has_admin_pin():
+        raise HTTPException(status_code=400, detail="PIN admin belum diset.")
     try:
         result = request_admin_pin_reset()
     except LicenseNetworkError as exc:
@@ -339,14 +375,13 @@ async def admin_pin_reset_request():
         raise HTTPException(status_code=400, detail=str(exc))
     try:
         from api.database_manager import db
-        db.log_audit("admin_pin_reset_requested", "security", "admin_pin", "Permintaan reset PIN admin dikirim ke server lisensi.")
+        db.log_audit("admin_pin_reset_requested", "security", "admin_pin", "Permintaan reset PIN admin dikirim ke pusat lisensi.")
     except Exception:
         api_logger.exception("Failed to write admin PIN reset request audit log.")
     return {
         "status": "success",
-        "message": result.get("message") or "Permintaan reset PIN dikirim ke server lisensi.",
+        "message": result.get("message") or "Permintaan reset PIN dikirim ke pusat lisensi.",
         "reset_request_id": result.get("reset_request_id", ""),
-        "reset_token": result.get("reset_token", ""),
     }
 
 
@@ -355,18 +390,17 @@ async def admin_pin_reset_confirm(reset_token: str = Form(""), reset_pin: str = 
     from helpers.license import LicenseNetworkError, confirm_admin_pin_reset
     from settings import AppSettings
 
-    token = str(reset_token or "").strip()
     reset_code = str(reset_pin or "").strip()
     pin = str(new_pin or "").strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="Token reset PIN belum tersedia. Klik Minta Kode Reset ulang.")
+    if not AppSettings().has_admin_pin():
+        raise HTTPException(status_code=400, detail="PIN admin belum diset.")
     if not reset_code:
-        raise HTTPException(status_code=400, detail="Kode reset dari server lisensi wajib diisi.")
+        raise HTTPException(status_code=400, detail="Kode reset lisensi wajib diisi.")
     if not pin.isdigit() or not 4 <= len(pin) <= 8:
         raise HTTPException(status_code=400, detail="PIN admin baru harus berisi 4-8 digit angka.")
 
     try:
-        result = confirm_admin_pin_reset(token, reset_code)
+        result = confirm_admin_pin_reset(reset_token, reset_code)
     except LicenseNetworkError as exc:
         raise HTTPException(status_code=424, detail=str(exc))
     except ValueError as exc:
@@ -390,7 +424,7 @@ async def admin_pin_reset_confirm(reset_token: str = Form(""), reset_pin: str = 
 
 
 # ─── ROUTERS ─────────────────────────────────────────────────────────────────
-from api.routes import patients, inventory, herbals, therapists, services, analytics, settings, invoices, data, crm, audit, owner_report, reports, support, payments
+from api.routes import patients, inventory, herbals, therapists, services, analytics, settings, invoices, data, crm, audit, owner_report, reports, support, payments, whatsapp
 
 admin_dependencies = [Depends(require_valid_license)]
 
@@ -409,6 +443,7 @@ app.include_router(owner_report.router, dependencies=admin_dependencies)
 app.include_router(reports.router, dependencies=admin_dependencies)
 app.include_router(support.router, dependencies=admin_dependencies)
 app.include_router(payments.router, dependencies=admin_dependencies)
+app.include_router(whatsapp.router, dependencies=admin_dependencies)
 
 if __name__ == "__main__":
 

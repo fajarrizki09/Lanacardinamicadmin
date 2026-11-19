@@ -9,3 +9,7 @@ matplotlib==3.8.2
 pandas==2.1.4
 openpyxl==3.1.2
 reportlab==4.0.7
+
+# Phase 4 Dependencies
+bleach==6.1.0      # HTML sanitization (XSS prevention)
+slowapi==0.1.9     # API rate limiting (DoS prevention)

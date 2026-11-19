@@ -1,7 +1,33 @@
 "use strict";
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 // Rich analytics dashboard with charts and detailed tables.
+let analyticsDelegationReady = false;
+function ensureAnalyticsEventDelegation() {
+    if (analyticsDelegationReady)
+        return;
+    analyticsDelegationReady = true;
+    document.addEventListener('click', (event) => {
+        const actionElement = event.target?.closest('[data-analytics-action]');
+        if (!actionElement)
+            return;
+        const action = actionElement.dataset.analyticsAction || '';
+        if (!action)
+            return;
+        event.preventDefault();
+        if (action === 'period') {
+            window._analyticsPeriod = (actionElement.dataset.period || '6m');
+            loadTab('analytics');
+        }
+    });
+    document.addEventListener('input', (event) => {
+        const target = event.target;
+        if (target?.dataset?.analyticsAction === 'profit-preview') {
+            updateProfitLossPreview();
+        }
+    });
+}
 function renderAnalytics(data = {}) {
+    ensureAnalyticsEventDelegation();
     window._analyticsProfitData = data || {};
     const vf = data.visit_frequency || {};
     const top = data.top_therapists || [];
@@ -20,12 +46,12 @@ function renderAnalytics(data = {}) {
         return labels.map((lbl, i) => {
             const pct = max > 0 ? (values[i] / max * 100).toFixed(1) : 0;
             return `
-            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; min-width:0;">
-                <div style="font-size:9px; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">${fmtFn(values[i])}</div>
-                <div style="width:100%; background:#f0f4ff; border-radius:4px 4px 0 0; height:80px; display:flex; align-items:flex-end; overflow:hidden;">
-                    <div style="width:100%; height:${pct}%; background:${colorFn(i)}; border-radius:4px 4px 0 0; transition:height 0.4s ease; min-height:${values[i] > 0 ? '3px' : '0'};"></div>
+            <div class="analytics-chart-bar-col">
+                <div class="analytics-chart-bar-value">${fmtFn(values[i])}</div>
+                <div class="analytics-chart-bar-track">
+                    <div class="analytics-chart-bar-fill" style="height:${pct}%; background:${colorFn(i)}; min-height:${values[i] > 0 ? '3px' : '0'};"></div>
                 </div>
-                <div style="font-size:8px; color:var(--text-muted); text-align:center; line-height:1.2; font-weight:500;">${lbl}</div>
+                <div class="analytics-chart-bar-label">${lbl}</div>
             </div>`;
         }).join('');
     }
@@ -44,67 +70,111 @@ function renderAnalytics(data = {}) {
     };
     const periodTitle = periodMap[activePeriod] || '6 Bulan';
     const visitPerPatient = data.total_patients > 0 ? (data.total_visits / data.total_patients).toFixed(1) : '0';
+    const bestTherapist = top[0];
+    const peakIncome = mIncome.length > 0 ? Math.max(...mIncome) : 0;
+    const peakIncomeIndex = mIncome.indexOf(peakIncome);
+    const peakIncomeLabel = peakIncomeIndex >= 0 ? labels[peakIncomeIndex] : '-';
+    const stockTone = data.low_stock_count > 0 ? 'danger' : 'ok';
+    const stockLabel = data.low_stock_count > 0 ? 'Perlu restock' : 'Stok aman';
     let html = `
-    <!-- ── Filter Period ─────────────────────────────────────────────────── -->
-    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:15px;">
-        <h2 style="font-size:18px; margin:0;"><i class="fas fa-chart-pie" style="color:var(--primary); margin-right:8px;"></i> Ringkasan ${periodTitle} Terakhir</h2>
-        <div style="display:flex; background:white; border:1px solid var(--border-color); border-radius:20px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,0.02);">
-            ${Object.entries(periodMap).map(([k, v]) => `
-                <button onclick="window._analyticsPeriod='${k}'; loadTab('analytics')" 
-                        style="border:none; background:${activePeriod === k ? 'var(--primary)' : 'transparent'}; 
-                               color:${activePeriod === k ? 'white' : 'var(--text-muted)'}; 
-                               padding:6px 16px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;">
-                    ${v}
-                </button>
-            `).join('')}
+    <div class="analytics-premium-page" data-ui-revision="phase3d-r3-reopened">
+    <!-- ── Executive Summary ─────────────────────────────────────────────── -->
+    <section class="analytics-hero glass-panel">
+        <div class="analytics-hero-copy">
+            <span class="analytics-eyebrow"><i class="fas fa-signal"></i> Live clinic analytics</span>
+            <h2>Ringkasan Operasional ${periodTitle}</h2>
+            <p>Pantau revenue, kunjungan, performa terapis, stok, dan koreksi transaksi dalam satu layar kerja.</p>
+            <div class="analytics-hero-meta">
+                <span><i class="fas fa-receipt"></i> ${data.total_transactions || 0} transaksi</span>
+                <span><i class="fas fa-user-check"></i> ${data.total_visits || 0} kunjungan</span>
+                <span class="${stockTone}"><i class="fas fa-boxes-stacked"></i> ${stockLabel}</span>
+            </div>
         </div>
-    </div>
+        <div class="analytics-hero-controls">
+            <div class="analytics-period-filter analytics-period-filter-premium" role="group" aria-label="Filter periode analytics">
+                ${Object.entries(periodMap).map(([k, v]) => `
+                    <button type="button" data-analytics-action="period" data-period="${escapeHtml(k)}"
+                            class="${activePeriod === k ? 'active' : ''}">
+                        ${v}
+                    </button>
+                `).join('')}
+            </div>
+            <div class="analytics-hero-highlight">
+                <span>Pendapatan bersih</span>
+                <strong>${formatRupiah(data.current_month_income || 0)}</strong>
+                <small class="${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}">
+                    <i class="fas fa-arrow-${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}"></i>
+                    ${Math.abs(data.income_growth_pct || 0)}% bulan ini
+                </small>
+            </div>
+        </div>
+    </section>
 
     <!-- ── KPI Cards ─────────────────────────────────────────────────────── -->
-    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom:20px;">
-        <div class="stat-card" style="padding:16px;">
+    <div class="analytics-kpi-strip analytics-kpi-strip-premium">
+        <div class="stat-card analytics-kpi-card-compact analytics-metric-card">
             <div class="stat-icon blue"><i class="fas fa-users"></i></div>
-            <div class="stat-details"><h4>TOTAL PASIEN</h4><h2 style="font-size:20px;">${data.total_patients}</h2></div>
+            <div class="stat-details"><h4>Total Pasien</h4><h2>${data.total_patients}</h2><small>${visitPerPatient}x kunjungan/pasien</small></div>
         </div>
-        <div class="stat-card" style="padding:16px;">
+        <div class="stat-card analytics-kpi-card-compact analytics-metric-card">
             <div class="stat-icon purple"><i class="fas fa-stethoscope"></i></div>
             <div class="stat-details">
-                <h4>TRANSAKSI B.INI</h4>
-                <div style="display:flex; align-items:flex-end; gap:8px;">
-                    <h2 style="font-size:20px;">${data.current_month_transactions || data.current_month_visits || 0}</h2>
-                    <span style="font-size:11px; font-weight:600; padding-bottom:3px; color:${(data.visits_growth_pct || 0) >= 0 ? 'var(--success)' : 'var(--danger)'};">
+                <h4>Transaksi Bulan Ini</h4>
+                <div class="analytics-kpi-value-row">
+                    <h2>${data.current_month_transactions || data.current_month_visits || 0}</h2>
+                    <span class="analytics-trend ${(data.visits_growth_pct || 0) >= 0 ? 'up' : 'down'}">
                         <i class="fas fa-arrow-${(data.visits_growth_pct || 0) >= 0 ? 'up' : 'down'}"></i> ${Math.abs(data.visits_growth_pct || 0)}%
                     </span>
                 </div>
             </div>
         </div>
-        <div class="stat-card" style="padding:16px;">
+        <div class="stat-card analytics-kpi-card-compact analytics-metric-card is-featured">
             <div class="stat-icon green"><i class="fas fa-money-bill-wave"></i></div>
-            <div class="stat-details" style="min-width:0;">
-                <h4>PENDAPATAN BERSIH B.INI</h4>
-                <div style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap;">
-                    <h2 style="font-size:16px; word-break: break-word; line-height: 1.2;">${formatRupiah(data.current_month_income || 0)}</h2>
-                    <span style="font-size:11px; font-weight:600; padding-bottom:2px; color:${(data.income_growth_pct || 0) >= 0 ? 'var(--success)' : 'var(--danger)'};">
+            <div class="stat-details">
+                <h4>Pendapatan Bersih Bulan Ini</h4>
+                <div class="analytics-kpi-value-row wrap">
+                    <h2 class="analytics-kpi-money">${formatRupiah(data.current_month_income || 0)}</h2>
+                    <span class="analytics-trend ${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}">
                         <i class="fas fa-arrow-${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}"></i> ${Math.abs(data.income_growth_pct || 0)}%
                     </span>
                 </div>
             </div>
         </div>
-        <div class="stat-card" style="padding:16px;">
+        <div class="stat-card analytics-kpi-card-compact analytics-metric-card">
             <div class="stat-icon orange"><i class="fas fa-leaf"></i></div>
-            <div class="stat-details" style="min-width:0;">
-                <h4>TOTAL ASET HERBAL</h4>
-                <h2 style="font-size:16px; word-break: break-word; line-height: 1.2;" title="${formatRupiah(data.total_herbal_value || 0)}">${formatRupiah(data.total_herbal_value || 0)}</h2>
+            <div class="stat-details">
+                <h4>Total Aset Herbal</h4>
+                <h2 class="analytics-kpi-money" title="${formatRupiah(data.total_herbal_value || 0)}">${formatRupiah(data.total_herbal_value || 0)}</h2>
+                <small>Nilai stok berjalan</small>
             </div>
         </div>
-        <div class="stat-card" style="padding:16px; border-left: 4px solid ${data.low_stock_count > 0 ? 'var(--danger)' : 'var(--success)'};">
-            <div class="stat-icon ${data.low_stock_count > 0 ? 'red' : 'green'}" style="${data.low_stock_count > 0 ? 'background:#fee2e2;' : ''}">
-                <i class="fas fa-exclamation-triangle" style="${data.low_stock_count > 0 ? 'color:var(--danger);' : ''}"></i>
+        <div class="stat-card analytics-kpi-card-compact analytics-metric-card analytics-stock-card ${stockTone}">
+            <div class="stat-icon ${data.low_stock_count > 0 ? 'red' : 'green'}">
+                <i class="fas fa-exclamation-triangle"></i>
             </div>
             <div class="stat-details">
-                <h4>STOK KRITIS</h4>
-                <h2 style="font-size:20px; color:${data.low_stock_count > 0 ? 'var(--danger)' : 'var(--success)'};">${data.low_stock_count}</h2>
+                <h4>Stok Kritis</h4>
+                <h2>${data.low_stock_count}</h2>
+                <small>${stockLabel}</small>
             </div>
+        </div>
+    </div>
+
+    <div class="analytics-insight-grid">
+        <div class="analytics-insight-card">
+            <span><i class="fas fa-crown"></i> Terapis teratas</span>
+            <strong>${bestTherapist ? escapeHtml(bestTherapist.name) : 'Belum ada data'}</strong>
+            <small>${bestTherapist ? `${bestTherapist.visits || 0} kunjungan, ${bestTherapist.points || 0} titik` : 'Data muncul setelah ada kunjungan.'}</small>
+        </div>
+        <div class="analytics-insight-card">
+            <span><i class="fas fa-chart-line"></i> Bulan revenue tertinggi</span>
+            <strong>${peakIncome > 0 ? peakIncomeLabel : '-'}</strong>
+            <small>${peakIncome > 0 ? formatRupiah(peakIncome) : 'Belum ada pendapatan pada periode ini.'}</small>
+        </div>
+        <div class="analytics-insight-card ${Number(data.void_invoice_total || 0) > 0 ? 'danger' : ''}">
+            <span><i class="fas fa-shield-alt"></i> Kontrol koreksi</span>
+            <strong>${data.void_invoice_count || 0} invoice void</strong>
+            <small>Retur ${(data.correction_summary && data.correction_summary.herbal_returns) || 0}, koreksi stok ${(data.correction_summary && data.correction_summary.stock_corrections) || 0}.</small>
         </div>
     </div>
 
@@ -132,7 +202,7 @@ function renderAnalytics(data = {}) {
         </div>
     </div>
 
-    <div class="analytics-monitor-grid" style="margin-bottom:16px;">
+    <div class="analytics-monitor-grid analytics-monitor-grid-spaced">
         <div class="analytics-monitor-item">
             <span>Gross Visit Revenue</span>
             <strong>${formatRupiah(data.gross_visit_revenue || 0)}</strong>
@@ -175,11 +245,11 @@ function renderAnalytics(data = {}) {
         </div>
     </div>
 
-    <div class="card" style="padding:20px; margin-bottom:16px;">
-        <div class="card-header" style="margin-bottom:14px;">
-            <h3><i class="fas fa-balance-scale" style="color:#0f766e;"></i> Neraca Laba Rugi</h3>
+    <div class="card analytics-profit-card">
+        <div class="card-header analytics-card-header-spaced">
+            <h3><i class="fas fa-balance-scale text-primary"></i> Neraca Laba Rugi</h3>
         </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; align-items:end;">
+        <div class="profit-loss-grid">
             <div class="analytics-monitor-item">
                 <span>Pendapatan Layanan</span>
                 <strong>${formatRupiah(data.net_visit_revenue || 0)}</strong>
@@ -195,16 +265,16 @@ function renderAnalytics(data = {}) {
                 <strong>${formatRupiah(data.herbal_cogs || 0)}</strong>
                 <small>Harga modal barang terjual.</small>
             </div>
-            <div class="form-group" style="margin:0;">
+            <div class="form-group analytics-profit-input-field">
                 <label>Biaya Operasional</label>
-                <input type="number" id="profit-operational-expense" value="0" min="0" oninput="updateProfitLossPreview()" style="height:42px;">
+                <input type="number" id="profit-operational-expense" value="0" min="0" data-analytics-action="profit-preview">
             </div>
             <div class="analytics-monitor-item">
                 <span>Laba Kotor</span>
                 <strong>${formatRupiah(data.gross_profit || 0)}</strong>
                 <small>Sebelum biaya operasional.</small>
             </div>
-            <div class="analytics-monitor-item" style="border-left:4px solid #0f766e;">
+            <div class="analytics-monitor-item is-accented">
                 <span>Laba Bersih</span>
                 <strong id="profit-net-preview">${formatRupiah(data.gross_profit || 0)}</strong>
                 <small>Laba kotor dikurangi biaya operasional.</small>
@@ -212,79 +282,76 @@ function renderAnalytics(data = {}) {
         </div>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+    <div class="analytics-chart-grid-2col">
 
-        <div class="card" style="padding:20px;">
-            <div class="card-header" style="margin-bottom:16px;">
+        <div class="card analytics-chart-card">
+            <div class="card-header analytics-chart-header">
                 <h3><i class="fas fa-chart-bar" style="color:#3b82f6;"></i> Kunjungan</h3>
             </div>
-            <div style="display:flex; gap:6px; align-items:flex-end; height:120px; overflow-x:auto; padding-bottom:5px;">
+            <div class="analytics-chart-bars">
                 ${monthBars(mVisits, maxVisit, (i) => barColors[i] || '#3b82f6', (v) => v + 'x')}
             </div>
         </div>
 
-        <div class="card" style="padding:20px;">
-            <div class="card-header" style="margin-bottom:16px;">
+        <div class="card analytics-chart-card">
+            <div class="card-header analytics-chart-header">
                 <h3><i class="fas fa-chart-area" style="color:#10b981;"></i> Pendapatan Bersih Kunjungan & Herbal</h3>
             </div>
-            <div style="display:flex; gap:6px; align-items:flex-end; height:120px; overflow-x:auto; padding-bottom:5px;">
+            <div class="analytics-chart-bars">
                 ${monthBars(mIncome, maxIncome, (i) => `hsl(${150 - i * 5}, 65%, ${55 + i * 3}%)`, (v) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'jt' : (v / 1000).toFixed(0) + 'rb')}
             </div>
         </div>
     </div>
 
     <!-- ── Row 3: Therapists + Gender + Frequency ────────────────────────── -->
-    <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:16px; margin-bottom:16px;">
+    <div class="analytics-chart-grid-3col">
 
         <!-- Top Therapists -->
-        <div class="card" style="padding:20px;">
-            <div class="card-header" style="margin-bottom:14px;">
+        <div class="card analytics-chart-card">
+            <div class="card-header analytics-chart-header">
                 <h3><i class="fas fa-trophy" style="color:#f59e0b;"></i> Top Terapis</h3>
             </div>
             ${top.length === 0
-        ? `<div style="text-align:center; color:var(--text-muted); padding:20px; font-style:italic;">Belum ada data kunjungan.</div>`
+        ? `<div class="analytics-empty-state">Belum ada data kunjungan.</div>`
         : top.map((t, i) => {
             const pct = Math.round(t.visits / maxTherapist * 100);
             const medals = ['1.', '2.', '3.', '4.', '5.'];
             return `
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                            <span style="font-weight:600; font-size:13px;">${medals[i] || ''} ${escapeHtml(t.name)}</span>
-                            <span style="font-size:12px; color:var(--text-muted);">${t.visits}x - <span style="font-weight:600;color:var(--primary);">${t.points || 0} ttk</span></span>
+                    <div class="analytics-top-list-item">
+                        <div class="analytics-top-list-row">
+                            <span class="analytics-top-list-name">${medals[i] || ''} ${escapeHtml(t.name)}</span>
+                            <span class="analytics-top-list-stats">${t.visits}x - <span class="analytics-top-list-stats-primary">${t.points || 0} ttk</span></span>
                         </div>
-                        <div style="background:#f0f4ff; border-radius:20px; height:8px; overflow:hidden;">
-                            <div style="height:100%; width:${pct}%; background:linear-gradient(90deg,#3b82f6,#8b5cf6); border-radius:20px; transition:width 0.5s ease;"></div>
+                        <div class="analytics-top-list-bar-bg">
+                            <div class="analytics-top-list-bar-fill" style="width:${pct}%;"></div>
                         </div>
                     </div>`;
         }).join('')}
         </div>
 
         <!-- Gender Breakdown -->
-        <div class="card" style="padding:20px; text-align:center;">
-            <div class="card-header" style="margin-bottom:14px;">
+        <div class="card analytics-gender-card">
+            <div class="card-header analytics-chart-header">
                 <h3><i class="fas fa-venus-mars" style="color:#8b5cf6;"></i> Gender</h3>
             </div>
-            <div style="position:relative; width:100px; height:100px; margin:0 auto 12px;">
-                <div style="
-                    width:100px; height:100px; border-radius:50%;
-                    background: conic-gradient(#3b82f6 0deg ${mAngle}deg, #f472b6 ${mAngle}deg 360deg);
-                "></div>
-                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:60px; height:60px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:var(--text-main);">
+            <div class="analytics-donut-wrap">
+                <div style="width:100px; height:100px; border-radius:50%; background: conic-gradient(#3b82f6 0deg ${mAngle}deg, #f472b6 ${mAngle}deg 360deg);"></div>
+                <div class="analytics-donut-center">
                     ${total}
                 </div>
             </div>
-            <div style="display:flex; gap:10px; justify-content:center; font-size:12px;">
-                <span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px;"></span>L: ${data.male_count} (${malePct}%)</span>
-                <span><span style="display:inline-block;width:10px;height:10px;background:#f472b6;border-radius:2px;margin-right:4px;"></span>P: ${data.female_count} (${femalePct}%)</span>
+            <div class="analytics-legend-row">
+                <span class="analytics-legend-item"><span class="analytics-legend-box" style="background:#3b82f6;"></span>L: ${data.male_count} (${malePct}%)</span>
+                <span class="analytics-legend-item"><span class="analytics-legend-box" style="background:#f472b6;"></span>P: ${data.female_count} (${femalePct}%)</span>
             </div>
         </div>
 
         <!-- Visit Frequency -->
-        <div class="card" style="padding:20px;">
-            <div class="card-header" style="margin-bottom:14px;">
+        <div class="card analytics-frequency-card">
+            <div class="card-header analytics-chart-header">
                 <h3><i class="fas fa-redo" style="color:#10b981;"></i> Frekuensi</h3>
             </div>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Berapa kali pasien datang berkunjung</p>
+            <p class="analytics-frequency-desc">Berapa kali pasien datang berkunjung</p>
             ${[
         { label: '1x kunjungan', key: '1', color: '#fbbf24' },
         { label: '2-4x kunjungan', key: '2-4', color: '#3b82f6' },
@@ -293,13 +360,13 @@ function renderAnalytics(data = {}) {
         const count = vf[f.key] || 0;
         const pct = total > 0 ? Math.round(count / total * 100) : 0;
         return `
-                <div style="margin-bottom:10px;">
-                    <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+                <div class="analytics-frequency-item">
+                    <div class="analytics-frequency-row">
                         <span>${f.label}</span>
                         <span style="font-weight:700; color:${f.color};">${count} pasien</span>
                     </div>
-                    <div style="background:#f0f4ff; border-radius:20px; height:7px; overflow:hidden;">
-                        <div style="height:100%; width:${pct}%; background:${f.color}; border-radius:20px;"></div>
+                    <div class="analytics-frequency-bar-bg">
+                        <div class="analytics-frequency-bar-fill" style="width:${pct}%; background:${f.color};"></div>
                     </div>
                 </div>`;
     }).join('')}
@@ -307,8 +374,8 @@ function renderAnalytics(data = {}) {
     </div>
 
     <!-- ── Row 4: Recent Visits Table ────────────────────────────────────── -->
-    <div class="card" style="padding:0;">
-        <div class="card-header" style="padding:16px 20px 12px;">
+    <div class="card analytics-recent-card">
+        <div class="card-header analytics-recent-header">
             <h3><i class="fas fa-history" style="color:#6366f1;"></i> 10 Transaksi Terbaru</h3>
         </div>
         <div class="table-container">
@@ -318,40 +385,41 @@ function renderAnalytics(data = {}) {
                         <th>Tanggal</th>
                         <th>Transaksi</th>
                         <th>Keterangan</th>
-                        <th style="text-align:center;">Qty/Titik</th>
-                        <th style="text-align:right;">Nilai</th>
+                        <th class="text-center">Qty/Titik</th>
+                        <th class="text-right">Nilai</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${recent.length === 0
-        ? `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">Belum ada transaksi.</td></tr>`
+        ? `<tr><td colspan="5" class="analytics-recent-empty">Belum ada transaksi.</td></tr>`
         : recent.map((r, i) => {
             const isHerbal = r.type === 'herbal';
             const isReturn = r.transaction_type === 'return' || r.transaction_type === 'retur';
             const badge = isHerbal
-                ? `<span style="font-size:10px; color:${isReturn ? '#b45309' : '#047857'}; background:${isReturn ? '#fef3c7' : '#d1fae5'}; padding:2px 6px; border-radius:999px; font-weight:700;">${isReturn ? 'RETUR' : 'HERBAL'}</span>`
-                : '<span style="font-size:10px; color:#1d4ed8; background:#dbeafe; padding:2px 6px; border-radius:999px; font-weight:700;">KUNJUNGAN</span>';
+                ? `<span class="status-badge ${isReturn ? 'retur' : 'herbal'}">${isReturn ? 'RETUR' : 'HERBAL'}</span>`
+                : '<span class="status-badge visit">KUNJUNGAN</span>';
             const statusBadge = r.invoice_status === 'void'
-                ? '<span style="font-size:10px; color:#b91c1c; background:#fee2e2; padding:2px 6px; border-radius:999px; font-weight:800;">VOID</span>'
+                ? '<span class="status-badge void">VOID</span>'
                 : '';
             return `
-                        <tr style="${i % 2 === 1 ? 'background:#fafbff;' : ''}">
-                            <td style="color:var(--text-muted); font-size:13px;">${escapeHtml(r.date)}</td>
-                            <td style="font-weight:600;">
-                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <tr class="${i % 2 === 1 ? 'analytics-recent-row-alt' : ''}">
+                            <td class="analytics-recent-cell-muted">${escapeHtml(r.date)}</td>
+                            <td class="analytics-recent-cell-bold">
+                                <div class="analytics-recent-badge-wrap">
                                     ${badge}
                                     ${statusBadge}
                                     <span>${escapeHtml(r.patient)}</span>
                                 </div>
                             </td>
-                            <td style="color:var(--text-muted);">${escapeHtml(r.therapist)}</td>
-                            <td style="text-align:center; font-weight:700;">${r.point_count} <span style="font-size:10px;font-weight:normal;color:#aaa;">${isHerbal ? 'pcs' : 'pt'}</span></td>
-                            <td style="text-align:right; font-weight:700; color:#27ae60;">${formatRupiah(r.price)}</td>
+                            <td class="analytics-recent-cell-muted">${escapeHtml(r.therapist)}</td>
+                            <td class="analytics-recent-qty-cell">${r.point_count} <span class="analytics-recent-qty-unit">${isHerbal ? 'pcs' : 'pt'}</span></td>
+                            <td class="analytics-recent-price-cell">${formatRupiah(r.price)}</td>
                         </tr>`;
         }).join('')}
                 </tbody>
             </table>
         </div>
+    </div>
     </div>`;
     document.getElementById('display-area').innerHTML = html;
     updateProfitLossPreview();

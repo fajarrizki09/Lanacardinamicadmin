@@ -243,8 +243,8 @@
                     <i class="fas fa-shield-alt"></i>
                 </div>
                 <h1>Aktivasi Lisensi Aplikasi</h1>
-                <p>Masukkan Clinic ID dan kode lisensi dari server lisensi. Setelah valid, aplikasi akan membuka
-                    dashboard utama.</p>
+                <p>Masukkan Clinic ID dan kode lisensi dari pusat lisensi. Setelah valid, aplikasi akan membuka
+                    beranda.</p>
                 <div id="license-status" class="status-box">
                     <i class="fas fa-circle-notch fa-spin"></i>
                     Memeriksa status lisensi...
@@ -281,13 +281,7 @@
     </main>
 
     <script id="app-config" type="application/json">{{ {"appToken": app_token, "license": license} | tojson }}</script>
-    <script>
-        (function () {
-            const config = JSON.parse(document.getElementById('app-config').textContent);
-            window._appToken = config.appToken;
-            window._initialLicense = config.license;
-        })();
-    </script>
+    <script src="/static/modules/app_config.js?v={{ cache_buster | default(1) }}"></script>
     <script src="/static/modules/license.js?v={{ cache_buster | default(1) }}"></script>
 </body>
 

@@ -171,7 +171,7 @@ class TestFlowchartSyncRegressions(IsolatedDatabaseTestCase):
         self.assertEqual(calculate_revenue_amount(100000, 0, "unpaid", "active"), 0)
         self.assertEqual(calculate_revenue_amount(100000, 100000, "paid", "void"), 0)
 
-    def test_herbal_visit_link_not_counted_as_standalone_revenue(self):
+    def test_herbal_visit_link_counts_as_herbal_revenue_once(self):
         patient_id = self.db.add_patient("Pasien Revenue", f"08{time.time_ns() % 10_000_000_000:010d}")
         herbal_id = self.db.add_herbal("Herbal Revenue", "pcs", price=50000, stock=10)
         self.db.add_visit(
@@ -186,8 +186,8 @@ class TestFlowchartSyncRegressions(IsolatedDatabaseTestCase):
         with self.db.Session() as session:
             report = build_owner_report_summary(session)
 
-        self.assertEqual(report["summary"]["visit_revenue"], 200000)
-        self.assertEqual(report["summary"]["herbal_revenue"], 50000)
+        self.assertEqual(report["summary"]["visit_revenue"], 150000)
+        self.assertEqual(report["summary"]["herbal_revenue"], 100000)
         self.assertEqual(report["summary"]["total_revenue"], 250000)
 
     def test_inventory_transaction_records_visit_id_for_service_usage(self):

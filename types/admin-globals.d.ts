@@ -35,6 +35,14 @@ type AdminTherapist = {
   specialization?: string;
   is_active?: boolean;
   can_handle_any_gender?: boolean;
+  service_capabilities?: TherapistServiceCapability[];
+};
+
+type TherapistServiceCapability = {
+  id?: number | string;
+  service_id?: number | string;
+  name?: string;
+  is_active?: boolean;
 };
 
 type DashboardStockItem = {
@@ -385,6 +393,7 @@ type Therapist = {
   specialization?: string;
   is_active?: boolean;
   can_handle_any_gender?: boolean;
+  service_capabilities?: TherapistServiceCapability[];
 };
 
 type Service = {
@@ -459,6 +468,8 @@ interface Window {
   _serviceMap?: Record<string | number, AdminService>;
   _therapistFilter?: "active" | "inactive" | "all";
   _therapistMap?: Record<string | number, AdminTherapist | string>;
+  _therapistCapabilityServices?: AdminService[];
+  _settingsCategory?: string;
   _appToken?: string;
   _initialLicense?: LicenseStatusPayload;
   _clinicName?: string;
@@ -475,6 +486,7 @@ interface Window {
   _adminPin?: string;
   _adminUnlocked?: boolean;
   _clinicSettings?: LooseRecord;
+  _activeTabName?: string;
   _audit_rows?: AuditLogRow[];
   _therapistsList?: AdminTherapist[];
   _therapistsLoadError?: string | null;
@@ -499,6 +511,11 @@ interface Window {
   toggleTherapist?: (id: number | string, btn: HTMLButtonElement) => Promise<void>;
   deleteTherapist?: (id: number | string) => Promise<void>;
   setTherapistFilter?: (filter: "active" | "inactive" | "all") => void;
+  filterTherapistCapabilityChoices?: (value: string) => void;
+  syncTherapistCapabilitySelection?: () => void;
+  setSettingsCategory?: (category: string, focus?: boolean) => void;
+  filterSettingsSections?: (value: string) => void;
+  openSettingsWhatsAppTab?: () => void;
   renderServices?: (data: Service[]) => void;
   setServiceFilter?: (filter: "active" | "inactive" | "all") => void;
   setServiceUnitValue?: (inputId: string, value: string) => void;
@@ -506,11 +523,12 @@ interface Window {
   addServiceUsageItem?: (prefix: string) => void;
   removeServiceUsageItem?: (prefix: string, index: number) => void;
   syncServiceUsageInput?: (prefix: string) => boolean;
-  openEditServiceModal?: (id: number | string, btn?: HTMLButtonElement) => void;
+  openEditServiceModal?: (id: number | string) => void;
   submitEditService?: (event: SubmitEvent) => Promise<void>;
   toggleService?: (id: number | string, btn: HTMLButtonElement) => Promise<void>;
   deleteService?: (id: number | string) => Promise<void>;
   renderAnalytics?: (data?: AnalyticsSummary) => void;
+  renderWhatsAppGateway?: () => Promise<void>;
   updateProfitLossPreview?: () => void;
   renderOwnerReport?: () => Promise<void>;
   changeOwnerReportPeriod?: (value: string) => void;
@@ -536,7 +554,7 @@ interface Window {
   requestAnimationFrame(callback: FrameRequestCallback): number;
   showAuditDetail?: (idx: number) => void;
   closeAuditDetail?: (overlayEl: Element | null) => void;
-  copyAuditValue?: (btn: HTMLElement, text: string) => Promise<void>;
+  copyAuditValue?: (btn: HTMLElement, idx: number, key: string) => Promise<void>;
 }
 
 declare function escapeHtml(value: unknown): string;
@@ -547,5 +565,6 @@ declare function openModal(title: string, html: string): void;
 declare function closeModal(): void;
 declare function initModals(): void;
 declare function loadTab(tabName: string): Promise<void> | void;
+declare function renderWhatsAppGateway(): Promise<void>;
 declare function openCRMFollowup(patientId: number): void;
 declare function showConfirm(message: string, type?: string, options?: ConfirmOptions): Promise<boolean>;

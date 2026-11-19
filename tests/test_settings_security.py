@@ -11,6 +11,8 @@ from settings import AppSettings
 SENSITIVE_KEYS = {
     "admin_pin_hash",
     "admin_pin_salt",
+    "admin_pin_reset_token",
+    "admin_pin_reset_request_id",
     "license_key",
     "license_api_url",
     "clinic_id",
@@ -30,6 +32,15 @@ SENSITIVE_KEYS = {
 
 
 class TestSettingsSecurity(unittest.TestCase):
+    def test_default_settings_path_prefers_appdata_runtime_store(self):
+        with patch.dict(os.environ, {"APPDATA": r"C:\Users\Test\AppData\Roaming"}):
+            from helpers.secure_settings import get_settings_path
+
+            self.assertEqual(
+                get_settings_path(),
+                r"C:\Users\Test\AppData\Roaming\LancarDinamicAdmin\settings.json",
+            )
+
     def test_get_all_settings_filters_sensitive_keys_and_prefixes(self):
         with tempfile.TemporaryDirectory() as tmp:
             settings_path = os.path.join(tmp, "settings.json")
@@ -41,6 +52,8 @@ class TestSettingsSecurity(unittest.TestCase):
                 "invoice_prefix": "KT",
                 "admin_pin_hash": "hash",
                 "admin_pin_salt": "salt",
+                "admin_pin_reset_token": "RESET-TOKEN-SECRET",
+                "admin_pin_reset_request_id": "REQ-SECRET",
                 "license_key": "secret",
                 "license_api_url": "https://license.example",
                 "clinic_id": "CLN-SECRET",
@@ -74,6 +87,7 @@ class TestSettingsSecurity(unittest.TestCase):
         for key in SENSITIVE_KEYS:
             self.assertNotIn(key, public_settings)
         for key in public_settings:
+            self.assertFalse(key.startswith("admin_pin_reset_"), key)
             self.assertFalse(key.startswith("license_"), key)
             self.assertFalse(key.startswith("last_license_"), key)
             self.assertFalse(key.startswith("last_online_"), key)
@@ -166,6 +180,7 @@ class TestSettingsSecurity(unittest.TestCase):
                 settings.set_admin_pin("1234")
                 settings.settings["license_key"] = "LICENSE-SECRET-123456"
                 settings.settings["clinic_id"] = "CLINIC-SECRET"
+                settings.settings["admin_pin_reset_token"] = "RESET-TOKEN-SECRET"
                 settings.settings["midtrans_server_key"] = "MIDTRANS-SECRET"
                 settings.settings["xendit_secret_key"] = "XENDIT-SECRET"
                 settings.settings["duitku_api_key"] = "DUITKU-SECRET"
@@ -178,11 +193,13 @@ class TestSettingsSecurity(unittest.TestCase):
                 self.assertTrue(str(raw["admin_pin_hash"]).startswith("enc:v1:"))
                 self.assertTrue(str(raw["admin_pin_salt"]).startswith("enc:v1:"))
                 self.assertTrue(str(raw["license_key"]).startswith("enc:v1:"))
+                self.assertTrue(str(raw["admin_pin_reset_token"]).startswith("enc:v1:"))
                 self.assertTrue(str(raw["midtrans_server_key"]).startswith("enc:v1:"))
                 self.assertTrue(str(raw["xendit_secret_key"]).startswith("enc:v1:"))
                 self.assertTrue(str(raw["duitku_api_key"]).startswith("enc:v1:"))
                 self.assertNotIn("1234", raw_text)
                 self.assertNotIn("LICENSE-SECRET-123456", raw_text)
+                self.assertNotIn("RESET-TOKEN-SECRET", raw_text)
                 self.assertNotIn("CLINIC-SECRET", raw_text)
                 self.assertNotIn("MIDTRANS-SECRET", raw_text)
                 self.assertNotIn("XENDIT-SECRET", raw_text)
@@ -191,6 +208,7 @@ class TestSettingsSecurity(unittest.TestCase):
                 reloaded = AppSettings()
                 self.assertTrue(reloaded.verify_admin_pin("1234"))
                 self.assertEqual(reloaded.settings["license_key"], "LICENSE-SECRET-123456")
+                self.assertEqual(reloaded.settings["admin_pin_reset_token"], "RESET-TOKEN-SECRET")
                 self.assertEqual(reloaded.settings["clinic_id"], "CLINIC-SECRET")
                 self.assertEqual(reloaded.settings["midtrans_server_key"], "MIDTRANS-SECRET")
                 self.assertEqual(reloaded.settings["xendit_secret_key"], "XENDIT-SECRET")

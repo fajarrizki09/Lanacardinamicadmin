@@ -20,6 +20,8 @@ DEFAULT_FREE_VISIT_REASONS = [
 SENSITIVE_SETTINGS_KEYS = {
     "admin_pin_hash",
     "admin_pin_salt",
+    "admin_pin_reset_token",
+    "admin_pin_reset_request_id",
     "license_key",
     "license_api_url",
     "clinic_id",
@@ -39,6 +41,7 @@ SENSITIVE_SETTINGS_KEYS = {
 
 PAYMENT_GATEWAY_PROVIDERS = get_available_gateway_providers()
 PAYMENT_GATEWAY_ENVIRONMENTS = {"sandbox", "production"}
+DEFAULT_OPENWA_BASE_URL = "http://127.0.0.1:3000/api"
 _SECURE_SETTINGS_FUNCS = None
 
 
@@ -55,6 +58,7 @@ def _is_sensitive_settings_key(key):
     key_text = str(key or "")
     return (
         key_text in SENSITIVE_SETTINGS_KEYS
+        or key_text.startswith("admin_pin_reset_")
         or key_text.startswith("license_")
         or key_text.startswith("last_license_")
         or key_text.startswith("last_online_")
@@ -96,6 +100,12 @@ class AppSettings:
             "xendit_secret_key": "",
             "duitku_merchant_code": "",
             "duitku_api_key": "",
+            "openwa_enabled": False,
+            "openwa_base_url": DEFAULT_OPENWA_BASE_URL,
+            "openwa_session_id": "",
+            "openwa_auto_followup_enabled": False,
+            "openwa_followup_delay_hours": 24,
+            "openwa_rate_limit_per_run": 10,
         }
         self.load()
 
@@ -204,9 +214,9 @@ class AppSettings:
         provider = str(data.get("payment_gateway_default_provider") or "gateway_mock").strip().lower()
         environment = str(data.get("payment_gateway_environment") or "sandbox").strip().lower()
         if provider not in PAYMENT_GATEWAY_PROVIDERS:
-            raise ValueError("Provider payment gateway tidak valid.")
+            raise ValueError("Penyedia pembayaran tidak valid.")
         if environment not in PAYMENT_GATEWAY_ENVIRONMENTS:
-            raise ValueError("Environment payment gateway tidak valid.")
+            raise ValueError("Mode pembayaran tidak valid.")
 
         self.settings["payment_gateway_enabled"] = bool(data.get("payment_gateway_enabled"))
         self.settings["payment_gateway_default_provider"] = provider
@@ -225,6 +235,46 @@ class AppSettings:
     def get_payment_gateway_default_provider(self):
         provider = str(self.settings.get("payment_gateway_default_provider") or "gateway_mock").strip().lower()
         return provider if provider in PAYMENT_GATEWAY_PROVIDERS else "gateway_mock"
+
+    def get_openwa_settings(self, include_secret=False):
+        base_url = str(self.settings.get("openwa_base_url") or DEFAULT_OPENWA_BASE_URL).strip().rstrip("/")
+        if "2785" in base_url or "/layanan/" in base_url or "/koneksis" in base_url:
+            base_url = DEFAULT_OPENWA_BASE_URL
+            self.settings["openwa_base_url"] = base_url
+            self.save()
+        data = {
+            "openwa_enabled": bool(self.settings.get("openwa_enabled", False)),
+            "openwa_base_url": base_url,
+            "openwa_session_id": str(self.settings.get("openwa_session_id") or "").strip(),
+            "openwa_auto_followup_enabled": bool(self.settings.get("openwa_auto_followup_enabled", False)),
+            "openwa_followup_delay_hours": int(self.settings.get("openwa_followup_delay_hours") or 24),
+            "openwa_rate_limit_per_run": int(self.settings.get("openwa_rate_limit_per_run") or 10),
+        }
+        return data
+
+    def set_openwa_settings(self, data):
+        def _bool(key, default=False):
+            return str(data.get(key, default)).strip().lower() in {"1", "true", "yes", "ya", "on"}
+
+        def _int(key, default, min_value, max_value):
+            try:
+                value = int(data.get(key, default))
+            except (TypeError, ValueError):
+                value = default
+            return max(min_value, min(max_value, value))
+
+        base_url = str(data.get("openwa_base_url") or DEFAULT_OPENWA_BASE_URL).strip().rstrip("/")
+        if "2785" in base_url or "/layanan/" in base_url or "/koneksis" in base_url:
+            base_url = DEFAULT_OPENWA_BASE_URL
+        if not base_url.startswith(("http://", "https://")):
+            raise ValueError("OpenWA Base URL harus diawali http:// atau https://")
+        self.settings["openwa_enabled"] = _bool("openwa_enabled")
+        self.settings["openwa_base_url"] = base_url
+        self.settings["openwa_session_id"] = str(data.get("openwa_session_id") or "").strip()
+        self.settings["openwa_auto_followup_enabled"] = _bool("openwa_auto_followup_enabled")
+        self.settings["openwa_followup_delay_hours"] = _int("openwa_followup_delay_hours", 24, 1, 720)
+        self.settings["openwa_rate_limit_per_run"] = _int("openwa_rate_limit_per_run", 10, 1, 100)
+        self.save()
 
     def is_first_run_completed(self):
         if bool(self.settings.get("first_run_completed", False)):

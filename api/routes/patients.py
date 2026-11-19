@@ -1,66 +1,68 @@
 from fastapi import APIRouter, HTTPException, Request, Form
-from typing import Optional
+from typing import Optional, List
+from pydantic import BaseModel, Field, validator
 from api.admin_pin import require_admin_pin
 from api.database_manager import db
 from api.license_guard import require_valid_license
+from helpers.crm_analysis_helper import build_followup_message, get_patient_contact_preference
 from helpers.payment_rules import allocate_payment_amounts, normalize_visit_payment
+from helpers.ttl_cache import TTLCache
+from helpers.exceptions import ValidationError, ResourceNotFoundError, IdempotencyError
 import json
 import threading
 import time
-from datetime import datetime
+import uuid
+import logging
+from datetime import datetime, timedelta
 
 router = APIRouter()
+logger = logging.getLogger("lancar.patients")
 
-_VISIT_IDEMPOTENCY_TTL_SECONDS = 10 * 60
-_visit_idempotency_lock = threading.Lock()
-_visit_idempotency_cache = {}
+# Phase 3 Fix #12: Pydantic models for JSON schema validation
+class HerbalItemSchema(BaseModel):
+    """Schema for herbal item validation."""
+    herbal_id: int = Field(..., gt=0, description="ID herbal harus positif")
+    quantity: int = Field(..., gt=0, description="Jumlah harus lebih dari 0")
+    
+    class Config:
+        extra = "forbid"  # Reject unexpected fields
 
-
-def _cleanup_visit_idempotency_cache(now=None):
-    now = now or time.monotonic()
-    expired_keys = [
-        key for key, entry in _visit_idempotency_cache.items()
-        if now - float(entry.get("created_at") or 0) > _VISIT_IDEMPOTENCY_TTL_SECONDS
-    ]
-    for key in expired_keys:
-        _visit_idempotency_cache.pop(key, None)
+# Idempotency cache with TTL (prevents memory leaks)
+_visit_idempotency_cache = TTLCache(maxsize=1000, ttl_seconds=600, cleanup_interval=60)
 
 
 def _reserve_visit_idempotency_key(raw_key):
+    """Reserve idempotency key using TTL cache."""
     key = str(raw_key or "").strip()
     if not key:
         return "", "none", None
     key = key[:128]
-    now = time.monotonic()
-    with _visit_idempotency_lock:
-        _cleanup_visit_idempotency_cache(now)
-        existing = _visit_idempotency_cache.get(key)
-        if existing:
-            return key, existing.get("state"), existing.get("response")
-        _visit_idempotency_cache[key] = {"state": "pending", "created_at": now, "response": None}
-        return key, "reserved", None
+    
+    existing = _visit_idempotency_cache.get(key)
+    if existing:
+        return key, existing.get("state"), existing.get("response")
+    
+    _visit_idempotency_cache.set(key, {"state": "pending", "response": None})
+    return key, "reserved", None
 
 
 def _complete_visit_idempotency_key(key, response):
+    """Mark idempotency key as complete."""
     if not key:
         return
-    with _visit_idempotency_lock:
-        _visit_idempotency_cache[key] = {
-            "state": "done",
-            "created_at": time.monotonic(),
-            "response": dict(response),
-        }
+    _visit_idempotency_cache.set(key, {"state": "done", "response": dict(response)})
 
 
 def _release_visit_idempotency_key(key):
+    """Release pending idempotency key."""
     if not key:
         return
-    with _visit_idempotency_lock:
-        entry = _visit_idempotency_cache.get(key)
-        if entry and entry.get("state") == "pending":
-            _visit_idempotency_cache.pop(key, None)
+    existing = _visit_idempotency_cache.get(key)
+    if existing and existing.get("state") == "pending":
+        _visit_idempotency_cache.delete(key)
 
 def _validated_visit_therapist_id(session, patient, therapist_id, therapist_cache=None):
+    """Validate and return therapist ID for visit."""
     from database import Therapist
     if therapist_cache is None:
         therapist_cache = {}
@@ -69,16 +71,18 @@ def _validated_visit_therapist_id(session, patient, therapist_id, therapist_cach
         cache_key = ("auto", patient.gender)
         if cache_key in therapist_cache:
             if therapist_cache[cache_key] is None:
-                raise ValueError("Belum ada terapis aktif yang bisa menangani pasien ini. Tambahkan terapis sesuai gender atau aktifkan opsi lintas gender.")
+                raise ValidationError("Belum ada terapis aktif yang bisa menangani pasien ini. Tambahkan terapis sesuai gender atau aktifkan opsi lintas gender.")
             return therapist_cache[cache_key]
 
+        # Phase 3 Fix #11: Use row-level locking for concurrent safety
+        # with_for_update(skip_locked=True) prevents deadlocks and ensures fair distribution
         matching_therapist = session.query(Therapist).filter(
             Therapist.is_active == True,
             (Therapist.gender == patient.gender) | (Therapist.can_handle_any_gender == True),
-        ).first()
+        ).with_for_update(skip_locked=True).first()
         if not matching_therapist:
             therapist_cache[cache_key] = None
-            raise ValueError("Belum ada terapis aktif yang bisa menangani pasien ini. Tambahkan terapis sesuai gender atau aktifkan opsi lintas gender.")
+            raise ValidationError("Belum ada terapis aktif yang bisa menangani pasien ini. Tambahkan terapis sesuai gender atau aktifkan opsi lintas gender.")
         # Auto-assign ke terapis pertama yang cocok jika tidak dipilih manual
         therapist_cache[cache_key] = matching_therapist.id
         return matching_therapist.id
@@ -91,9 +95,9 @@ def _validated_visit_therapist_id(session, patient, therapist_id, therapist_cach
         therapist_cache[cache_key] = therapist
 
     if not therapist:
-        raise ValueError("Terapis tidak ditemukan atau tidak aktif.")
+        raise ResourceNotFoundError("Terapis tidak ditemukan atau tidak aktif.")
     if not therapist.is_active:
-        raise ValueError("Terapis tidak ditemukan atau tidak aktif.")
+        raise ValidationError("Terapis tidak ditemukan atau tidak aktif.")
     if therapist.gender != patient.gender and not therapist.can_handle_any_gender:
         raise ValueError("Terapis tidak sesuai dengan jenis kelamin pasien. Pilih terapis lain atau aktifkan opsi lintas gender pada data terapis.")
     return therapist.id
@@ -117,6 +121,19 @@ def _validated_visit_service(session, service_id):
     if not service.is_active:
         raise ValueError("Layanan nonaktif tidak bisa dipakai untuk kunjungan baru.")
     return service
+
+def _validate_therapist_service_capability(session, therapist_id, service_id):
+    from database import TherapistServiceCapability
+    if not therapist_id:
+        return
+    mapped_service_ids = {
+        row[0]
+        for row in session.query(TherapistServiceCapability.service_id)
+        .filter(TherapistServiceCapability.therapist_id == therapist_id)
+        .all()
+    }
+    if mapped_service_ids and service_id not in mapped_service_ids:
+        raise ValueError("Layanan tidak sesuai dengan terapis yang dipilih.")
 
 def _validate_patient_gender(gender):
     if gender not in ("Laki-laki", "Perempuan"):
@@ -172,27 +189,29 @@ def _get_price_value(data):
     return price
 
 def _parse_herbal_items(value):
+    """Parse and validate herbal items with Pydantic schema validation."""
     text = str(value or "").strip()
     if not text:
         return []
     try:
         data = json.loads(text)
-    except json.JSONDecodeError:
-        raise ValueError("Data pembelian herbal tidak valid.")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Data pembelian herbal tidak valid: {str(e)}")
     if not isinstance(data, list):
-        raise ValueError("Data pembelian herbal tidak valid.")
+        raise ValueError("Data pembelian herbal harus berupa array.")
+    
+    # Phase 3 Fix #12: Use Pydantic for strict schema validation
     items = []
-    for item in data:
-        if not isinstance(item, dict):
-            raise ValueError("Data pembelian herbal tidak valid.")
+    for idx, item in enumerate(data):
         try:
-            herbal_id = int(item.get("herbal_id"))
-            quantity = int(item.get("quantity"))
-        except (TypeError, ValueError):
-            raise ValueError("Data pembelian herbal tidak valid.")
-        if quantity <= 0:
-            raise ValueError("Jumlah pembelian herbal harus lebih dari 0.")
-        items.append({"herbal_id": herbal_id, "quantity": quantity})
+            validated_item = HerbalItemSchema(**item)
+            items.append({
+                "herbal_id": validated_item.herbal_id,
+                "quantity": validated_item.quantity
+            })
+        except Exception as e:
+            raise ValueError(f"Item herbal #{idx + 1} tidak valid: {str(e)}")
+    
     return items
 
 @router.get("/patients")
@@ -204,8 +223,9 @@ def get_patients():
         patients = db.get_all_patients()
         therapists = db.get_all_therapists(active_only=True)
         return {"patients": patients, "therapists": therapists}
-    except Exception:
-        raise HTTPException(status_code=500, detail="Gagal memuat data pasien. Hubungi admin.")
+    except Exception as e:
+        logger.exception("Failed to load patients data")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat data pasien: {str(e)[:100]}")
 
 @router.get("/patients_paginated")
 def get_patients_paginated(
@@ -226,8 +246,9 @@ def get_patients_paginated(
         )
         result["draw"] = draw
         return result
-    except Exception:
-        raise HTTPException(status_code=500, detail="Gagal memuat data pasien (paginasi). Hubungi admin.")
+    except Exception as e:
+        logger.exception("Failed to load paginated patients")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat data pasien: {str(e)[:100]}")
 
 @router.get("/visit_form_options")
 def get_visit_form_options():
@@ -252,8 +273,9 @@ def get_visit_form_options():
             "price_per_point": app_settings.get_price_per_point(),
             "free_visit_reasons": app_settings.get_free_visit_reasons(),
         }
-    except Exception:
-        raise HTTPException(status_code=500, detail="Gagal memuat opsi form. Hubungi admin.")
+    except Exception as e:
+        logger.exception("Failed to load visit form options")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat opsi form: {str(e)[:100]}")
 
 @router.get("/patient_detail/{patient_id}")
 def get_patient_detail(patient_id: int):
@@ -264,8 +286,9 @@ def get_patient_detail(patient_id: int):
         return patient
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Gagal memuat detail pasien. Hubungi admin.")
+    except Exception as e:
+        logger.exception(f"Failed to load patient detail: {patient_id}")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat detail pasien: {str(e)[:100]}")
 
 @router.post("/add_patient")
 async def add_patient(name: str = Form(...), phone: str = Form(""), address: str = Form(""), gender: str = Form("Laki-laki")):
@@ -277,16 +300,19 @@ async def add_patient(name: str = Form(...), phone: str = Form(""), address: str
         gender = _validate_patient_gender(gender)
         phone = _validate_optional_phone(phone)
         if not phone:
-            phone = "TEMP-" + datetime.now().strftime("%H%M%S%f")[:10]
+            # Use UUID for guaranteed uniqueness instead of timestamp
+            phone = f"TEMP-{uuid.uuid4().hex[:12].upper()}"
 
         if db.patient_phone_exists(phone):
             raise HTTPException(status_code=400, detail=f"Nomor HP {phone} sudah terdaftar untuk pasien lain.")
 
         db.add_patient(name.strip(), phone, address.strip(), gender)
+        logger.info(f"Patient added: {name} ({phone})")
         return {"status": "success", "message": "Pasien baru berhasil didaftarkan."}
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception(f"Failed to add patient: {name}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/update_patient")
@@ -346,64 +372,68 @@ async def update_patient_full(request: Request):
         from database import Patient, Visit
         visits_data = json.loads(visits_json)
         with db.Session() as session:
-            patient = session.get(Patient, patient_id)
-            if not patient:
-                raise ValueError("Pasien tidak ditemukan.")
+            try:
+                patient = session.get(Patient, patient_id)
+                if not patient:
+                    raise ValueError("Pasien tidak ditemukan.")
 
-            phone = _resolve_patient_update_phone(phone, patient.phone)
-            if db.patient_phone_exists(phone, exclude_patient_id=patient_id):
-                raise HTTPException(status_code=400, detail=f"Nomor HP {phone} sudah dipakai pasien lain.")
+                phone = _resolve_patient_update_phone(phone, patient.phone)
+                if db.patient_phone_exists(phone, exclude_patient_id=patient_id):
+                    raise HTTPException(status_code=400, detail=f"Nomor HP {phone} sudah dipakai pasien lain.")
 
-            patient.name = name
-            patient.phone = phone
-            patient.address = address
-            patient.gender = gender
+                patient.name = name
+                patient.phone = phone
+                patient.address = address
+                patient.gender = gender
 
-            therapist_cache = {}
-            for v_data in visits_data:
-                v = session.get(Visit, int(v_data['id']))
-                if v and v.patient_id == patient_id:
-                    price = _get_price_value(v_data) if ("price" in v_data or "final_price" in v_data) else float(v.price or 0)
-                    is_free_visit = _parse_bool_value(v_data.get('is_free_visit'), bool(v.is_free_visit))
-                    free_visit_reason = str(v_data.get('free_visit_reason') or "").strip() if is_free_visit else None
-                    if price == 0 and not is_free_visit:
-                        raise ValueError("Harga 0 hanya boleh untuk kunjungan gratis.")
-                    if is_free_visit and price != 0:
-                        raise ValueError("Kunjungan gratis harus memakai harga 0.")
-                    if is_free_visit and not free_visit_reason:
-                        raise ValueError("Alasan kunjungan gratis wajib diisi.")
-                    point_count = _get_quantity_value(v_data, default=v.point_count)
-                    if point_count is not None:
-                        v.point_count = point_count
-                    v.price = max(0, price)
-                    if "medical_notes" in v_data or "notes" in v_data:
-                        v.medical_notes = v_data.get('medical_notes', v_data.get('notes', ''))
-                    if "therapist_id" in v_data:
-                        v.therapist_id = _validated_visit_therapist_id(session, patient, v_data.get('therapist_id'), therapist_cache)
-                    if "service_id" in v_data:
-                        raw_service_id = v_data.get("service_id")
-                        v.service_id = int(raw_service_id) if raw_service_id not in (None, "") else None
-                    if "service_name" in v_data:
-                        v.service_name = str(v_data.get("service_name") or "").strip() or "Bekam"
-                    if "discount_rule_id" in v_data:
-                        raw_rule_id = v_data.get("discount_rule_id")
-                        v.discount_rule_id = int(raw_rule_id) if raw_rule_id not in (None, "") else None
-                    if "discount_rule_name" in v_data:
-                        v.discount_rule_name = str(v_data.get("discount_rule_name") or "").strip() or None
-                    if "discount_applied" in v_data:
-                        v.discount_applied = _parse_bool_value(v_data.get("discount_applied"))
-                    v.is_free_visit = is_free_visit
-                    v.free_visit_reason = free_visit_reason
-                    if is_free_visit:
-                        v.discount_applied = False
-                        v.discount_rule_id = None
-                        v.discount_rule_name = None
-                    if v_data.get('date'):
-                        try:
-                            v.date = dt.fromisoformat(v_data['date'])
-                        except ValueError:
-                            raise ValueError("Tanggal kunjungan tidak valid.")
-            session.commit()
+                therapist_cache = {}
+                for v_data in visits_data:
+                    v = session.get(Visit, int(v_data['id']))
+                    if v and v.patient_id == patient_id:
+                        price = _get_price_value(v_data) if ("price" in v_data or "final_price" in v_data) else float(v.price or 0)
+                        is_free_visit = _parse_bool_value(v_data.get('is_free_visit'), bool(v.is_free_visit))
+                        free_visit_reason = str(v_data.get('free_visit_reason') or "").strip() if is_free_visit else None
+                        if price == 0 and not is_free_visit:
+                            raise ValueError("Harga 0 hanya boleh untuk kunjungan gratis.")
+                        if is_free_visit and price != 0:
+                            raise ValueError("Kunjungan gratis harus memakai harga 0.")
+                        if is_free_visit and not free_visit_reason:
+                            raise ValueError("Alasan kunjungan gratis wajib diisi.")
+                        point_count = _get_quantity_value(v_data, default=v.point_count)
+                        if point_count is not None:
+                            v.point_count = point_count
+                        v.price = max(0, price)
+                        if "medical_notes" in v_data or "notes" in v_data:
+                            v.medical_notes = v_data.get('medical_notes', v_data.get('notes', ''))
+                        if "therapist_id" in v_data:
+                            v.therapist_id = _validated_visit_therapist_id(session, patient, v_data.get('therapist_id'), therapist_cache)
+                        if "service_id" in v_data:
+                            raw_service_id = v_data.get("service_id")
+                            v.service_id = int(raw_service_id) if raw_service_id not in (None, "") else None
+                        if "service_name" in v_data:
+                            v.service_name = str(v_data.get("service_name") or "").strip() or "Bekam"
+                        if "discount_rule_id" in v_data:
+                            raw_rule_id = v_data.get("discount_rule_id")
+                            v.discount_rule_id = int(raw_rule_id) if raw_rule_id not in (None, "") else None
+                        if "discount_rule_name" in v_data:
+                            v.discount_rule_name = str(v_data.get("discount_rule_name") or "").strip() or None
+                        if "discount_applied" in v_data:
+                            v.discount_applied = _parse_bool_value(v_data.get("discount_applied"))
+                        v.is_free_visit = is_free_visit
+                        v.free_visit_reason = free_visit_reason
+                        if is_free_visit:
+                            v.discount_applied = False
+                            v.discount_rule_id = None
+                            v.discount_rule_name = None
+                        if v_data.get('date'):
+                            try:
+                                v.date = datetime.fromisoformat(v_data['date'])
+                            except ValueError:
+                                raise ValueError("Tanggal kunjungan tidak valid.")
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise
 
         db.log_audit("patient_updated", "patient", patient_id, "Data pasien dan kunjungan diperbarui.", {
             "name": name,
@@ -488,6 +518,7 @@ async def add_visit(
                 therapist = session.get(Therapist, validated_therapist_id)
                 therapist_name_for_audit = therapist.name if therapist else ""
             service = _validated_visit_service(session, normalized_service_id)
+            _validate_therapist_service_capability(session, validated_therapist_id, normalized_service_id)
             if service:
                 service_name = service.name
                 unit_label_for_audit = service.unit_label or "sesi"
@@ -539,6 +570,37 @@ async def add_visit(
             },
         )
 
+        try:
+            openwa_settings = AppSettings().get_openwa_settings(include_secret=False)
+            if openwa_settings.get("openwa_enabled") and openwa_settings.get("openwa_auto_followup_enabled"):
+                with db.Session() as session:
+                    patient_row = session.get(Patient, patient_id)
+                    if patient_row:
+                        pref = get_patient_contact_preference(session, patient_id)
+                        if not pref.get("jangan_dihubungi") and pref.get("boleh_reminder_kontrol", True):
+                            phone_value = str(getattr(patient_row, "phone", "") or "").strip()
+                            if phone_value:
+                                patient_payload = {
+                                    "name": getattr(patient_row, "name", ""),
+                                    "phone": phone_value,
+                                    "top_service": service_name or "Bekam",
+                                    "last_visit": datetime.now().strftime("%Y-%m-%d"),
+                                    "days_since_last_visit": 0,
+                                }
+                                followup_msg = build_followup_message(patient_payload, template="aftercare")
+                                delay_hours = int(openwa_settings.get("openwa_followup_delay_hours") or 24)
+                                scheduled_at = datetime.now() + timedelta(hours=max(1, delay_hours))
+                                db.enqueue_whatsapp_followup(
+                                    phone=phone_value,
+                                    message=followup_msg.get("message") or "",
+                                    patient_id=patient_id,
+                                    template_key="aftercare",
+                                    scheduled_at=scheduled_at,
+                                    created_by="system-auto",
+                                )
+        except Exception:
+            logger.exception("Gagal mengantre follow-up WhatsApp otomatis.")
+
         response = {"status": "success", "message": "Kunjungan berhasil dicatat."}
         _complete_visit_idempotency_key(reserved_idempotency_key, response)
         return response
@@ -572,76 +634,83 @@ async def update_visit(
         require_valid_license()
         from database import HerbalTransaction, Visit
         with db.Session() as session:
-            v = session.get(Visit, visit_id)
-            if not v:
-                raise HTTPException(status_code=404, detail="Kunjungan tidak ditemukan.")
-            patient_id_for_audit = v.patient_id
-            patient_name_for_audit = v.patient.name if getattr(v, "patient", None) else ""
-            old_price = float(v.price or 0)
-            old_quantity = int(v.point_count or 0)
-            if price < 0:
-                raise ValueError("Harga kunjungan tidak boleh kurang dari 0.")
-            if price == 0 and not is_free_visit:
-                raise ValueError("Harga 0 hanya boleh untuk kunjungan gratis.")
-            if is_free_visit and price != 0:
-                raise ValueError("Kunjungan gratis harus memakai harga 0.")
-            normalized_free_reason = free_visit_reason.strip() if is_free_visit else None
-            if is_free_visit and not normalized_free_reason:
-                raise ValueError("Alasan kunjungan gratis wajib diisi.")
-            if point_count < 1:
-                raise ValueError("Jumlah layanan minimal 1.")
-            v.point_count   = point_count
-            v.price         = price
-            v.medical_notes = medical_notes
-            v.therapist_id  = _validated_visit_therapist_id(session, v.patient, therapist_id)
-            v.service_id = int(service_id) if str(service_id or "").strip() else None
-            v.service_name = str(service_name or "").strip() or "Bekam"
-            v.discount_applied = bool(discount_applied) and not is_free_visit
-            v.discount_rule_id = int(discount_rule_id) if str(discount_rule_id or "").strip() and not is_free_visit else None
-            v.discount_rule_name = str(discount_rule_name or "").strip() if not is_free_visit else None
-            v.is_free_visit = is_free_visit
-            v.free_visit_reason = normalized_free_reason
+            try:
+                v = session.get(Visit, visit_id)
+                if not v:
+                    raise HTTPException(status_code=404, detail="Kunjungan tidak ditemukan.")
+                patient_id_for_audit = v.patient_id
+                patient_name_for_audit = v.patient.name if getattr(v, "patient", None) else ""
+                old_price = float(v.price or 0)
+                old_quantity = int(v.point_count or 0)
+                if price < 0:
+                    raise ValueError("Harga kunjungan tidak boleh kurang dari 0.")
+                if price == 0 and not is_free_visit:
+                    raise ValueError("Harga 0 hanya boleh untuk kunjungan gratis.")
+                if is_free_visit and price != 0:
+                    raise ValueError("Kunjungan gratis harus memakai harga 0.")
+                normalized_free_reason = free_visit_reason.strip() if is_free_visit else None
+                if is_free_visit and not normalized_free_reason:
+                    raise ValueError("Alasan kunjungan gratis wajib diisi.")
+                if point_count < 1:
+                    raise ValueError("Jumlah layanan minimal 1.")
+                v.point_count   = point_count
+                v.price         = price
+                v.medical_notes = medical_notes
+                v.therapist_id = _validated_visit_therapist_id(session, v.patient, therapist_id)
+                service = _validated_visit_service(session, service_id)
+                validated_service_id = service.id if service else None
+                _validate_therapist_service_capability(session, v.therapist_id, validated_service_id)
+                v.service_id = validated_service_id
+                v.service_name = service.name if service else (str(service_name or "").strip() or "Bekam")
+                v.discount_applied = bool(discount_applied) and not is_free_visit
+                v.discount_rule_id = int(discount_rule_id) if str(discount_rule_id or "").strip() and not is_free_visit else None
+                v.discount_rule_name = str(discount_rule_name or "").strip() if not is_free_visit else None
+                v.is_free_visit = is_free_visit
+                v.free_visit_reason = normalized_free_reason
 
-            linked_herbal_sales = (
-                session.query(HerbalTransaction)
-                .filter(
-                    HerbalTransaction.visit_id == visit_id,
-                    HerbalTransaction.transaction_type == "sale",
+                linked_herbal_sales = (
+                    session.query(HerbalTransaction)
+                    .filter(
+                        HerbalTransaction.visit_id == visit_id,
+                        HerbalTransaction.transaction_type == "sale",
+                    )
+                    .order_by(HerbalTransaction.id.asc())
+                    .all()
                 )
-                .order_by(HerbalTransaction.id.asc())
-                .all()
-            )
-            herbal_total = sum(float(row.total_price or 0) for row in linked_herbal_sales)
+                herbal_total = sum(float(row.total_price or 0) for row in linked_herbal_sales)
 
-            # Payment status updates
-            payment = normalize_visit_payment(
-                float(price or 0) + herbal_total,
-                payment_status=payment_status,
-                payment_method=payment_method,
-                amount_paid=amount_paid,
-                paid_at=v.paid_at,
-                is_free_visit=is_free_visit,
-                payment_provider=getattr(v, "payment_provider", None) or "manual",
-            )
-            component_payments = allocate_payment_amounts(
-                payment["amount_paid"],
-                [price] + [row.total_price for row in linked_herbal_sales],
-            )
-            v.payment_status = payment["payment_status"]
-            v.payment_method = payment["payment_method"]
-            v.amount_paid = component_payments[0] if component_payments else 0
-            v.paid_at = payment["paid_at"]
-            for row, paid_amount in zip(linked_herbal_sales, component_payments[1:]):
-                row.payment_status = payment["payment_status"]
-                row.payment_method = payment["payment_method"]
-                row.amount_paid = paid_amount
-                row.paid_at = payment["paid_at"]
-            if date:
-                try:
-                    v.date = datetime.fromisoformat(date)
-                except ValueError:
-                    raise ValueError("Tanggal kunjungan tidak valid.")
-            session.commit()
+                # Payment status updates
+                payment = normalize_visit_payment(
+                    float(price or 0) + herbal_total,
+                    payment_status=payment_status,
+                    payment_method=payment_method,
+                    amount_paid=amount_paid,
+                    paid_at=v.paid_at,
+                    is_free_visit=is_free_visit,
+                    payment_provider=getattr(v, "payment_provider", None) or "manual",
+                )
+                component_payments = allocate_payment_amounts(
+                    payment["amount_paid"],
+                    [price] + [row.total_price for row in linked_herbal_sales],
+                )
+                v.payment_status = payment["payment_status"]
+                v.payment_method = payment["payment_method"]
+                v.amount_paid = component_payments[0] if component_payments else 0
+                v.paid_at = payment["paid_at"]
+                for row, paid_amount in zip(linked_herbal_sales, component_payments[1:]):
+                    row.payment_status = payment["payment_status"]
+                    row.payment_method = payment["payment_method"]
+                    row.amount_paid = paid_amount
+                    row.paid_at = payment["paid_at"]
+                if date:
+                    try:
+                        v.date = datetime.fromisoformat(date)
+                    except ValueError:
+                        raise ValueError("Tanggal kunjungan tidak valid.")
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise
         db.log_audit("visit_updated", "visit", visit_id, "Kunjungan diperbarui.", {
             "patient_id": patient_id_for_audit,
             "patient_name": patient_name_for_audit,
@@ -666,27 +735,31 @@ async def delete_visit(request: Request, visit_id: int = Form(...)):
         require_admin_pin(request)
         from database import HerbalTransaction, Visit
         with db.Session() as session:
-            v = session.get(Visit, visit_id)
-            if not v:
-                raise HTTPException(status_code=404, detail="Kunjungan tidak ditemukan.")
-            herbal_count = (
-                session.query(HerbalTransaction.id)
-                .filter(HerbalTransaction.visit_id == visit_id)
-                .count()
-            )
-            if (
-                float(v.price or 0) > 0
-                or int(v.point_count or 0) > 0
-                or bool(v.invoice_path)
-                or bool(v.service_id)
-                or herbal_count > 0
-            ):
-                raise HTTPException(
+            try:
+                v = session.get(Visit, visit_id)
+                if not v:
+                    raise HTTPException(status_code=404, detail="Kunjungan tidak ditemukan.")
+                herbal_count = (
+                    session.query(HerbalTransaction.id)
+                    .filter(HerbalTransaction.visit_id == visit_id)
+                    .count()
+                )
+                if (
+                    float(v.price or 0) > 0
+                    or int(v.point_count or 0) > 0
+                    or bool(v.invoice_path)
+                    or bool(v.service_id)
+                    or herbal_count > 0
+                ):
+                    raise HTTPException(
                     status_code=400,
                     detail="Kunjungan sudah menjadi transaksi/laporan sehingga tidak boleh dihapus permanen. Gunakan void invoice atau koreksi tercatat.",
                 )
-            session.delete(v)
-            session.commit()
+                session.delete(v)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise
         db.log_audit("visit_deleted", "visit", visit_id, "Kunjungan kosong dihapus.", {"visit_id": visit_id})
         return {"status": "success", "message": "Kunjungan kosong berhasil dihapus."}
     except HTTPException:

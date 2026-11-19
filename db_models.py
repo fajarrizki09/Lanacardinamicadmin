@@ -26,6 +26,16 @@ class Therapist(Base):
     can_handle_any_gender = Column(Boolean, default=False, nullable=False)
     visits = relationship("Visit", back_populates="therapist")
 
+class TherapistServiceCapability(Base):
+    __tablename__ = 'therapist_service_capabilities'
+    id = Column(Integer, primary_key=True)
+    therapist_id = Column(Integer, ForeignKey('therapists.id'), nullable=False, index=True)
+    service_id = Column(Integer, ForeignKey('services.id'), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    therapist = relationship("Therapist")
+    service = relationship("Service")
+    __table_args__ = (Index('idx_therapist_service_capability_unique', 'therapist_id', 'service_id', unique=True),)
+
 class Visit(Base):
     __tablename__ = 'visits'
     id = Column(Integer, primary_key=True)
@@ -65,7 +75,12 @@ class Visit(Base):
     patient = relationship("Patient", back_populates="visits")
     therapist = relationship("Therapist", back_populates="visits")
     service = relationship("Service")
-    __table_args__ = (Index('idx_patient_date', 'patient_id', 'date'),)
+    # Phase 3 Fix #10: Add composite index for better query performance
+    __table_args__ = (
+        Index('idx_patient_date', 'patient_id', 'date'),
+        Index('idx_visit_service_name', 'service_name'),  # For service name filtering
+        Index('idx_visit_payment_status', 'payment_status', 'date'),  # For payment queries
+    )
 
 class Inventory(Base):
     __tablename__ = 'inventory'
@@ -160,6 +175,11 @@ class HerbalTransaction(Base):
     note = Column(Text, nullable=True)
     herbal = relationship("Herbal")
     visit = relationship("Visit")
+    # Phase 3 Fix #10: Add composite index for frequently queried combinations
+    __table_args__ = (
+        Index('idx_herbal_tx_visit_group', 'visit_id', 'sale_group_id'),  # For visit-based queries
+        Index('idx_herbal_tx_date_type', 'date', 'transaction_type'),  # For transaction reports
+    )
 
 class CorrectionLog(Base):
     __tablename__ = 'correction_logs'
@@ -275,3 +295,24 @@ class CRMWhatsAppLog(Base):
     confirmed_at = Column(DateTime, nullable=True)
     note = Column(Text, nullable=True)
     patient = relationship("Patient")
+
+class WhatsAppFollowupQueue(Base):
+    __tablename__ = 'whatsapp_followup_queue'
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"), nullable=True, index=True)
+    phone = Column(String, nullable=False, index=True)
+    chat_id = Column(String, nullable=False, index=True)
+    template_key = Column(String, default='manual', nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    status = Column(String, default='pending', nullable=False, index=True)
+    scheduled_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    sent_at = Column(DateTime, nullable=True, index=True)
+    retry_count = Column(Integer, default=0, nullable=False)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+    created_by = Column(String, default='admin', nullable=False)
+    openwa_message_id = Column(String, nullable=True, index=True)
+    patient = relationship("Patient")
+    visit = relationship("Visit")

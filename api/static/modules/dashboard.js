@@ -25,6 +25,13 @@ async function renderDashboard() {
         minute: '2-digit'
     });
     const totalIncomeLabel = formatRupiah(totalIncome);
+    const maxChartValue = Math.max(totalIncome, herbalSales * 100000, totalTransactions * 10000, 1);
+    const revenueBars = [
+        { label: 'Kunjungan', value: Math.max(0, totalIncome - (herbalSales * 10000)), icon: 'fa-stethoscope' },
+        { label: 'Produk', value: herbalSales * 10000, icon: 'fa-leaf' },
+        { label: 'Transaksi', value: totalTransactions * 10000, icon: 'fa-receipt' },
+        { label: 'Total', value: totalIncome, icon: 'fa-chart-line' },
+    ];
     const quickActions = [
         { tab: 'patients', icon: 'fa-user-plus', label: 'Tambah Pasien', note: 'Buka data pasien' },
         { tab: 'visits', icon: 'fa-notes-medical', label: 'Catat Kunjungan', note: 'Input terapi baru' },
@@ -37,50 +44,67 @@ async function renderDashboard() {
                 icon: 'fa-box-open',
                 title: item.name,
                 meta: `${item.quantity} ${item.unit || ''} tersisa, minimal ${item.min_stock}`,
-                tone: 'warning'
+                tone: 'warning',
+                badge: 'Stok rendah'
             })),
             ...outOfStockItems.map(item => ({
                 icon: 'fa-leaf',
                 title: item.name,
                 meta: `Stok habis (${item.quantity} ${item.unit || ''})`,
-                tone: 'danger'
+                tone: 'danger',
+                badge: 'Habis'
             }))
         ];
         if (!items.length) {
             return `
-                <div class="dashboard-empty compact">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Tidak ada stok kritis saat ini.</span>
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                    <div class="empty-state-content">
+                        <h4>Stok Aman</h4>
+                        <p>Tidak ada stok kritis saat ini</p>
+                    </div>
                 </div>
             `;
         }
-        return items.slice(0, 6).map(item => `
-            <div class="attention-item ${item.tone}">
-                <div class="attention-icon"><i class="fas ${item.icon}"></i></div>
-                <div>
-                    <strong>${escapeHtml(item.title)}</strong>
-                    <span>${escapeHtml(item.meta)}</span>
+        return items.slice(0, 6).map((item, index) => `
+            <div class="list-item list-item-${item.tone} animate-fadeIn" style="animation-delay: ${0.8 + (index * 0.05)}s;">
+                <div class="list-item-icon bg-${item.tone}">
+                    <i class="fas ${item.icon}"></i>
                 </div>
+                <div class="list-item-content">
+                    <div class="list-item-title">${escapeHtml(item.title)}</div>
+                    <div class="list-item-meta">${escapeHtml(item.meta)}</div>
+                </div>
+                <span class="badge badge-${item.tone}">${item.badge}</span>
             </div>
         `).join('');
     };
     const renderRecentTransactions = () => {
         if (!recentTransactions.length) {
             return `
-                <div class="dashboard-empty">
-                    <i class="fas fa-receipt"></i>
-                    <span>Belum ada transaksi yang tercatat.</span>
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-receipt text-muted"></i>
+                    </div>
+                    <div class="empty-state-content">
+                        <h4>Belum Ada Transaksi</h4>
+                        <p>Transaksi terbaru akan muncul di sini</p>
+                    </div>
                 </div>
             `;
         }
-        return recentTransactions.map(item => `
-            <div class="recent-row">
-                <div class="recent-icon"><i class="fas fa-stethoscope"></i></div>
-                <div class="recent-main">
-                    <strong>${escapeHtml(item.title)}</strong>
-                    <span>${escapeHtml(item.subtitle)} - ${escapeHtml(item.date)}</span>
+        return recentTransactions.map((item, index) => `
+            <div class="list-item animate-fadeIn" style="animation-delay: ${1.2 + (index * 0.05)}s;">
+                <div class="list-item-icon bg-primary">
+                    <i class="fas fa-stethoscope"></i>
                 </div>
-                <div class="recent-amount" title="${escapeHtml(formatRupiah(item.amount))}">${formatRupiah(item.amount)}</div>
+                <div class="list-item-content">
+                    <div class="list-item-title">${escapeHtml(item.title)}</div>
+                    <div class="list-item-meta">${escapeHtml(item.subtitle)} • ${escapeHtml(item.date)}</div>
+                </div>
+                <div class="list-item-value text-success" title="${escapeHtml(formatRupiah(item.amount))}">${formatRupiah(item.amount)}</div>
             </div>
         `).join('');
     };
@@ -143,7 +167,7 @@ async function renderDashboard() {
             <div>
                 <span class="section-kicker">Ringkasan operasional</span>
                 <h2>Operasional Klinik</h2>
-                <p>Angka di bawah adalah total data tersimpan. Diperbarui dari database lokal pada ${lastUpdated}.</p>
+                <p>Angka di bawah adalah total data klinik. Diperbarui pada ${lastUpdated}.</p>
             </div>
             <div class="ops-status ${stockStatus > 0 ? 'attention' : ''}">
                 <i class="fas ${stockStatus > 0 ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
@@ -154,54 +178,123 @@ async function renderDashboard() {
         <div class="dashboard-shell">
             <section class="dashboard-main">
                 <div class="stats-grid dashboard-stats">
-            <div class="stat-card">
-                <div class="stat-icon blue"><i class="fas fa-user-injured"></i></div>
-                <div class="stat-details">
-                    <h4>Total Pasien</h4>
-                    <h2 class="dashboard-kpi-value" title="${totalPatients.toLocaleString('id-ID')}">${totalPatients.toLocaleString('id-ID')}</h2>
+            <div class="card-stats card-stats-hover animate-fadeIn">
+                <div class="card-stats-icon bg-info">
+                    <i class="fas fa-user-injured"></i>
+                </div>
+                <div class="card-stats-content">
+                    <div class="card-stats-label">Total Pasien</div>
+                    <div class="card-stats-value" title="${totalPatients.toLocaleString('id-ID')}">${totalPatients.toLocaleString('id-ID')}</div>
+                    <div class="card-stats-trend">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Semua pasien terdaftar</span>
+                    </div>
                 </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon purple"><i class="fas fa-stethoscope"></i></div>
-                <div class="stat-details">
-                    <h4>Total Transaksi</h4>
-                    <h2 class="dashboard-kpi-value" title="${totalTransactions.toLocaleString('id-ID')}">${totalTransactions.toLocaleString('id-ID')}</h2>
-                    <p>${totalVisits} kunjungan, ${herbalSales} herbal</p>
+            <div class="card-stats card-stats-hover animate-fadeIn" style="animation-delay: 0.1s;">
+                <div class="card-stats-icon bg-primary">
+                    <i class="fas fa-stethoscope"></i>
+                </div>
+                <div class="card-stats-content">
+                    <div class="card-stats-label">Total Transaksi</div>
+                    <div class="card-stats-value" title="${totalTransactions.toLocaleString('id-ID')}">${totalTransactions.toLocaleString('id-ID')}</div>
+                    <div class="card-stats-trend">
+                        <span class="badge badge-info">${totalVisits} kunjungan</span>
+                        <span class="badge badge-success">${herbalSales} herbal</span>
+                    </div>
                 </div>
             </div>
-            <div class="stat-card income-stat-card">
-                <div class="stat-icon green"><i class="fas fa-money-bill-wave"></i></div>
-                <div class="stat-details">
-                    <h4>Total Pemasukan</h4>
-                    <h2 class="dashboard-kpi-value dashboard-money-value" title="${escapeHtml(totalIncomeLabel)}">${totalIncomeLabel}</h2>
+            <div class="card-stats card-stats-hover animate-fadeIn" style="animation-delay: 0.2s;">
+                <div class="card-stats-icon bg-success">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div class="card-stats-content">
+                    <div class="card-stats-label">Total Pemasukan</div>
+                    <div class="card-stats-value" title="${escapeHtml(totalIncomeLabel)}">${totalIncomeLabel}</div>
+                    <div class="card-stats-trend">
+                        <i class="fas fa-arrow-up text-success"></i>
+                        <span>Akumulasi pendapatan</span>
+                    </div>
                 </div>
             </div>
-            <div class="stat-card ${lowStockInventory > 0 ? 'needs-attention' : ''}">
-                <div class="stat-icon orange"><i class="fas fa-box-open"></i></div>
-                <div class="stat-details">
-                    <h4>Alat Kritis</h4>
-                    <h2 class="dashboard-kpi-value" title="${lowStockInventory.toLocaleString('id-ID')}" style="color:${lowStockInventory > 0 ? 'var(--warning)' : 'var(--text-main)'};">${lowStockInventory.toLocaleString('id-ID')}</h2>
+            <div class="card-stats card-stats-hover animate-fadeIn ${lowStockInventory > 0 ? 'card-stats-warning' : ''}" style="animation-delay: 0.3s;">
+                <div class="card-stats-icon ${lowStockInventory > 0 ? 'bg-warning' : 'bg-success'}">
+                    <i class="fas fa-box-open"></i>
+                </div>
+                <div class="card-stats-content">
+                    <div class="card-stats-label">Alat Kritis</div>
+                    <div class="card-stats-value ${lowStockInventory > 0 ? 'text-warning' : ''}" title="${lowStockInventory.toLocaleString('id-ID')}">${lowStockInventory.toLocaleString('id-ID')}</div>
+                    <div class="card-stats-trend">
+                        ${lowStockInventory > 0 ? '<span class="badge badge-warning"><i class="fas fa-exclamation-triangle"></i> Perlu restock</span>' : '<span class="badge badge-success"><i class="fas fa-check"></i> Stok aman</span>'}
+                    </div>
                 </div>
             </div>
-            <div class="stat-card ${outOfStockHerbals > 0 ? 'needs-danger' : ''}">
-                <div class="stat-icon ${outOfStockHerbals > 0 ? 'red' : 'green'}"><i class="fas fa-leaf"></i></div>
-                <div class="stat-details">
-                    <h4>Herbal Habis</h4>
-                    <h2 class="dashboard-kpi-value" title="${outOfStockHerbals.toLocaleString('id-ID')}" style="color:${outOfStockHerbals > 0 ? 'var(--danger)' : 'var(--text-main)'};">${outOfStockHerbals.toLocaleString('id-ID')}</h2>
+            <div class="card-stats card-stats-hover animate-fadeIn ${outOfStockHerbals > 0 ? 'card-stats-danger' : ''}" style="animation-delay: 0.4s;">
+                <div class="card-stats-icon ${outOfStockHerbals > 0 ? 'bg-danger' : 'bg-success'}">
+                    <i class="fas fa-leaf"></i>
+                </div>
+                <div class="card-stats-content">
+                    <div class="card-stats-label">Herbal Habis</div>
+                    <div class="card-stats-value ${outOfStockHerbals > 0 ? 'text-danger' : ''}" title="${outOfStockHerbals.toLocaleString('id-ID')}">${outOfStockHerbals.toLocaleString('id-ID')}</div>
+                    <div class="card-stats-trend">
+                        ${outOfStockHerbals > 0 ? '<span class="badge badge-danger"><i class="fas fa-times"></i> Segera restock</span>' : '<span class="badge badge-success"><i class="fas fa-check"></i> Stok tersedia</span>'}
+                    </div>
                 </div>
             </div>
                 </div>
 
-                <div class="card dashboard-panel">
+                <div class="dashboard-insight-grid">
+                    <section class="glass-panel revenue-panel">
+                        <div class="panel-heading-row">
+                            <div>
+                                <span class="section-kicker">Revenue</span>
+                                <h3>Grafik Pendapatan</h3>
+                            </div>
+                            <span class="status-pill status-paid"><i class="fas fa-circle"></i> Aktif</span>
+                        </div>
+                        <div class="revenue-chart" aria-label="Grafik pendapatan sederhana">
+                            ${revenueBars.map((bar, index) => {
+        const height = Math.max(18, Math.round((bar.value / maxChartValue) * 100));
+        return `
+                                    <div class="revenue-bar-wrap" style="--bar-height:${height}%; animation-delay:${0.08 * index}s;">
+                                        <div class="revenue-bar-value">${formatRupiah(bar.value)}</div>
+                                        <div class="revenue-bar"><span></span></div>
+                                        <div class="revenue-bar-label"><i class="fas ${bar.icon}"></i>${escapeHtml(bar.label)}</div>
+                                    </div>`;
+    }).join('')}
+                        </div>
+                    </section>
+                    <section class="glass-panel top-service-panel">
+                        <div class="panel-heading-row">
+                            <div>
+                                <span class="section-kicker">Prioritas</span>
+                                <h3>Top Layanan</h3>
+                            </div>
+                            <span class="status-pill status-pending"><i class="fas fa-clock"></i> Hari ini</span>
+                        </div>
+                        <div class="top-service-list">
+                            <div><strong>Terapi reguler</strong><span>${totalVisits.toLocaleString('id-ID')} kunjungan tercatat</span><b>${Math.max(0, Math.round((totalVisits / Math.max(totalTransactions, 1)) * 100))}%</b></div>
+                            <div><strong>Produk / Herbal</strong><span>${herbalSales.toLocaleString('id-ID')} transaksi produk</span><b>${herbalSales}</b></div>
+                            <div><strong>Stok perlu dicek</strong><span>Inventory dan herbal kritis</span><b>${stockStatus}</b></div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="card dashboard-panel animate-slideUp">
                     <div class="card-header compact-card-header clean-header">
-                        <h3><i class="fas fa-bolt"></i> Aksi Cepat</h3>
+                        <h3><i class="fas fa-bolt text-warning"></i> Aksi Cepat</h3>
+                        <p class="text-muted">Navigasi cepat ke fitur utama</p>
                     </div>
                     <div class="quick-action-grid">
-                        ${quickActions.map(action => `
-                            <button type="button" class="quick-action" data-dashboard-tab="${action.tab}">
-                                <i class="fas ${action.icon}"></i>
-                                <span>${escapeHtml(action.label)}</span>
-                                <small>${escapeHtml(action.note)}</small>
+                        ${quickActions.map((action, index) => `
+                            <button type="button" class="btn btn-outline btn-lg quick-action-btn animate-fadeIn" data-dashboard-tab="${action.tab}" style="animation-delay: ${0.5 + (index * 0.05)}s;">
+                                <div class="quick-action-icon">
+                                    <i class="fas ${action.icon}"></i>
+                                </div>
+                                <div class="quick-action-content">
+                                    <span class="quick-action-label">${escapeHtml(action.label)}</span>
+                                    <small class="quick-action-note">${escapeHtml(action.note)}</small>
+                                </div>
                             </button>
                         `).join('')}
                     </div>
@@ -239,18 +332,20 @@ async function renderDashboard() {
             </section>
 
             <aside class="dashboard-side">
-                <div class="card dashboard-panel attention-panel">
+                <div class="card dashboard-panel attention-panel animate-slideUp" style="animation-delay: 0.6s;">
                     <div class="card-header compact-card-header clean-header">
-                        <h3><i class="fas fa-clipboard-check"></i> Perlu Tindakan</h3>
+                        <h3><i class="fas fa-exclamation-triangle text-warning"></i> Perlu Tindakan</h3>
+                        <span class="badge badge-${stockStatus > 0 ? 'warning' : 'success'}">${stockStatus} item</span>
                     </div>
                     <div class="attention-list">
                         ${renderStockItems()}
                     </div>
                 </div>
 
-                <div class="card dashboard-panel recent-panel">
+                <div class="card dashboard-panel recent-panel animate-slideUp" style="animation-delay: 0.7s;">
                     <div class="card-header compact-card-header clean-header">
-                        <h3><i class="fas fa-clock"></i> Transaksi Terbaru</h3>
+                        <h3><i class="fas fa-clock text-info"></i> Transaksi Terbaru</h3>
+                        <span class="badge badge-info">${recentTransactions.length} transaksi</span>
                     </div>
                     <div class="recent-list">
                         ${renderRecentTransactions()}

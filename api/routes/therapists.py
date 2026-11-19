@@ -1,3 +1,6 @@
+import json
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Form, Query, Request
 from api.admin_pin import require_admin_pin
 from api.database_manager import db
@@ -15,13 +18,34 @@ def get_therapists(active_only: bool = Query(False)):
 def _parse_bool(value):
     return str(value or "").strip().lower() in ("true", "1", "on", "yes", "ya")
 
+def _parse_service_ids(value):
+    text = str(value or "").strip()
+    if not text:
+        return []
+    try:
+        raw_items = json.loads(text)
+    except json.JSONDecodeError:
+        raise ValueError("Daftar layanan terapis tidak valid.")
+    if not isinstance(raw_items, list):
+        raise ValueError("Daftar layanan terapis tidak valid.")
+    service_ids = []
+    for raw_id in raw_items:
+        try:
+            service_id = int(raw_id)
+        except (TypeError, ValueError):
+            raise ValueError("Daftar layanan terapis tidak valid.")
+        if service_id > 0 and service_id not in service_ids:
+            service_ids.append(service_id)
+    return service_ids
+
 @router.post("/add_therapist")
 async def add_therapist(
     request: Request,
     name: str = Form(...),
     gender: str = Form(...),
     specialization: str = Form(""),
-    can_handle_any_gender: str = Form("false")
+    can_handle_any_gender: str = Form("false"),
+    service_ids: Optional[str] = Form(None),
 ):
     try:
         require_valid_license()
@@ -30,7 +54,13 @@ async def add_therapist(
             raise ValueError("Nama terapis wajib diisi.")
         if gender not in ("Laki-laki", "Perempuan"):
             raise ValueError("Jenis kelamin terapis tidak valid.")
-        db.add_therapist(name.strip(), gender, specialization, _parse_bool(can_handle_any_gender))
+        db.add_therapist(
+            name.strip(),
+            gender,
+            specialization,
+            _parse_bool(can_handle_any_gender),
+            None if service_ids is None else _parse_service_ids(service_ids),
+        )
         return {"status": "success", "message": "Terapis baru berhasil didaftarkan."}
     except HTTPException:
         raise
@@ -45,7 +75,8 @@ async def update_therapist(
     gender: str = Form(...),
     specialization: str = Form(""),
     is_active: str = Form("true"),
-    can_handle_any_gender: str = Form("false")
+    can_handle_any_gender: str = Form("false"),
+    service_ids: Optional[str] = Form(None),
 ):
     try:
         require_valid_license()
@@ -55,7 +86,15 @@ async def update_therapist(
         if gender not in ("Laki-laki", "Perempuan"):
             raise ValueError("Jenis kelamin terapis tidak valid.")
         active = _parse_bool(is_active)
-        db.update_therapist(therapist_id, name.strip(), gender, specialization, active, _parse_bool(can_handle_any_gender))
+        db.update_therapist(
+            therapist_id,
+            name.strip(),
+            gender,
+            specialization,
+            active,
+            _parse_bool(can_handle_any_gender),
+            None if service_ids is None else _parse_service_ids(service_ids),
+        )
         return {"status": "success", "message": "Terapis berhasil diperbarui."}
     except HTTPException:
         raise

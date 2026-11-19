@@ -1,6 +1,6 @@
 # PRD - LancarDinamicAdmin
 
-> **Versi:** 0.2-draft | **Tanggal:** 2026-05-19 | **Status:** Internal – belum untuk distribusi publik
+> **Versi:** 0.3-draft | **Tanggal:** 2026-05-19 | **Status:** Internal – belum untuk distribusi publik
 
 ---
 
@@ -71,8 +71,8 @@ Aplikasi ini **bukan** aplikasi bekam saja. Bekam adalah salah satu jenis layana
 - Dashboard ringkasan harian/mingguan
 - Analitik (top layanan, top terapis, top produk)
 - Owner Report (pendapatan bersih, komposisi revenue)
-- CRM WhatsApp semi-manual default (generate pesan, copy-paste, buka WA Web, admin kirim manual)
-- CRM WhatsApp Puppeteer automation optional, disabled by default, admin-triggered, satu klik untuk satu pasien dan satu pesan
+- CRM WhatsApp Gateway satu pintu berbasis Baileys lokal: login QR, session otomatis, queue follow-up, test kirim, dan status akun login
+- CRM WhatsApp semi-manual sebagai fallback jika gateway belum aktif/gagal
 - Backup / restore data lokal
 - Admin PIN untuk aksi sensitif
 - Lisensi / trial dengan limit waktu atau kunjungan
@@ -85,7 +85,7 @@ Aplikasi ini **bukan** aplikasi bekam saja. Bekam adalah salah satu jenis layana
 - Bukan integrasi SATUSEHAT / BPJS
 - Bukan sistem multi-cabang cloud penuh
 - Bukan WhatsApp Business API/provider resmi untuk fase ini
-- Bukan bulk WhatsApp blasting, background campaign sender, bypass QR WhatsApp Web, atau pengiriman tanpa aksi admin
+- Bukan WhatsApp blasting/campaign massal, bypass QR login, atau pengiriman promo tanpa review/admin action
 - Bukan payment gateway production penuh sebelum alur E2E diuji
 - Bukan aplikasi mobile native (Android/iOS)
 - Bukan multi-user cloud database
@@ -441,124 +441,58 @@ total_revenue   = visit_revenue + herbal_revenue
 
 ## 18A. Aturan CRM WhatsApp
 
-CRM WhatsApp mendukung dua mode. Mode semi-manual tetap menjadi default dan fallback. Mode Puppeteer hanya boleh aktif jika setting eksplisit diaktifkan oleh admin/support dan semua guardrail lulus.
+CRM WhatsApp menggunakan satu pintu **WhatsApp Gateway Baileys lokal**. UI utama untuk login dan operasional ada di tab **WhatsApp Gateway**. Pengaturan WhatsApp tidak lagi diduplikasi di tab Settings umum.
 
-### Mode 1 — Semi-manual Default
+### Alur Utama (Satu Pintu Gateway)
 
-Flow:
-1. Sistem generate pesan follow-up berdasarkan data pasien, layanan terakhir, dan template.
-2. Admin review dan boleh edit pesan.
-3. Admin bisa copy pesan atau membuka WhatsApp/WA Web.
-4. Admin mengirim pesan secara manual.
-5. Admin klik **Sudah Dihubungi** untuk mencatat aktivitas.
+1. Admin membuka tab WhatsApp Gateway.
+2. Sistem menjalankan auto-setup: cek server lokal, set session default, create/start session.
+3. Jika belum login, sistem menampilkan QR untuk dipindai dari WhatsApp HP.
+4. Jika sudah login, sistem menampilkan akun WhatsApp yang aktif.
+5. Admin bisa kirim test message dan proses queue follow-up dari tab yang sama.
 
-Aturan:
-- Selalu tersedia walaupun Puppeteer disabled atau gagal.
-- Tidak boleh mengirim otomatis tanpa admin.
-- Tetap wajib mematuhi preferensi kontak pasien.
-- Semua aktivitas penting harus masuk `crm_whatsapp_logs` dan/atau `patient_followups`.
+### Endpoint Operasional
 
-### Mode 2 — Puppeteer Automation Opsional
+- `POST /whatsapp/auto-login` — auto start server + auto create/start session + return status/QR.
+- `GET /whatsapp/session/status` — status session (`idle`, `connecting`, `qr`, `connected`, `disconnected`, `logged_out`) dan data akun login bila tersedia.
+- `GET /whatsapp/session/qr` — ambil QR login session.
+- `POST /whatsapp/send-test` — kirim pesan uji.
+- `POST /whatsapp/enqueue` — masukkan pesan follow-up ke queue.
+- `POST /whatsapp/process-queue` — proses queue sesuai limit.
 
-Flow:
-1. Admin membuka composer WhatsApp di tab Follow-up Pasien.
-2. Sistem generate pesan dan admin wajib review.
-3. Admin klik tombol **Kirim WhatsApp**.
-4. Sistem menampilkan confirmation dialog.
-5. Jika dikonfirmasi, backend lokal menjalankan Puppeteer WhatsApp Web lokal.
-6. Puppeteer mengirim satu pesan ke satu pasien.
-7. Backend mencatat hasil `sending`, `sent`, `failed`, atau `blocked` di `crm_whatsapp_logs`.
+### Aturan Wajib
 
-Aturan wajib:
-- Fitur disabled by default lewat setting `enable_whatsapp_puppeteer = false`.
-- Satu klik admin = satu pasien = satu pesan.
-- Tidak boleh ada bulk send, background send, scheduler campaign, atau queue otomatis yang mengirim tanpa aksi admin.
-- Tidak boleh bypass QR login WhatsApp Web. Login harus dilakukan manual oleh user di WhatsApp Web.
-- Tidak boleh kirim ke pasien dengan preferensi/tag **JANGAN DIHUBUNGI**.
-- Template promo tidak boleh dikirim ke pasien **JANGAN PROMO** atau `boleh_promo = false`.
-- Pesan kosong harus ditolak.
+- Login wajib via QR Baileys (Linked Devices), tidak boleh bypass.
+- Session default harus otomatis disiapkan (misalnya `clinic`) jika belum diatur.
+- Sistem harus menampilkan salah satu state ini secara jelas: belum login (QR), proses connect, atau sudah connected.
+- Jika connected, UI menampilkan akun/nomor WhatsApp yang login.
+- Tidak boleh ada bulk blasting/campaign sender tanpa aksi admin.
 - Nomor pasien wajib dinormalisasi ke format Indonesia `62...` dan divalidasi.
-- Wajib ada send lock untuk mencegah spam/duplikasi pesan dalam window tertentu.
-- Wajib ada duplicate click prevention di UI.
-- Wajib ada log status `sending`, `sent`, `failed`, atau `blocked`.
-- Error yang tampil ke frontend harus disanitasi dan tidak membocorkan stack trace/path lokal.
-- Jika Puppeteer gagal, fallback semi-manual tetap tersedia.
+- Tetap wajib patuh preferensi kontak pasien (`JANGAN DIHUBUNGI`, `JANGAN PROMO`).
+- Kegagalan kirim wajib tercatat (`failed/retry`) dan tidak boleh dianggap sukses diam-diam.
+- Error ke frontend harus disanitasi (tanpa stack trace/path lokal).
 
-### Endpoint Rencana
+### Acceptance Criteria CRM WhatsApp Gateway
 
-`POST /api/crm/patient/{patient_id}/whatsapp-puppeteer-send`
+- **Given** admin membuka tab WhatsApp Gateway dan server/session belum siap
+  **When** auto-setup dijalankan
+  **Then** server/session disiapkan otomatis dan UI menampilkan QR atau status connected.
 
-Body:
-```json
-{
-  "message": "...",
-  "source": "followup_modal",
-  "confirm": true
-}
-```
+- **Given** session belum login
+  **When** admin membuka/refresh status gateway
+  **Then** QR login tampil dan instruksi scan tersedia.
 
-Backend flow:
-1. Validate `X-App-Token`.
-2. Validate patient exists.
-3. Normalize phone.
-4. Check contact permission.
-5. Check message.
-6. Check send lock.
-7. Create log status `sending`.
-8. Call helper `whatsapp_puppeteer_helper.py`.
-9. Helper calls Node script `tools/whatsapp_puppeteer/send_whatsapp.js`.
-10. Node returns JSON.
-11. Backend updates log `sent`/`failed`/`blocked`.
-12. Frontend receives status.
+- **Given** session sudah login
+  **When** admin membuka/refresh status gateway
+  **Then** status `connected` tampil dan akun/nomor WhatsApp aktif ditampilkan.
 
-Node script input:
-```json
-{
-  "phone": "628xxxx",
-  "message": "text",
-  "profileDir": ".local/whatsapp-profile",
-  "headless": false
-}
-```
+- **Given** admin klik Proses Queue saat session tidak connected
+  **When** proses kirim dijalankan
+  **Then** item queue ditandai gagal/retry dengan pesan jelas (bukan sukses palsu).
 
-Node script output success:
-```json
-{
-  "ok": true,
-  "status": "sent"
-}
-```
-
-Node script output login required:
-```json
-{
-  "ok": false,
-  "status": "login_required",
-  "message": "WhatsApp Web belum login."
-}
-```
-
-### Acceptance Criteria CRM WhatsApp Puppeteer
-
-- **Given** pasien boleh dihubungi dan nomor valid  
-  **When** admin klik **Kirim WhatsApp** dan mengonfirmasi  
-  **Then** sistem mencoba kirim via Puppeteer dan mencatat log.
-
-- **Given** pasien **JANGAN DIHUBUNGI**  
-  **When** admin klik **Kirim WhatsApp**  
-  **Then** sistem menolak dan tidak membuka/mengirim.
-
-- **Given** pesan kosong  
-  **When** admin klik **Kirim WhatsApp**  
-  **Then** sistem menolak.
-
-- **Given** WhatsApp Web belum login  
-  **When** admin klik **Kirim WhatsApp**  
-  **Then** sistem menampilkan instruksi scan QR.
-
-- **Given** pesan baru saja dikirim dalam lock window  
-  **When** admin klik **Kirim WhatsApp**  
-  **Then** sistem menolak kecuali override sesuai aturan yang disetujui.
+- **Given** pasien memiliki flag **JANGAN DIHUBUNGI**
+  **When** admin mencoba enqueue/kirim follow-up
+  **Then** sistem menolak pengiriman sesuai policy kontak.
 
 ---
 

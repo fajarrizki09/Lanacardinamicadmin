@@ -1,4 +1,5 @@
 import unittest
+from itertools import count
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,14 @@ from helpers.payment_gateway import (
 from helpers.payment_providers import midtrans
 from tests.api_test_utils import app_headers, client, db
 
+_PHONE_COUNTER = count(1)
+
+
+def _unique_phone():
+    timestamp_digits = int(datetime.now().timestamp() * 1_000_000) % 1_000_000_000
+    counter_digits = next(_PHONE_COUNTER) % 100
+    return f"08{timestamp_digits:09d}{counter_digits:02d}"
+
 
 class TestPaymentGatewayMock(unittest.TestCase):
     def setUp(self):
@@ -24,7 +33,7 @@ class TestPaymentGatewayMock(unittest.TestCase):
         with db.Session() as session:
             patient = Patient(
                 name=f"Gateway Pasien {datetime.now().timestamp()}",
-                phone=f"08{datetime.now().strftime('%H%M%S%f')[:11]}",
+                phone=_unique_phone(),
                 address="Test",
                 gender="Laki-laki",
             )
@@ -245,7 +254,7 @@ class TestPaymentGatewayMock(unittest.TestCase):
         with db.Session() as session:
             patient = Patient(
                 name=f"Analytics Gateway {datetime.now().timestamp()}",
-                phone=f"08{datetime.now().strftime('%M%S%f')[:11]}",
+                phone=_unique_phone(),
                 address="Test",
                 gender="Laki-laki",
             )
@@ -276,12 +285,11 @@ class TestPaymentGatewayMock(unittest.TestCase):
         self.assertEqual(row["payment_reference"], payment["payment_reference"])
         self.assertTrue(row["payment_url"])
 
-    def test_invoice_gateway_create_button_opens_payment_window(self):
-        source = Path("api/static/modules/invoices.js").read_text(encoding="utf-8")
+    def test_invoice_gateway_external_url_uses_controlled_desktop_opener(self):
+        source = Path("api/static/ts/invoices.ts").read_text(encoding="utf-8")
 
-        self.assertIn("window.open('', '_blank')", source)
-        self.assertIn("paymentWindow.opener = null;", source)
-        self.assertIn("paymentWindow.location.href = paymentUrl;", source)
+        self.assertNotIn("window.open(", source)
+        self.assertIn("await openDesktopExternalUrl(paymentUrl, 'payment');", source)
         self.assertIn("function _absolutePaymentUrl", source)
         self.assertIn("gateway_mock: 'Pembayaran Internal'", source)
         self.assertIn("const isInternalPayment", source)
@@ -472,7 +480,7 @@ class TestPaymentGatewayMock(unittest.TestCase):
         with db.Session() as session:
             patient = Patient(
                 name=f"Manual Pay {datetime.now().timestamp()}",
-                phone=f"08{datetime.now().strftime('%M%S%f')[:11]}",
+                phone=_unique_phone(),
                 address="Test",
                 gender="Laki-laki",
             )
@@ -612,7 +620,7 @@ class TestHerbalGatewayMock(unittest.TestCase):
             before_owner = build_owner_report_summary(session, period="year")["summary"]["total_revenue"]
             patient = Patient(
                 name=f"Owner Gateway {datetime.now().timestamp()}",
-                phone=f"08{datetime.now().strftime('%S%M%f')[:11]}",
+                phone=_unique_phone(),
                 address="Test",
                 gender="Laki-laki",
             )
@@ -655,7 +663,7 @@ class TestHerbalGatewayMock(unittest.TestCase):
             before_owner = before_owner_data["summary"]["total_revenue"]
             patient = Patient(
                 name=f"Revenue Mix Patient {unique}",
-                phone=f"08{unique[:11]}",
+                phone=_unique_phone(),
                 address="Test",
                 gender="Laki-laki",
             )
@@ -811,17 +819,17 @@ class TestHerbalGatewayMock(unittest.TestCase):
         self.assertEqual(after_analytics - before_analytics, expected_revenue)
         self.assertEqual(
             after_owner_data["summary"]["visit_revenue"] - before_owner_data["summary"]["visit_revenue"],
-            290000,
+            240000,
         )
         self.assertEqual(
             after_owner_data["summary"]["herbal_revenue"] - before_owner_data["summary"]["herbal_revenue"],
-            70000,
+            120000,
         )
 
         service_row = next(row for row in after_owner_data["top_services"] if row["name"] == service_name)
         herbal_row = next(row for row in after_owner_data["top_herbals"] if row["name"] == herbal_name)
-        self.assertEqual(service_row["revenue"], 290000)
-        self.assertEqual(herbal_row["revenue"], 70000)
+        self.assertEqual(service_row["revenue"], 240000)
+        self.assertEqual(herbal_row["revenue"], 120000)
         current_month_label = datetime.now().strftime("%b %Y")
         before_monthly = dict(zip(before_analytics_data["monthly_labels"], before_analytics_data["monthly_income"]))
         after_monthly = dict(zip(after_analytics_data["monthly_labels"], after_analytics_data["monthly_income"]))
@@ -917,7 +925,7 @@ class TestMidtransGatewayEndpoint(unittest.TestCase):
         with db.Session() as session:
             patient = Patient(
                 name=f"Midtrans Pasien {datetime.now().timestamp()}",
-                phone=f"08{datetime.now().strftime('%H%M%S%f')[:11]}",
+                phone=_unique_phone(),
                 address="Test",
                 gender="Laki-laki",
             )

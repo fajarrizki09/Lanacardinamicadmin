@@ -21,6 +21,7 @@ Folder ini berisi flowchart per logic/domain utama aplikasi sebagai acuan coding
 14. [Error Handling Global](./14-error-handling-global.md)
 15. [Database Migration & First Run](./15-database-migration-first-run.md)
 16. [Admin PIN Session](./16-admin-pin-session.md)
+17. [WhatsApp Baileys Gateway](./17-whatsapp-baileys-gateway.md)
 
 ## Catatan Penting
 

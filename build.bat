@@ -3,6 +3,8 @@ setlocal
 
 set "PYTHON=.venv\Scripts\python.exe"
 set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+set "BUNDLED_NODE_EXE=%CD%\tools\node\node.exe"
+set "BUNDLED_NPM_CMD=%CD%\tools\node\npm.cmd"
 
 if not exist "%PYTHON%" (
   echo Python virtualenv tidak ditemukan: %PYTHON%
@@ -16,6 +18,19 @@ if "%APP_VERSION%"=="" (
   exit /b 1
 )
 echo Version: %APP_VERSION%
+
+if not exist "%BUNDLED_NODE_EXE%" (
+  echo Node portable tidak ditemukan di tools\node\node.exe.
+  echo Salin folder hasil ekstrak Node.js Windows x64 ke tools\node sebelum build installer.
+  echo Contoh: tools\node\node.exe, tools\node\npm.cmd, tools\node\node_modules\npm\...
+  exit /b 1
+)
+if not exist "%BUNDLED_NPM_CMD%" (
+  echo npm portable tidak ditemukan di tools\node\npm.cmd.
+  echo Pastikan folder Node.js yang disalin lengkap, termasuk npm.cmd dan node_modules\npm.
+  exit /b 1
+)
+set "PATH=%CD%\tools\node;%PATH%"
 
 echo Cleaning previous builds...
 if exist "dist\LancarDinamicAdmin" rmdir /S /Q "dist\LancarDinamicAdmin"
@@ -56,6 +71,42 @@ echo Building executable with PyInstaller...
 
 if errorlevel 1 (
   echo PyInstaller build gagal.
+  exit /b 1
+)
+
+echo Bundling WhatsApp Gateway server...
+if not exist "dist\LancarDinamicAdmin\openwa_server" mkdir "dist\LancarDinamicAdmin\openwa_server"
+robocopy "openwa_server" "dist\LancarDinamicAdmin\openwa_server" /E ^
+  /XD data logs __pycache__ .cache ^
+  /XF *.log >nul
+if errorlevel 8 (
+  echo Gagal menyalin openwa_server ke output build.
+  exit /b 1
+)
+
+if not exist "dist\LancarDinamicAdmin\openwa_server\node_modules" (
+  echo Dependency openwa_server belum ada. Menjalankan npm install...
+  pushd "openwa_server"
+  call "%BUNDLED_NPM_CMD%" install
+  if errorlevel 1 (
+    popd
+    echo npm install openwa_server gagal.
+    exit /b 1
+  )
+  popd
+  robocopy "openwa_server\node_modules" "dist\LancarDinamicAdmin\openwa_server\node_modules" /E >nul
+  if errorlevel 8 (
+    echo Gagal menyalin node_modules openwa_server.
+    exit /b 1
+  )
+)
+
+echo Bundling Node.js runtime...
+if exist "dist\LancarDinamicAdmin\node" rmdir /S /Q "dist\LancarDinamicAdmin\node"
+mkdir "dist\LancarDinamicAdmin\node"
+robocopy "tools\node" "dist\LancarDinamicAdmin\node" /E >nul
+if errorlevel 8 (
+  echo Gagal menyalin Node.js runtime.
   exit /b 1
 )
 
