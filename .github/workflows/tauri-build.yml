@@ -38,6 +38,19 @@ jobs:
         working-directory: openwa_server
         run: npm ci
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Create Python virtualenv
+        run: |
+          python -m venv .venv
+          .venv\Scripts\pip install --upgrade pip
+          .venv\Scripts\pip install -r requirements.txt
+          .venv\Scripts\pip install pyinstaller
+
       - name: Build Tauri App
         run: npm run tauri:build
         env:
