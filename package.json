@@ -12,7 +12,8 @@
     "tauri:stage-runtime": "powershell -ExecutionPolicy Bypass -File tools/stage-tauri-runtime.ps1",
     "tauri:build": "npm run build:assets && npm run tauri:stage-runtime && powershell -ExecutionPolicy Bypass -File tools/build-tauri-sidecar.ps1 && tauri build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "typecheck:services": "tsc -p tsconfig.json --noEmit --pretty false"
+    "typecheck:services": "tsc -p tsconfig.json --noEmit --pretty false",
+    "version:bump": "python tools/bump-version.py"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
