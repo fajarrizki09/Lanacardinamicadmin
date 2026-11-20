@@ -57,11 +57,24 @@ const CRM_LABELS = {
     dormant: "Lama Tidak Datang",
 };
 const CRM_MESSAGE_TEMPLATES = {
-    routine: "Reminder kontrol",
-    followup: "Follow-up kondisi pasien",
-    schedule: "Jadwal terapi rutin",
-    promo: "Promo/voucher",
-    friendly: "Sapaan netral ramah",
+    kontrol: "Kontrol rutin",
+    routine_polite: "Kontrol sopan",
+    routine_warm: "Kontrol hangat",
+    routine_short: "Kontrol singkat",
+    routine_neutral: "Kontrol netral",
+    routine_friendly: "Kontrol santai",
+    reaktivasi: "Aktifkan kembali",
+    reactivation_polite: "Aktifkan kembali",
+    reactivation_neutral: "Aktifkan kembali netral",
+    promo: "Promo / paket",
+    promo_polite: "Promo / paket",
+    promo_neutral: "Promo netral",
+    aftercare: "Aftercare",
+    aftercare_polite: "Aftercare",
+    aftercare_neutral: "Aftercare netral",
+    kondisi: "Cek kondisi",
+    kondisi_polite: "Cek kondisi (sopan)",
+    kondisi_neutral: "Cek kondisi (netral)",
     custom: "Custom"
 };
 let CRM_TAG_OPTIONS = { service: [], manual: [] };
@@ -719,7 +732,7 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                         <i class="fas fa-check"></i> Sudah Dihubungi
                                     </button>
                                 </div>
-                                <span class="crm-subtext">Pesan dikirim lewat WhatsApp Klinik. Jika belum login, buka tab WhatsApp dan scan QR.</span>
+                                <span class="crm-subtext">Pesan dibuka di WhatsApp Web browser. Pastikan sudah login di browser.</span>
                             </div>
                         </div>
                         <div class="crm-history-box crm-log-box">
@@ -1015,14 +1028,12 @@ async function saveCRMFollowupOutcome(patientId) {
     await renderCRM();
 }
 async function generateCRMMessage(patientId) {
-    const template = document.getElementById('crm-message-template')?.value || 'routine';
+    const template = document.getElementById('crm-message-template')?.value || 'kontrol';
     const textarea = document.getElementById('crm-generated-message');
     const btnWa = document.getElementById('crm-btn-open-wa');
     const promoWarning = document.getElementById('crm-whatsapp-promo-warning');
     const lockWarning = document.getElementById('crm-whatsapp-lock-warning');
     const patient = window._currentCRMPatient || {};
-    const clinicSettings = await ensureCRMClinicSettingsLoaded();
-    const clinicProfile = getCRMClinicMessageProfile(clinicSettings);
     // check permissions based on data tags
     const pref = patient?.contact_preference || {};
     const tags = patient?.tags || [];
@@ -1054,12 +1065,29 @@ async function generateCRMMessage(patientId) {
             promoWarning.classList.add('hidden');
         }
     }
-    let msg = buildCRMMessageTemplate(template, patient, clinicProfile);
     if (template === 'custom') {
-        msg = textarea && textarea.value && textarea.value !== 'Membuat pesan...' ? textarea.value : '';
+        if (textarea) {
+            textarea.value = textarea.value || '';
+        }
+        return;
     }
-    if (textarea && template !== 'custom') {
-        textarea.value = msg;
+    if (textarea) {
+        textarea.value = 'Membuat pesan...';
+    }
+    try {
+        const response = await fetch(`/crm/patient/${patientId}/message?template=${encodeURIComponent(template)}`);
+        if (!response.ok)
+            throw new Error('Gagal memuat template pesan');
+        const data = await response.json();
+        if (textarea) {
+            textarea.value = data.message || '';
+        }
+    }
+    catch (error) {
+        console.error('Gagal generate pesan:', error);
+        if (textarea) {
+            textarea.value = 'Gagal memuat pesan. Silakan coba lagi.';
+        }
     }
 }
 async function requestCRMWhatsAppLink(patientId, templateType, customMessage = '', overrideLock = false, markOpened = false) {
