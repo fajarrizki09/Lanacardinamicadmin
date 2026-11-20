@@ -530,7 +530,7 @@ function renderCRMRowCard(patient) {
                     <button type="button" class="btn btn-sm btn-outline crm-inline-contacted" data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}" title="Tandai sudah dihubungi">
                         <i class="fas fa-check"></i>
                     </button>
-                    <button type="button" class="btn btn-sm btn-wa crm-inline-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}" title="Kirim WhatsApp">
+                    <button type="button" class="btn btn-sm btn-wa crm-inline-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}" data-patient-template="kontrol" title="Kirim WhatsApp">
                         <i class="fab fa-whatsapp"></i>
                     </button>
                 </div>
@@ -1215,13 +1215,18 @@ async function openCRMWhatsAppLink(patientId, event) {
     const waBtn = document.getElementById('crm-btn-open-wa');
     if (waBtn?.disabled)
         return;
+    // Get the clicked element to read data-patient-phone
+    const clickedEl = event?.target;
+    const actionEl = clickedEl?.closest('[data-crm-action="open-whatsapp"]');
+    const inlinePhone = actionEl?.dataset?.patientPhone || '';
+    const inlineTemplate = actionEl?.dataset?.patientTemplate || '';
     const textarea = document.getElementById('crm-generated-message');
-    const message = normalizeCRMMessageText(textarea?.value || '');
+    let message = normalizeCRMMessageText(textarea?.value || '');
     const patient = window._currentCRMPatient || {};
     const pref = patient.contact_preference || {};
     const tags = patient.tags || [];
     const dontContact = pref.jangan_dihubungi || tags.some(t => t.value === 'jangan-dihubungi');
-    const phone = patient.phone;
+    const phone = inlinePhone || patient.phone;
     if (dontContact) {
         alert('Warning: Pasien ini memiliki preferensi JANGAN DIHUBUNGI.');
         return;
@@ -1229,6 +1234,23 @@ async function openCRMWhatsAppLink(patientId, event) {
     if (!phone || phone.length < 5) {
         alert('Nomor HP tidak valid.');
         return;
+    }
+    // If no message in textarea and no inline template, fetch from API
+    if (!message && inlineTemplate) {
+        try {
+            const response = await fetch(`/crm/patient/${patientId}/message?template=${encodeURIComponent(inlineTemplate)}`);
+            if (response.ok) {
+                const data = await response.json();
+                message = normalizeCRMMessageText(data.message || '');
+            }
+        }
+        catch (error) {
+            console.error('Gagal memuat template pesan:', error);
+        }
+    }
+    // If still no message, use a default
+    if (!message) {
+        message = 'Halo, ini admin klinik. Apakah ada yang bisa kami bantu?';
     }
     const digits = String(phone).replace(/\D/g, '');
     const chatId = digits.startsWith('62') ? digits : '62' + digits.replace(/^0/, '');

@@ -27,7 +27,6 @@ function ensureSettingsEventDelegation(): void {
                 setSettingsCategory(button.dataset.settingsCategory || 'profile');
                 break;
             case 'whatsapp-tab':
-                openSettingsWhatsAppTab();
                 break;
             case 'clear-logo':
                 clearClinicLogoPath();
@@ -896,13 +895,8 @@ function filterSettingsSections(rawQuery: string): void {
     }
 }
 
-function openSettingsWhatsAppTab(): void {
-    (document.querySelector('[data-tab="whatsapp-gateway"]') as HTMLElement | null)?.click();
-}
-
 window.setSettingsCategory = setSettingsCategory;
 window.filterSettingsSections = filterSettingsSections;
-window.openSettingsWhatsAppTab = openSettingsWhatsAppTab;
 
 async function uploadClinicLogo(input) {
     const result = document.getElementById('clinic-logo-result');
@@ -2195,3 +2189,6 @@ async function submitImport(event) {
         resultDiv.innerHTML = `<div style="padding:12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;"><i class="fas fa-times-circle"></i> Error: ${e.message}</div>`;
     }
 }
+
+
+

@@ -715,8 +715,7 @@ function updatePageHeader(target) {
         'owner-report': ['Laporan Owner', 'Ringkasan bisnis klinik dan performa pasien'],
         audit: ['Log Aktivitas', 'Riwayat perubahan dan aksi penting'],
         crm: ['Follow-up Pasien', 'Kategori pasien, WhatsApp, dan hasil follow-up'],
-        'whatsapp-gateway': ['WhatsApp Klinik', 'Login WhatsApp, cek akun, dan kirim follow-up'],
-        invoices: ['Manajemen Transaksi', 'Rekaman Tagihan Kunjungan & Penjualan Produk / Herbal'],
+        invoices: ['Manajemen Transaksi', 'Rekaman Tagihan Kunjungan & PenJUALAN Produk / Herbal'],
         vouchers: ['Voucher & Diskon', 'Kelola voucher, rule kunjungan, dan simulasi harga akhir'],
         settings: ['Pengaturan Sistem', 'Konfigurasi Klinik, Lisensi & Ekspor Data'],
         help: ['Bantuan', 'Panduan cepat, folder data, dan kontak bantuan'],
@@ -733,9 +732,8 @@ function updatePageHeader(target) {
             services: 'Operasional',
             inventory: 'Operasional',
             herbals: 'Operasional',
-            invoices: 'Operasional',
+invoices: 'Operasional',
             crm: 'Komunikasi',
-            'whatsapp-gateway': 'Komunikasi',
             analytics: 'Analisis',
             'owner-report': 'Analisis',
             vouchers: 'Analisis',
@@ -781,8 +779,6 @@ async function loadTab(tabName) {
             await renderVisits();
         } else if (tabName === 'crm') {
             await renderCRM();
-        } else if (tabName === 'whatsapp-gateway') {
-            await renderWhatsAppGateway();
         } else if (tabName === 'owner-report') {
             await renderOwnerReport();
         } else if (tabName === 'audit') {

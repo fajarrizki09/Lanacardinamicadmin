@@ -18,7 +18,6 @@ function ensureSettingsEventDelegation() {
                 setSettingsCategory(button.dataset.settingsCategory || 'profile');
                 break;
             case 'whatsapp-tab':
-                openSettingsWhatsAppTab();
                 break;
             case 'clear-logo':
                 clearClinicLogoPath();
@@ -896,12 +895,8 @@ function filterSettingsSections(rawQuery) {
         status.textContent = shown ? `${shown} kategori cocok untuk "${rawQuery}".` : `Tidak ada pengaturan yang cocok untuk "${rawQuery}".`;
     }
 }
-function openSettingsWhatsAppTab() {
-    document.querySelector('[data-tab="whatsapp-gateway"]')?.click();
-}
 window.setSettingsCategory = setSettingsCategory;
 window.filterSettingsSections = filterSettingsSections;
-window.openSettingsWhatsAppTab = openSettingsWhatsAppTab;
 async function uploadClinicLogo(input) {
     const result = document.getElementById('clinic-logo-result');
     const pathInput = document.getElementById('clinic-logo-path');

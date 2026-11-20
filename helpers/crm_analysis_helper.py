@@ -908,11 +908,13 @@ def _time_of_day_greeting() -> str:
     return "Selamat malam"
 
 
-def build_followup_message(row, template="kontrol", clinic_name="Lancar Dynamic Admin"):
+def build_followup_message(row, template="kontrol", clinic_name=None):
     template = template if template in MESSAGE_TEMPLATES else "kontrol"
     name = row.get("name") or "Bapak/Ibu"
     first_name = name.strip().split()[0] if name.strip() else "Bapak/Ibu"
     salutation = _patient_salutation(row)
+    if clinic_name is None:
+        clinic_name = _clinic_profile().get("clinic_name", "Lancar Dynamic Admin")
     clinic = (clinic_name or "Lancar Dynamic Admin").strip()
     service = row.get("top_service") or "terapi"
     last_visit = row.get("last_visit") or ""
