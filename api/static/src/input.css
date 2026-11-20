@@ -525,7 +525,7 @@
   }
 
   .settings-system-card form > input[type="hidden"] {
-    @apply hidden;
+    display: none;
   }
 
   .settings-form-section,
@@ -1211,7 +1211,7 @@
   }
 
   .visit-free-toggle .activation-copy small {
-    @apply hidden;
+    display: none;
   }
 
   .visit-free-toggle.is-off {
@@ -2010,7 +2010,8 @@
   }
 
   .patient-form-card {
-    @apply hidden h-fit border-t-[3px] border-t-primary;
+    display: none;
+    @apply h-fit border-t-[3px] border-t-primary;
   }
 
   .patient-form-card.is-visible {
@@ -2563,7 +2564,8 @@
   }
 
   .visit-panel-legacy {
-    @apply hidden min-w-[340px] w-[440px] shrink-0 flex-col p-0;
+    display: none;
+    @apply min-w-[340px] w-[440px] shrink-0 flex-col p-0;
   }
 
   .visit-panel-legacy-content {
@@ -4251,7 +4253,7 @@
     }
   }
 
-  @media (max-width: 720px) {
+@media (max-width: 720px) {
     .analytics-period-filter-premium {
       justify-content: flex-start;
     }
@@ -4266,5 +4268,381 @@
     .analytics-monitor-grid-spaced {
       grid-template-columns: 1fr;
     }
+  }
+}
+
+/* CRM Module Styles */
+.crm-toolbar {
+  @apply flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 mb-4 p-4 rounded-xl border border-app-border bg-white;
+}
+
+.crm-toolbar-left {
+  @apply flex flex-wrap gap-2;
+}
+
+.crm-toolbar-center {
+  @apply flex-1 flex justify-center;
+}
+
+.crm-toolbar-right {
+  @apply flex items-center gap-2;
+}
+
+.crm-search-wrapper {
+  @apply relative w-full max-w-md;
+}
+
+.crm-search-clear {
+  @apply absolute right-3 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-app-muted hover:text-app-text transition;
+}
+
+.crm-result-count {
+  @apply text-sm font-medium text-app-muted;
+}
+
+.crm-followup-list {
+  @apply flex flex-col gap-3;
+}
+
+.crm-followup-card {
+  @apply flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-app-border bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md;
+}
+
+.crm-patient-block {
+  @apply flex-1 min-w-0;
+}
+
+.crm-patient-name {
+  @apply font-semibold text-app-text truncate;
+}
+
+.crm-patient-phone {
+  @apply mt-1 text-sm text-app-muted;
+}
+
+.crm-patient-tags {
+  @apply mt-2 flex flex-wrap gap-1.5;
+}
+
+.crm-recommendation {
+  @apply mt-2 flex items-center gap-1.5 text-xs text-teal-700 bg-teal-50 px-2.5 py-1 rounded;
+}
+
+.crm-metric-block {
+  @apply flex flex-wrap items-center gap-2 md:order-2 md:w-auto w-full md:w-auto;
+}
+
+.crm-metric-chip {
+  @apply px-2.5 py-1 text-xs font-medium rounded-full bg-slate-100 text-app-text;
+}
+
+.crm-metric-chip.priority {
+  @apply bg-amber-50 text-amber-700 border border-amber-200;
+}
+
+.crm-revenue-chip {
+  @apply font-mono text-teal-700 bg-teal-50 border border-teal-100;
+}
+
+.crm-status-block {
+  @apply flex-1 min-w-0 md:w-[220px];
+}
+
+.crm-status-label-top {
+  @apply text-xs text-app-muted mb-1;
+}
+
+.crm-status-flex {
+  @apply flex items-center gap-2 flex-wrap;
+}
+
+.crm-next-date {
+  @apply mt-2 text-xs text-primary font-medium;
+}
+
+.crm-outcome-note {
+  @apply mt-2 text-xs text-app-muted;
+}
+
+.crm-action-block {
+  @apply flex flex-col md:flex-row items-stretch md:items-center gap-2 md:w-[180px];
+}
+
+.crm-inline-actions {
+  @apply flex gap-1.5;
+}
+
+.crm-inline-actions .btn {
+  @apply w-9 h-9 p-0;
+}
+
+.crm-detail-btn {
+  @apply flex-1;
+}
+
+.btn-sm {
+  @apply px-3 py-1.5 text-xs;
+}
+
+/* Collapsible sections in modal */
+.crm-collapsible {
+  @apply mb-3 border border-app-border rounded-lg bg-white overflow-hidden;
+}
+
+.crm-collapsible-header {
+  @apply w-full flex items-center justify-between gap-3 p-3 bg-slate-50 text-left font-medium text-app-text hover:bg-slate-100 transition;
+}
+
+.crm-collapsible-icon {
+  @apply text-app-muted transition-transform duration-200;
+}
+
+.crm-collapsible-content {
+  @apply p-3 border-t border-app-border;
+}
+
+.crm-collapsible-content.crm-collapsed {
+  display: none;
+}
+
+/* Modal improvements */
+.crm-modal {
+  @apply max-h-[90vh] overflow-y-auto;
+}
+
+.crm-followup-form-body {
+  @apply max-h-[calc(90vh-200px)] overflow-y-auto;
+}
+
+.crm-followup-layout {
+  @apply grid grid-cols-1 lg:grid-cols-2 gap-4;
+}
+
+.crm-followup-column {
+  @apply min-w-0;
+}
+
+.crm-form-row {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-3;
+}
+
+.crm-history-box {
+  @apply mb-4;
+}
+
+.crm-history-box h4 {
+  @apply mb-2 text-sm font-semibold text-app-text;
+}
+
+.crm-inline-state {
+  @apply flex items-center justify-center gap-2 py-6 text-app-muted;
+}
+
+.crm-inline-state.error {
+  @apply text-red-600;
+}
+
+.crm-history-list {
+  @apply flex flex-col gap-2;
+}
+
+.crm-history-item {
+  @apply p-3 rounded-lg border border-app-border bg-slate-50;
+}
+
+.crm-history-item > div {
+  @apply flex items-center justify-between gap-2;
+}
+
+.crm-history-empty {
+  @apply text-center py-4 text-app-muted text-sm;
+}
+
+.crm-message-log-list {
+  @apply flex flex-col gap-2;
+}
+
+.crm-outcome-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-3 mb-3;
+}
+
+.crm-outcome-note-textarea {
+  @apply mb-3;
+}
+
+.crm-outcome-actions {
+  @apply flex justify-end;
+}
+
+.crm-row-btn {
+  @apply w-auto;
+}
+
+.crm-modal-actions {
+  @apply mt-4 flex justify-end gap-2 border-t border-app-border pt-4;
+}
+
+.crm-modal-actions.crm-followup-save-row {
+  @apply border-0 pt-0;
+}
+
+.crm-voucher-tools {
+  @apply space-y-3;
+}
+
+.crm-voucher-row {
+  @apply flex flex-col md:flex-row gap-2;
+}
+
+.crm-voucher-create-row {
+  @apply flex flex-wrap items-end gap-2;
+}
+
+.crm-voucher-create-row select,
+.crm-voucher-create-row input {
+  @apply flex-1 min-w-[140px];
+}
+
+.crm-voucher-confirm-wrap {
+  @apply flex items-center gap-2 text-sm text-app-muted;
+}
+
+.crm-subtext {
+  @apply text-xs text-app-muted;
+}
+
+.crm-checkbox-grid {
+  @apply flex flex-wrap gap-2;
+}
+
+.crm-checkbox-pill {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-app-border bg-white text-sm cursor-pointer hover:border-primary-light hover:bg-teal-50 transition;
+}
+
+.crm-checkbox-pill input {
+  @apply w-4 h-4 accent-primary;
+}
+
+.crm-custom-tags-input {
+  @apply mt-2;
+}
+
+.crm-checkbox-line {
+  @apply flex items-center gap-2 text-sm;
+}
+
+.crm-checkbox-line.danger {
+  @apply text-red-600;
+}
+
+.crm-warning {
+  @apply mb-3 flex items-center gap-2 px-3 py-2 rounded-lg text-sm;
+}
+
+.crm-warning.hidden {
+  display: none;
+}
+
+.crm-warning i {
+  @apply text-amber-500;
+}
+
+#crm-whatsapp-lock-warning {
+  @apply border-red-200 bg-red-50 text-red-700;
+}
+
+#crm-whatsapp-promo-warning {
+  @apply border-amber-200 bg-amber-50 text-amber-700;
+}
+
+.whatsapp-template-row {
+  @apply flex gap-2 mb-2;
+}
+
+.whatsapp-template-row select {
+  @apply flex-1;
+}
+
+.btn-action {
+  @apply w-auto whitespace-nowrap;
+}
+
+.whatsapp-message-textarea {
+  @apply w-full min-h-[100px] mb-2;
+}
+
+.whatsapp-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+.crm-followup-action-row {
+  @apply flex flex-wrap gap-2;
+}
+
+.crm-wa-btn {
+  @apply flex-1 md:w-auto;
+}
+
+.crm-refresh-btn {
+  @apply flex h-9 w-9 items-center justify-center rounded-md border border-app-border bg-white text-app-muted hover:border-primary-light hover:bg-teal-50 hover:text-primary transition;
+}
+
+.crm-refresh-btn i {
+  @apply text-lg;
+}
+
+.stats-grid.crm-stats {
+  @apply grid-cols-2 md:grid-cols-5 gap-3;
+}
+
+.crm-panel {
+  @apply mb-0;
+}
+
+.crm-toolbar-compact {
+  @apply p-3;
+}
+
+.crm-toolbar-compact .crm-toolbar-left {
+  @apply flex-1;
+}
+
+.crm-toolbar-compact .crm-toolbar-center {
+  @apply w-full md:w-auto;
+}
+
+.crm-toolbar-compact .crm-toolbar-right {
+  @apply md:w-auto;
+}
+
+@media (max-width: 768px) {
+  .crm-toolbar {
+    @apply flex-col;
+  }
+  
+  .crm-toolbar-left,
+  .crm-toolbar-center,
+  .crm-toolbar-right {
+    @apply w-full justify-center;
+  }
+  
+  .crm-followup-card {
+    @apply flex-col items-stretch;
+  }
+  
+  .crm-metric-block {
+    @apply order-3 w-full justify-center;
+  }
+  
+  .crm-action-block {
+    @apply w-full md:w-auto;
+  }
+  
+  .crm-inline-actions {
+    @apply justify-center;
+  }
+  
+  .stats-grid.crm-stats {
+    @apply grid-cols-2;
   }
 }
