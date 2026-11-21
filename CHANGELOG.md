@@ -1,5 +1,30 @@
 # Catatan Perubahan
 
+## 2026-11-21 - UI/UX Polish Halaman Layanan Terapi (v1.7.49)
+
+**🟡 UI/UX IMPROVEMENTS - LAYANAN TERAPI**
+
+### Perbaiki Header Overlap
+- **FIXED:** Header halaman Layanan Terapi tidak lagi menutupi konten. Ditambahkan `padding-top` pada container layanan dan tata letak header yang rapi dengan `flex-wrap`.
+- File: `api/static/modules/services.js`, `api/static/style.css`
+
+### Kartu Layanan Konsisten
+- **ADDED:** Tinggi kartu seragam dengan `display: flex; flex-direction: column; height: 100%` dan `overflow: hidden`.
+- **ADDED:** Padding dan spacing yang konsisten pada seluruh kartu.
+- **ADDED:** Ukuran tombol Edit, Nonaktifkan, dan Hapus yang sama (height 36px, padding simetris).
+- **ADDED:** Harga sebagai informasi visual utama dengan font besar dan bold.
+- File: `api/static/style.css`, `api/static/modules/services.js`
+
+### Filter dan Daftar
+- **IMPROVED:** Tab Aktif, Nonaktif, Semua dengan badge jumlah yang konsisten dan styling yang rapi.
+- **IMPROVED:** Jarak antara judul daftar, tombol tambah, filter, dan grid yang diatur dengan gap yang konsisten.
+- File: `api/static/style.css`, `api/static/modules/services.js`
+
+### Responsive Grid
+- **ADDED:** Grid 3 kolom pada desktop, 2 kolom pada tablet (<=1024px), 1 kolom pada mobile (<=640px).
+- **ADDED:** Hindari horizontal overflow pada layar kecil.
+- File: `api/static/style.css`
+
 ## 2026-11-21 - License Lifetime Regression Fixes (v1.7.48 beta)
 
 **🔴 CRITICAL PRIORITY LICENSE REGRESSION FIXES**
