@@ -273,6 +273,9 @@ class BrowserApp(QMainWindow):
         self._profile.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalStorageEnabled, True
         )
+        self._profile.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True
+        )
 
         self._page = CustomWebPage(self._profile, self)
         self.browser = QWebEngineView(self)

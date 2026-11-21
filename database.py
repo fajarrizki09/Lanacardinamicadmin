@@ -1937,7 +1937,7 @@ class Database(AuditMixin, PatientMixin, TherapistMixin, ServiceMixin, HerbalMix
         if rule.type == "visit_count":
             threshold = int(rule.condition_value or 0)
             next_visit_number = visit_count + 1
-            return threshold > 0 and next_visit_number % threshold == 0
+            return threshold > 0 and next_visit_number >= threshold
         if rule.type == "voucher":
             code_matches = bool(voucher_code) and str(rule.voucher_code or "").strip().lower() == str(voucher_code).strip().lower()
             if not code_matches:
