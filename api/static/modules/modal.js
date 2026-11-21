@@ -91,7 +91,7 @@ function initModals() {
                 </div>
 
                 <!-- BODY -->
-                <div style="padding:24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:20px;">
+                <div style="padding:24px; overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:20px;">
                     <div id="fe-result" style="display:none; padding:12px; border-radius:8px; font-size:13px; font-weight:500;"></div>
                     
                     <input type="hidden" id="fe-id">
@@ -124,13 +124,14 @@ function initModals() {
                         </div>
                     </div>
                     
-                    <div style="text-align:right;">
-                        <button type="button" data-modal-action="delete-patient"
-                                style="background:none; border:none; color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline;">
-                            <i class="fas fa-trash-alt"></i> Hapus Pasien Secara Permanen
-                        </button>
-                    </div>
+                </div>
 
+                <!-- FOOTER (always visible, not covered by scroll) -->
+                <div style="display:flex; justify-content:flex-end; gap:8px; padding:12px 24px; border-top:1px solid var(--color-border); background:var(--color-surface-muted); flex-shrink:0;">
+                    <button type="button" data-modal-action="delete-patient"
+                            style="background:none; border:none; color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline;">
+                        <i class="fas fa-trash-alt"></i> Hapus Pasien Secara Permanen
+                    </button>
                 </div>
             </div>
         </div>

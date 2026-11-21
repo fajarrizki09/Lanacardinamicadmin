@@ -1,5 +1,15 @@
 # Catatan Perubahan
 
+## 2026-11-21 - Perbaiki Scroll Edit Pasien & Riwayat Kunjungan (v1.7.50)
+
+**🔴 CRITICAL PRIORITY UI FIX - EDIT PASIEN SCROLL**
+
+### Edit Pasien Tidak Bisa Di-Scroll
+- **FIXED:** Modal Edit Pasien & Riwayat Kunjungan tidak bisa di-scroll ke bawah. Entri riwayat kunjungan dan tombol Hapus Pasien terpotong, tidak terjangkau.
+- **FIXED:** Struktur layout modal diubah menjadi tiga area: HEADER (flex-shrink:0), CONTENT (flex:1, min-height:0, overflow-y:auto), FOOTER (flex-shrink:0). Tombol Hapus Pasien selalu terlihat di bagian bawah.
+- **FIXED:** Ditambahkan `min-height: 0` pada area konten agar flexbox bisa menyusutkan tinggi body dan mengaktifkan scrollbar internal saat konten melebihi ruang yang tersedia.
+- File: `api/static/modules/modal.js`
+
 ## 2026-11-21 - UI/UX Polish Halaman Layanan Terapi (v1.7.49)
 
 **🟡 UI/UX IMPROVEMENTS - LAYANAN TERAPI**
