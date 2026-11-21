@@ -9,6 +9,17 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 
+# Windows reserved names
+_WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+}
+
+# Control characters (0-31) + DEL (127)
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+
+
 GREEN = colors.HexColor("#178060")
 DARK = colors.HexColor("#1f2933")
 MUTED = colors.HexColor("#5b6670")
@@ -35,9 +46,18 @@ class InvoiceHelper:
     @staticmethod
     def safe_filename(value, fallback="Pasien"):
         text = str(value or "").strip()
+        # Remove control characters
+        text = _CONTROL_CHARS.sub("", text)
+        # Remove path separators and other unsafe chars
         text = re.sub(r'[\\/:\*\?"<>\|]+', "", text)
+        # Normalize whitespace
         text = re.sub(r"\s+", "_", text)
         text = re.sub(r"_+", "_", text).strip("._ ")
+        # Avoid Windows reserved names
+        upper = text.upper()
+        if upper in _WINDOWS_RESERVED:
+            text = f"{text}_"
+        # Ensure not empty
         return text or fallback
 
     @staticmethod

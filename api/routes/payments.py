@@ -308,7 +308,8 @@ def get_gateway_status(request: Request, payment_reference: str, simulate: str =
 @router.get("/gateway/pay/{payment_reference}", response_class=HTMLResponse)
 @router.get("/gateway/mock/pay/{payment_reference}", response_class=HTMLResponse)
 def mock_payment_page(payment_reference: str):
-    safe_reference = str(payment_reference or "").strip()
+    import html
+    safe_reference = html.escape(str(payment_reference or "").strip())
     return f"""
     <!doctype html>
     <html lang="id">
