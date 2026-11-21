@@ -75,12 +75,12 @@ function initModals() {
         <div id="full-edit-modal"
              style="display:none; position:fixed; inset:0; z-index:9999;
                     background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);
-                    align-items:center; justify-content:center;">
-            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height:90vh; display:flex; flex-direction:column;
-                        box-shadow:0 24px 64px rgba(0,0,0,0.3); animation:modalIn 0.2s ease; overflow:hidden;">
+                    align-items:flex-start; justify-content:center; padding-top: 3vh;">
+            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height:calc(100vh - 6vh); display:flex; flex-direction:column;
+                        box-shadow:0 24px 64px rgba(0,0,0,0.3); animation:modalIn 0.2s ease;">
                 
                 <!-- HEADER -->
-                <div class="runtime-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border);">
+                <div class="runtime-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border); flex-shrink:0;">
                     <h3 style="font-size:18px; font-weight:700; margin:0; color:var(--text-main);">
                         <i class="fas fa-user-edit" style="color:var(--primary); margin-right:8px;"></i> Edit Pasien & Riwayat Kunjungan
                     </h3>
@@ -114,25 +114,26 @@ function initModals() {
                     </div>
 
 <!-- Visits Section -->
-                    <div class="card" style="margin:0; padding:0; overflow:hidden;">
+                    <div class="card" style="margin:0; padding:0;">
                         <div class="runtime-modal-header" style="padding:14px 18px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; align-items:center;">
                             <h4 style="margin:0; font-size:14px; color:var(--text-main);">
                                 <i class="fas fa-history" style="color:var(--text-muted); margin-right:6px;"></i> Riwayat Kunjungan
                             </h4>
                             <span id="fe-visit-count" style="font-size:12px; color:var(--color-text-muted); font-weight:600; background:var(--color-surface-raised); padding:3px 8px; border-radius:12px;"></span>
                         </div>
-                        <div id="fe-visits-container" style="padding:10px;">
+                        <div id="fe-visits-container" style="max-height:360px; overflow-y:auto; padding:10px;">
                             <!-- Injected by JS -->
                         </div>
                     </div>
-                    
-                    <div style="text-align:right;">
-                        <button type="button" data-modal-action="delete-patient"
-                                style="background:none; border:none; color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline;">
-                            <i class="fas fa-trash-alt"></i> Hapus Pasien Secara Permanen
-                        </button>
-                    </div>
 
+                </div>
+
+                <!-- FOOTER (always visible, not covered by scroll) -->
+                <div style="display:flex; justify-content:flex-end; gap:8px; padding:12px 24px; border-top:1px solid var(--color-border); background:var(--color-surface-muted); flex-shrink:0;">
+                    <button type="button" data-modal-action="delete-patient"
+                            style="background:none; border:none; color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline;">
+                        <i class="fas fa-trash-alt"></i> Hapus Pasien Secara Permanen
+                    </button>
                 </div>
             </div>
         </div>
