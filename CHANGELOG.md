@@ -1,5 +1,18 @@
 # Catatan Perubahan
 
+## 2026-11-21 - Perbaiki Scroll Edit Pasien & Riwayat Kunjungan (v1.7.52)
+
+**🔴 CRITICAL PRIORITY UI FIX - EDIT PASIEN SCROLL (REVISI)**
+
+### Edit Pasien Masih Tidak Bisa Di-Scroll
+- **FIXED:** Modal Edit Pasien & Riwayat Kunjungan masih tidak bisa di-scroll ke bawah setelah perbaikan v1.7.50.
+- **FIXED:** Menghapus `overflow:hidden` pada panel modal yang mencegah scrollbar internal berfungsi.
+- **FIXED:** Mengubah `align-items:center` menjadi `align-items:flex-start` dengan `padding-top: 3vh` pada outer modal agar panel tidak ter-clip saat dikembangkan vertikal.
+- **FIXED:** `max-height` panel diubah dari `90vh` ke `calc(100vh - 6vh)` untuk menyesuaikan padding.
+- Konten body tetap `flex:1; min-height:0; overflow-y:auto` agar area riwayat kunjungan dapat di-scroll.
+- Footer dengan tombol Hapus Pasien tetap terlihat di bagian bawah (`flex-shrink:0`).
+- File: `api/static/modules/modal.js`
+
 ## 2026-11-21 - Perbaiki Diskon Kunjungan Kelipatan Threshold (v1.7.51)
 
 **🔴 CRITICAL PRIORITY BUG FIX - DISKON KUNJUNGAN**

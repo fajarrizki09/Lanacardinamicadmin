@@ -73,9 +73,9 @@ function initModals() {
         <div id="full-edit-modal"
              style="display:none; position:fixed; inset:0; z-index:9999;
                     background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);
-                    align-items:center; justify-content:center;">
-            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height:90vh; display:flex; flex-direction:column;
-                        box-shadow:0 24px 64px rgba(0,0,0,0.3); animation:modalIn 0.2s ease; overflow:hidden;">
+                    align-items:flex-start; justify-content:center; padding-top: 3vh;">
+            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height: calc(100vh - 6vh); display:flex; flex-direction:column;
+                        box-shadow:0 24px 64px rgba(0,0,0,0.3); animation:modalIn 0.2s ease;">
                 
                 <!-- HEADER -->
                 <div class="runtime-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border);">
