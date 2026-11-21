@@ -93,7 +93,7 @@ function initModals() {
                 </div>
 
                 <!-- BODY -->
-                <div style="padding:24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:20px;">
+                <div style="padding:24px; overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:20px;">
                     <div id="fe-result" style="display:none; padding:12px; border-radius:8px; font-size:13px; font-weight:500;"></div>
                     
                     <input type="hidden" id="fe-id">
@@ -113,7 +113,7 @@ function initModals() {
                         </div>
                     </div>
 
-                    <!-- Visits Section -->
+<!-- Visits Section -->
                     <div class="card" style="margin:0; padding:0; overflow:hidden;">
                         <div class="runtime-modal-header" style="padding:14px 18px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; align-items:center;">
                             <h4 style="margin:0; font-size:14px; color:var(--text-main);">
@@ -121,7 +121,7 @@ function initModals() {
                             </h4>
                             <span id="fe-visit-count" style="font-size:12px; color:var(--color-text-muted); font-weight:600; background:var(--color-surface-raised); padding:3px 8px; border-radius:12px;"></span>
                         </div>
-                        <div id="fe-visits-container" style="max-height:360px; overflow-y:auto; padding:10px;">
+                        <div id="fe-visits-container" style="padding:10px;">
                             <!-- Injected by JS -->
                         </div>
                     </div>
