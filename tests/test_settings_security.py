@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,7 +34,7 @@ SENSITIVE_KEYS = {
 
 class TestSettingsSecurity(unittest.TestCase):
     def test_default_settings_path_prefers_appdata_runtime_store(self):
-        with patch.dict(os.environ, {"APPDATA": r"C:\Users\Test\AppData\Roaming"}):
+        with patch("helpers.secure_settings.get_app_data_dir", return_value=r"C:\Users\Test\AppData\Roaming\LancarDinamicAdmin"):
             from helpers.secure_settings import get_settings_path
 
             self.assertEqual(

@@ -40,9 +40,6 @@ class SecureSettingsError(Exception):
 
 
 def get_settings_path() -> str:
-    appdata = os.getenv("APPDATA")
-    if appdata:
-        return os.path.join(appdata, "LancarDinamicAdmin", "settings.json")
     return os.path.join(get_app_data_dir(), "settings.json")
 
 
