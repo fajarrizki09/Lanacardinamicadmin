@@ -1,0 +1,58 @@
+name: Auto Tag on Version Bump
+
+on:
+  push:
+    branches: [main, codex-p1-secure-settings]
+    paths:
+      - 'version.py'
+      - 'version.iss'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/tauri.conf.json'
+      - 'src-tauri/src/main.rs'
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    name: Create version tag
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read new version from version.py
+        id: version
+        run: |
+          VERSION=$(grep -oP 'APP_VERSION = "\K[\d.]+' version.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag ${{ steps.version.outputs.tag }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+          echo "Created and pushed tag ${{ steps.version.outputs.tag }}"
+
+      - name: Skip (tag exists)
+        if: steps.check_tag.outputs.exists == 'true'
+        run: echo "Tag already exists, skipping"
