@@ -1,5 +1,15 @@
 # Catatan Perubahan
 
+## 2026-11-21 - Perbaiki Diskon Kunjungan Kelipatan Threshold (v1.7.51)
+
+**🔴 CRITICAL PRIORITY BUG FIX - DISKON KUNJUNGAN**
+
+### Diskon Terlalu Dini (Setiap Kunjungan Setelah Threshold)
+- **FIXED:** Aturan diskon tipe `visit_count` menggunakan `>= threshold`, sehingga diskon diberikan pada setiap kunjungan setelah ambang batas tercapai (contoh: kunjungan 6, 7, 8 juga dapat diskon setelah ambang 5).
+- **FIXED:** Diubah ke `next_visit_number % threshold == 0`, sehingga diskon hanya diberikan pada kunjungan yang merupakan kelipatan threshold (5, 10, 15, dst.) sesuai pengaturan `condition_value` admin (bisa 4, 5, atau angka lain).
+- File: `database.py`
+- Test: `tests/test_patients.py` — `test_visit_count_discount_only_on_multiple_of_threshold`
+
 ## 2026-11-21 - Perbaiki Scroll Edit Pasien & Riwayat Kunjungan (v1.7.50)
 
 **🔴 CRITICAL PRIORITY UI FIX - EDIT PASIEN SCROLL**

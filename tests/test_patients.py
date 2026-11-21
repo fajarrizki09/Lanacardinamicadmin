@@ -710,6 +710,64 @@ class TestPatientApi(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("sudah terdaftar", response.json()["detail"])
 
+    def test_visit_count_discount_only_on_multiple_of_threshold(self):
+        """Diskon kunjungan hanya pada kunjungan kelipatan threshold (mis. 5, 10, 15...), bukan >= threshold."""
+        rule_name = "Diskon Kelipatan 5 Kunjungan"
+        db.add_discount_rule({
+            "name": rule_name,
+            "type": "visit_count",
+            "condition_value": 5,
+            "discount_type": "percent",
+            "discount_value": 10,
+            "is_active": True,
+            "priority": -900,
+        })
+        patient_id = db.add_patient("Pasien Kelipatan Diskon", "081234567900", gender="Laki-laki")
+
+        # Tambahkan 4 kunjungan lama agar kunjungan berikutnya adalah ke-5
+        for _ in range(4):
+            db.add_visit(patient_id, price=100000, point_count=1, service_name="Terapi")
+
+        # Kunjungan ke-5 (DB visit_count=4): 4+1=5, 5%5==0 → MY rule harus dapat diskon
+        response = self.client.get(
+            f"/discount_rules/simulate?price=100000&patient_id={patient_id}",
+            headers=app_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        selected = response.json()["selected"]
+        self.assertEqual(selected["name"], rule_name, "Kunjungan ke-5 harus dipilih rule diskon saya")
+        self.assertEqual(selected["final_price"], 90000)
+
+        # Tambahkan kunjungan ke-5 agar DB visit_count=5, kunjungan berikutnya ke-6
+        db.add_visit(patient_id, price=100000, point_count=1, service_name="Terapi")
+
+        # Kunjungan ke-6 (DB visit_count=5): 5+1=6, 6%5!=0 → MY rule tidak boleh dipilih
+        response = self.client.get(
+            f"/discount_rules/simulate?price=100000&patient_id={patient_id}",
+            headers=app_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        selected = response.json()["selected"]
+        self.assertNotEqual(
+            selected["name"] if selected else None,
+            rule_name,
+            "Kunjungan ke-6 tidak boleh dipilih rule diskon saya (6 bukan kelipatan 5)",
+        )
+
+        # Tambahkan kunjungan ke-6,7,8,9 agar DB visit_count=9, kunjungan berikutnya ke-10
+        for _ in range(4):
+            db.add_visit(patient_id, price=100000, point_count=1, service_name="Terapi")
+
+        # Kunjungan ke-10 (DB visit_count=9): 9+1=10, 10%5==0 → MY rule harus dapat diskon
+        response = self.client.get(
+            f"/discount_rules/simulate?price=100000&patient_id={patient_id}",
+            headers=app_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        selected = response.json()["selected"]
+        self.assertEqual(selected["name"], rule_name, "Kunjungan ke-10 harus dipilih rule diskon saya")
+        self.assertEqual(selected["final_price"], 90000)
+
 
 if __name__ == "__main__":
     unittest.main()
