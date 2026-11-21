@@ -334,7 +334,7 @@ def _is_cached_license_unexpired(settings: dict) -> bool:
         return datetime.now() <= expiry
 
     status = str(settings.get("license_status") or "").lower().strip()
-    return status in {"active", "ok", "valid"}
+    return status in {"active", "ok", "valid", "lifetime", "permanent"}
 
 def _is_local_time_before_last_server_time(settings: dict) -> bool:
     last_server_time = _parse_server_time(settings.get("last_server_time"))
@@ -576,7 +576,8 @@ def _extract_license_response(result: dict) -> tuple[bool, dict, str]:
         or data_valid is False
     )
     explicit_valid = root_valid is True or data_valid is True
-    is_valid = bool(explicit_valid and not explicit_failure)
+    status_is_active = status in {"active", "ok", "valid", "lifetime", "permanent"}
+    is_valid = bool((explicit_valid or status_is_active) and not explicit_failure)
 
     if is_valid and expired_at_str:
         expiry = _parse_expiry_datetime(expired_at_str)

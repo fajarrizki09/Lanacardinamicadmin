@@ -130,11 +130,7 @@ def _decrypt_settings(settings: dict) -> tuple[dict, bool]:
             corrupt = True
 
     if corrupt:
-        for field in ENCRYPTED_FIELDS:
-            result.pop(field, None)
-        result["last_license_valid"] = False
-        result["last_license_check"] = 0
-        result["last_online_valid_at"] = 0
+        result["last_license_error"] = "Beberapa data aktivasi perlu diverifikasi ulang."
 
     return result, corrupt
 
@@ -177,11 +173,8 @@ def load_settings(file_path: str = None) -> dict:
             settings.update(runtime_settings)
 
             if corrupt:
-                # If settings are corrupt (e.g. key changed), we mark for re-verification
+                # Mark for re-verification; individual corrupt fields already removed by _decrypt_settings
                 settings["last_license_error"] = "Data aktivasi lama perlu diverifikasi ulang."
-                settings["last_license_valid"] = False
-                settings["last_license_check"] = 0
-                settings["last_online_valid_at"] = 0
     except Exception:
         # Emergency fallback for totally invalid file structure
         for field in SENSITIVE_FIELDS:

@@ -27,12 +27,24 @@ from helpers.license import (
 
 
 class TestLicenseParserHardening(unittest.TestCase):
-    def test_status_active_without_explicit_valid_is_invalid(self):
+    def test_status_active_without_explicit_valid_is_valid(self):
         is_valid, data, message = _extract_license_response({"status": "active"})
 
-        self.assertFalse(is_valid)
+        self.assertTrue(is_valid)
         self.assertEqual(data["status"], "active")
-        self.assertEqual(message, LICENSE_ERROR_MESSAGE)
+        self.assertEqual(message, "License valid.")
+
+    def test_status_lifetime_without_explicit_valid_is_valid(self):
+        is_valid, data, message = _extract_license_response({"status": "lifetime"})
+
+        self.assertTrue(is_valid)
+        self.assertEqual(data["status"], "lifetime")
+
+    def test_status_permanent_without_explicit_valid_is_valid(self):
+        is_valid, data, message = _extract_license_response({"status": "permanent"})
+
+        self.assertTrue(is_valid)
+        self.assertEqual(data["status"], "permanent")
 
     def test_root_valid_false_overrides_active_status(self):
         result = {"ok": True, "valid": False, "status": "active"}

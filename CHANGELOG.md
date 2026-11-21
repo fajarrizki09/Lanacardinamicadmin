@@ -1,5 +1,23 @@
 # Catatan Perubahan
 
+## 2026-11-21 - License Lifetime Regression Fixes (v1.7.48 beta)
+
+**🔴 CRITICAL PRIORITY LICENSE REGRESSION FIXES**
+
+### Lifetime License Inactive After Update
+- **FIXED:** `_extract_license_response` now treats `status` values `active`, `ok`, `valid`, `lifetime`, `permanent` as valid even without explicit `valid: true` field. Previously, lifetime licenses returning `status: active` without `valid: true` were rejected, causing regression after app update.
+- **FIXED:** `_is_cached_license_unexpired` now treats `lifetime` and `permanent` statuses as unexpired, allowing lifetime licenses to pass cache validation without an expiry date.
+- File: `helpers/license.py`
+
+### License Suddenly Inactive While App Running
+- **FIXED:** `secure_settings._decrypt_settings` no longer wipes ALL encrypted fields when a single field fails decryption. Only the corrupt field is removed, preventing total license data loss when device key changes.
+- **FIXED:** `secure_settings.load_settings` no longer auto-invalidates `last_license_valid` on settings corruption; verification handles invalidation naturally.
+- File: `helpers/secure_settings.py`
+
+### Tests
+- Updated `test_status_active_without_explicit_valid_is_invalid` → now expects valid=True for status-based licenses
+- Added `test_status_lifetime_without_explicit_valid_is_valid` and `test_status_permanent_without_explicit_valid_is_valid`
+
 ## 2026-05-21 - Medium Priority Bug Fixes Phase 3
 
 **🟠 MEDIUM PRIORITY DATA SAFETY & PERFORMANCE**
