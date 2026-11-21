@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM"
+    ],
+    "module": "ES2020",
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": [
+    "types/**/*.d.ts",
+    "types/**/*.ts",
+    "api/static/ts/**/*.ts",
+    "api/static/ts/app.ts"
+  ]
+}

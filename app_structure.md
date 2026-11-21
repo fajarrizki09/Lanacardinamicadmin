@@ -32,3 +32,28 @@
 
 ---
 *Status: Arsitektur Modular, State-Managed, dan Optimized.*
+
+## Arah Penguatan Struktur
+
+Fokus penguatan aplikasi adalah merapikan struktur dan menambah fitur operasional, bukan memindahkan bahasa atau framework.
+
+- Rapikan struktur folder agar setiap bagian aplikasi mudah ditemukan dan dirawat.
+- Pisahkan tanggung jawab utama menjadi database, UI, helper, viewmodel, thread/background task, dan utilitas.
+- Perkuat `database.py` atau pecah bertahap jika logic database sudah terlalu besar.
+- Pastikan UI hanya mengurus tampilan dan event pengguna, bukan query database langsung.
+- Pastikan viewmodel menjadi penghubung antara UI dan database untuk pasien, kunjungan, terapis, stok, herbal, invoice, dan laporan.
+- Simpan helper untuk pekerjaan pendukung seperti backup, import/export, invoice, PDF, Excel, dan format data.
+- Tambahkan backup otomatis yang jelas jadwalnya, lokasi simpannya, dan rotasi file lamanya.
+- Tambahkan export laporan PDF dan Excel untuk data penting.
+- Tambahkan validasi stok alat dan herbal sebelum transaksi keluar, agar stok tidak minus atau data tidak rancu.
+- Tambahkan laporan pasien dan kunjungan yang mudah difilter berdasarkan periode, pasien, terapis, dan jenis transaksi.
+
+## Target Modul/Fitur Berikutnya
+
+- `helpers/backup_helper.py`: backup otomatis, rotasi backup, dan pesan status backup.
+- `helpers/export_helper.py`: export laporan PDF dan Excel.
+- `viewmodels/inventory_store.py`: validasi stok alat dan herbal sebelum perubahan stok.
+- `viewmodels/visit_view_model.py`: laporan kunjungan, filter periode, dan ringkasan transaksi.
+- `database.py`: query laporan pasien, kunjungan, stok kritis, transaksi herbal, dan invoice.
+- `api/static/modules/dashboard.js`: ringkasan dashboard admin berbasis data backend.
+- `api/routes/analytics.py`: endpoint laporan dan statistik.

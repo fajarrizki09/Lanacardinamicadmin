@@ -1,0 +1,17 @@
+{
+  "name": "lancar-openwa-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local Baileys WhatsApp Web gateway for Lancar Dynamic Admin",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "cors": "latest",
+    "express": "latest",
+    "pino": "latest",
+    "qrcode": "latest"
+  }
+}

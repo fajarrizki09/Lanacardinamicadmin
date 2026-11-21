@@ -1,0 +1,65 @@
+"use strict";
+(() => {
+    function toDate(value) {
+        const text = String(value || '').trim();
+        if (!text)
+            return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+            const [year, month, day] = text.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        const date = new Date(text);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    function currency(amount) {
+        const value = Number(amount || 0);
+        const safeValue = Number.isFinite(value) ? Math.round(value) : 0;
+        return `Rp ${safeValue.toLocaleString('id-ID')}`;
+    }
+    function date(value, fallback = '-') {
+        const parsed = toDate(value);
+        if (!parsed)
+            return fallback;
+        return parsed.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
+    }
+    function dateTime(value, fallback = '-') {
+        const parsed = toDate(value);
+        if (!parsed)
+            return fallback;
+        return parsed.toLocaleString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    }
+    function status(value, fallback = '-') {
+        const text = String(value || '').trim().toLowerCase();
+        const map = {
+            active: { label: 'Aktif', tone: 'success' },
+            inactive: { label: 'Nonaktif', tone: 'muted' },
+            paid: { label: 'Lunas', tone: 'success' },
+            unpaid: { label: 'Belum Bayar', tone: 'warning' },
+            partial: { label: 'DP / Sebagian', tone: 'warning' },
+            refunded: { label: 'Refund', tone: 'danger' },
+            void: { label: 'Void', tone: 'danger' },
+            success: { label: 'Berhasil', tone: 'success' },
+            error: { label: 'Error', tone: 'danger' },
+            pending: { label: 'Pending', tone: 'warning' },
+        };
+        if (map[text])
+            return map[text];
+        return { label: text ? text.replace(/_/g, ' ') : fallback, tone: 'info' };
+    }
+    window.LancarFormatters = {
+        currency,
+        date,
+        dateTime,
+        status,
+    };
+})();

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "none",
+    "ignoreDeprecations": "6.0",
+    "rootDir": "api/static/ts",
+    "outDir": "api/static/modules",
+    "strict": false,
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": [
+    "api/static/ts/**/*.ts",
+    "types/admin-globals.d.ts"
+  ]
+}

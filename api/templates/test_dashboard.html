@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Dashboard</title>
+    <link rel="stylesheet" href="/static/vendor/css/inter.css">
+    <link rel="stylesheet" href="/static/vendor/css/all.min.css">
+    <link rel="stylesheet" href="/static/tailwind.css">
+    <link rel="stylesheet" href="/static/components.css">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body style="padding: 2rem; background: #f3f4f6;">
+    <h1 style="margin-bottom: 2rem;">Test Dashboard Stats Cards</h1>
+    
+    <div class="dashboard-stats">
+        <div class="card-stats card-stats-hover">
+            <div class="card-stats-icon bg-info">
+                <i class="fas fa-user-injured"></i>
+            </div>
+            <div class="card-stats-content">
+                <div class="card-stats-label">Total Pasien</div>
+                <div class="card-stats-value">320</div>
+                <div class="card-stats-trend">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Semua pasien terdaftar</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-stats card-stats-hover">
+            <div class="card-stats-icon bg-primary">
+                <i class="fas fa-stethoscope"></i>
+            </div>
+            <div class="card-stats-content">
+                <div class="card-stats-label">Total Transaksi</div>
+                <div class="card-stats-value">1,245</div>
+                <div class="card-stats-trend">
+                    <span class="badge badge-info">890 kunjungan</span>
+                    <span class="badge badge-success">355 herbal</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-stats card-stats-hover">
+            <div class="card-stats-icon bg-success">
+                <i class="fas fa-money-bill-wave"></i>
+            </div>
+            <div class="card-stats-content">
+                <div class="card-stats-label">Total Pemasukan</div>
+                <div class="card-stats-value">Rp 125.5 Jt</div>
+                <div class="card-stats-trend">
+                    <i class="fas fa-arrow-up text-success"></i>
+                    <span>Akumulasi pendapatan</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-stats card-stats-hover card-stats-warning">
+            <div class="card-stats-icon bg-warning">
+                <i class="fas fa-box-open"></i>
+            </div>
+            <div class="card-stats-content">
+                <div class="card-stats-label">Alat Kritis</div>
+                <div class="card-stats-value text-warning">5</div>
+                <div class="card-stats-trend">
+                    <span class="badge badge-warning"><i class="fas fa-exclamation-triangle"></i> Perlu restock</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-stats card-stats-hover card-stats-danger">
+            <div class="card-stats-icon bg-danger">
+                <i class="fas fa-leaf"></i>
+            </div>
+            <div class="card-stats-content">
+                <div class="card-stats-label">Herbal Habis</div>
+                <div class="card-stats-value text-danger">3</div>
+                <div class="card-stats-trend">
+                    <span class="badge badge-danger"><i class="fas fa-times"></i> Segera restock</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 style="margin: 3rem 0 1rem;">Quick Actions</h2>
+    <div class="quick-action-grid">
+        <button type="button" class="btn btn-outline btn-lg quick-action-btn">
+            <div class="quick-action-icon">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="quick-action-content">
+                <div class="quick-action-label">Tambah Pasien</div>
+                <div class="quick-action-note">Buka data pasien</div>
+            </div>
+        </button>
+
+        <button type="button" class="btn btn-outline btn-lg quick-action-btn">
+            <div class="quick-action-icon">
+                <i class="fas fa-notes-medical"></i>
+            </div>
+            <div class="quick-action-content">
+                <div class="quick-action-label">Catat Kunjungan</div>
+                <div class="quick-action-note">Input terapi baru</div>
+            </div>
+        </button>
+
+        <button type="button" class="btn btn-outline btn-lg quick-action-btn">
+            <div class="quick-action-icon">
+                <i class="fas fa-box-open"></i>
+            </div>
+            <div class="quick-action-content">
+                <div class="quick-action-label">Cek Stok Alat</div>
+                <div class="quick-action-note">5 perlu dicek</div>
+            </div>
+        </button>
+
+        <button type="button" class="btn btn-outline btn-lg quick-action-btn">
+            <div class="quick-action-icon">
+                <i class="fas fa-leaf"></i>
+            </div>
+            <div class="quick-action-content">
+                <div class="quick-action-label">Cek Herbal</div>
+                <div class="quick-action-note">3 habis</div>
+            </div>
+        </button>
+    </div>
+</body>
+</html>

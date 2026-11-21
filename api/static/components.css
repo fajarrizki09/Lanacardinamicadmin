@@ -1,0 +1,780 @@
+/* ╔══════════════════════════════════════════════════════════════════╗
+   ║  UI/UX Pro Max Components Library                                 ║
+   ║  Modern, Accessible, and Performant Component System              ║
+   ╚══════════════════════════════════════════════════════════════════╝ */
+
+/* === BUTTONS ============================================================== */
+
+.btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm;
+    @apply transition-all duration-normal ease-out;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Button Variants */
+.btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
+    @apply focus-visible:ring-primary-500;
+    @apply shadow-sm hover:shadow-md;
+}
+
+.btn-secondary {
+    @apply bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300;
+    @apply focus-visible:ring-gray-400;
+}
+
+.btn-success {
+    @apply bg-success-600 text-white hover:bg-success-700 active:bg-success-800;
+    @apply focus-visible:ring-success-500;
+}
+
+.btn-danger {
+    @apply bg-danger-600 text-white hover:bg-danger-700 active:bg-danger-800;
+    @apply focus-visible:ring-danger-500;
+}
+
+.btn-warning {
+    @apply bg-warning-600 text-white hover:bg-warning-700 active:bg-warning-800;
+    @apply focus-visible:ring-warning-500;
+}
+
+.btn-ghost {
+    @apply bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200;
+    @apply focus-visible:ring-gray-400;
+}
+
+.btn-outline {
+    @apply bg-transparent border-2 border-primary-600 text-primary-600;
+    @apply hover:bg-primary-50 active:bg-primary-100;
+    @apply focus-visible:ring-primary-500;
+}
+
+/* Button Sizes */
+.btn-xs {
+    @apply px-2 py-1 text-xs;
+}
+
+.btn-sm {
+    @apply px-3 py-1.5 text-sm;
+}
+
+.btn-lg {
+    @apply px-6 py-3 text-base;
+}
+
+.btn-xl {
+    @apply px-8 py-4 text-lg;
+}
+
+/* Icon Button */
+.btn-icon {
+    @apply p-2 rounded-lg;
+}
+
+/* Button with ripple effect */
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
+}
+
+/* === CARDS ================================================================ */
+
+.card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply transition-all duration-normal;
+}
+
+.card-hover {
+    @apply hover:shadow-app-hover hover:-translate-y-1;
+}
+
+.card-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
+}
+
+.card-header h3 {
+    @apply text-lg font-semibold text-gray-900;
+}
+
+.card-body {
+    @apply px-6 py-4;
+}
+
+.card-footer {
+    @apply px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl;
+}
+
+/* Stats Card */
+.card-stats {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply transition-all duration-300 ease-out;
+    @apply overflow-hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+    gap: 1rem;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+    min-height: 180px;
+}
+
+.card-stats-hover:hover {
+    @apply shadow-lg border-primary-300;
+    transform: translateY(-2px);
+}
+
+.card-stats-warning {
+    @apply border-warning-300 bg-warning-50;
+}
+
+.card-stats-danger {
+    @apply border-danger-300 bg-danger-50;
+}
+
+.card-stats-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.15);
+    transition: all 0.3s ease;
+    position: relative;
+    margin: 0 auto;
+}
+
+.card-stats-icon i {
+    display: block;
+    line-height: 1;
+    font-style: normal;
+    font-weight: 900;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    position: relative;
+    z-index: 1;
+}
+
+/* Icon Background Colors */
+.card-stats-icon.bg-info {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+.card-stats-icon.bg-primary {
+    background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
+}
+
+.card-stats-icon.bg-success {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.card-stats-icon.bg-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.card-stats-icon.bg-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.card-stats:hover .card-stats-icon {
+    transform: scale(1.05) rotate(-5deg);
+}
+
+.card-stats-content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0;
+    text-align: center;
+}
+
+.card-stats-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+}
+
+.card-stats-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    text-align: center;
+    margin-bottom: 0.75rem;
+}
+
+.card-stats-trend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.8125rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+.card-stats-trend i {
+    font-size: 0.875rem;
+}
+
+.card-stats-trend .badge {
+    margin: 0;
+}
+
+.card-stats .card-stats-icon {
+    margin: 0;
+}
+
+.card-stats .card-stats-content {
+    padding: 0;
+}
+
+/* === FORMS ================================================================ */
+
+.form-group {
+    @apply mb-4;
+}
+
+.form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+}
+
+.form-label .text-danger {
+    @apply text-danger-600;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg;
+    @apply text-sm text-gray-900 placeholder-gray-400;
+    @apply transition-all duration-normal;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply disabled:bg-gray-100 disabled:cursor-not-allowed;
+}
+
+.form-input:hover:not(:disabled),
+.form-select:hover:not(:disabled),
+.form-textarea:hover:not(:disabled) {
+    @apply border-gray-400;
+}
+
+.form-input.is-invalid,
+.form-select.is-invalid,
+.form-textarea.is-invalid {
+    @apply border-danger-500 focus:ring-danger-500;
+}
+
+.form-helper {
+    @apply text-xs text-gray-500 mt-1;
+}
+
+.form-error {
+    @apply text-xs text-danger-600 mt-1;
+    display: none;
+}
+
+.form-input.is-invalid ~ .form-error,
+.form-select.is-invalid ~ .form-error {
+    display: block;
+}
+
+/* Toggle Switch */
+.toggle {
+    @apply inline-flex items-center gap-2 cursor-pointer;
+}
+
+.toggle-input {
+    @apply sr-only;
+}
+
+.toggle-slider {
+    @apply relative w-11 h-6 bg-gray-300 rounded-full transition-colors duration-normal;
+}
+
+.toggle-slider::before {
+    content: '';
+    @apply absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full;
+    @apply transition-transform duration-normal;
+    @apply shadow-sm;
+}
+
+.toggle-input:checked + .toggle-slider {
+    @apply bg-primary-600;
+}
+
+.toggle-input:checked + .toggle-slider::before {
+    @apply translate-x-5;
+}
+
+.toggle-input:focus-visible + .toggle-slider {
+    @apply ring-2 ring-primary-500 ring-offset-2;
+}
+
+.toggle-label {
+    @apply text-sm font-medium text-gray-700;
+}
+
+/* Radio Button */
+.radio {
+    @apply inline-flex items-center gap-2 cursor-pointer;
+}
+
+.radio input[type="radio"] {
+    @apply sr-only;
+}
+
+.radio-mark {
+    @apply w-5 h-5 border-2 border-gray-300 rounded-full;
+    @apply transition-all duration-normal;
+    position: relative;
+}
+
+.radio-mark::before {
+    content: '';
+    @apply absolute top-1/2 left-1/2 w-2.5 h-2.5 bg-primary-600 rounded-full;
+    @apply transform -translate-x-1/2 -translate-y-1/2;
+    @apply scale-0 transition-transform duration-normal;
+}
+
+.radio input[type="radio"]:checked + .radio-mark {
+    @apply border-primary-600;
+}
+
+.radio input[type="radio"]:checked + .radio-mark::before {
+    @apply scale-100;
+}
+
+.radio input[type="radio"]:focus-visible + .radio-mark {
+    @apply ring-2 ring-primary-500 ring-offset-2;
+}
+
+.radio-label {
+    @apply text-sm text-gray-700;
+}
+
+/* Checkbox */
+.checkbox {
+    @apply inline-flex items-center gap-2 cursor-pointer;
+}
+
+.checkbox input[type="checkbox"] {
+    @apply w-5 h-5 border-2 border-gray-300 rounded;
+    @apply text-primary-600 focus:ring-2 focus:ring-primary-500;
+    @apply transition-all duration-normal;
+}
+
+.checkbox-label {
+    @apply text-sm text-gray-700;
+}
+
+/* === BADGES =============================================================== */
+
+.badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-success {
+    @apply bg-success-100 text-success-700;
+}
+
+.badge-warning {
+    @apply bg-warning-100 text-warning-700;
+}
+
+.badge-danger {
+    @apply bg-danger-100 text-danger-700;
+}
+
+.badge-info {
+    @apply bg-info-100 text-info-700;
+}
+
+.badge-gray {
+    @apply bg-gray-100 text-gray-700;
+}
+
+/* Count Badge */
+.badge-count {
+    @apply bg-danger-600 text-white rounded-full;
+    @apply min-w-[20px] h-5 px-1.5 flex items-center justify-center;
+    @apply text-xs font-bold;
+}
+
+/* Dot Badge */
+.badge-dot {
+    @apply flex items-center gap-1.5;
+}
+
+.badge-dot::before {
+    content: '';
+    @apply w-2 h-2 rounded-full;
+}
+
+.badge-dot.badge-success::before {
+    @apply bg-success-500;
+}
+
+.badge-dot.badge-warning::before {
+    @apply bg-warning-500;
+}
+
+.badge-dot.badge-danger::before {
+    @apply bg-danger-500;
+}
+
+/* === AVATARS ============================================================== */
+
+.avatar {
+    @apply relative inline-flex items-center justify-center rounded-full;
+    @apply bg-gray-200 text-gray-600 font-medium;
+    @apply overflow-hidden;
+}
+
+.avatar img {
+    @apply w-full h-full object-cover;
+}
+
+/* Avatar Sizes */
+.avatar-xs {
+    @apply w-6 h-6 text-xs;
+}
+
+.avatar-sm {
+    @apply w-8 h-8 text-sm;
+}
+
+.avatar-md {
+    @apply w-10 h-10 text-base;
+}
+
+.avatar-lg {
+    @apply w-12 h-12 text-lg;
+}
+
+.avatar-xl {
+    @apply w-16 h-16 text-xl;
+}
+
+/* Avatar with Status */
+.avatar-status {
+    @apply absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white;
+}
+
+.status-online {
+    @apply bg-success-500;
+}
+
+.status-offline {
+    @apply bg-gray-400;
+}
+
+.status-busy {
+    @apply bg-danger-500;
+}
+
+.status-away {
+    @apply bg-warning-500;
+}
+
+/* === MODALS =============================================================== */
+
+.modal {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    @apply transition-opacity duration-normal;
+}
+
+.modal.hidden {
+    @apply opacity-0 pointer-events-none;
+}
+
+.modal-overlay {
+    @apply absolute inset-0 bg-black/50 backdrop-blur-sm;
+}
+
+.modal-content {
+    @apply relative bg-white rounded-xl shadow-2xl;
+    @apply max-h-[90vh] overflow-y-auto;
+    @apply animate-scaleIn;
+}
+
+.modal-sm {
+    @apply max-w-sm w-full;
+}
+
+.modal-md {
+    @apply max-w-md w-full;
+}
+
+.modal-lg {
+    @apply max-w-2xl w-full;
+}
+
+.modal-xl {
+    @apply max-w-4xl w-full;
+}
+
+.modal-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
+}
+
+.modal-header h3 {
+    @apply text-lg font-semibold text-gray-900;
+}
+
+.modal-close {
+    @apply p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100;
+    @apply transition-colors duration-normal;
+}
+
+.modal-body {
+    @apply px-6 py-4;
+}
+
+.modal-footer {
+    @apply flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50;
+}
+
+/* === LOADING STATES ======================================================= */
+
+/* Spinner */
+.spinner {
+    @apply w-8 h-8 border-4 border-gray-200 border-t-primary-600 rounded-full;
+    @apply animate-spin;
+}
+
+.spinner-sm {
+    @apply w-4 h-4 border-2;
+}
+
+.spinner-lg {
+    @apply w-12 h-12 border-4;
+}
+
+/* Skeleton */
+.skeleton {
+    @apply bg-gray-200 animate-pulse rounded;
+}
+
+.skeleton-text {
+    @apply h-4 w-full;
+}
+
+.skeleton-circle {
+    @apply w-10 h-10 rounded-full;
+}
+
+.skeleton-rect {
+    @apply h-32 w-full;
+}
+
+/* Progress Bar */
+.progress {
+    @apply w-full h-2 bg-gray-200 rounded-full overflow-hidden;
+}
+
+.progress-bar {
+    @apply h-full bg-primary-600 rounded-full;
+    @apply transition-all duration-slow;
+}
+
+/* Linear Progress (Indeterminate) */
+.progress-linear {
+    @apply w-full h-1 bg-gray-200 overflow-hidden relative;
+}
+
+.progress-linear-bar {
+    @apply absolute h-full w-1/3 bg-primary-600;
+    animation: progressLinear 1.5s ease-in-out infinite;
+}
+
+@keyframes progressLinear {
+    0% {
+        left: -33%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* === TOASTS =============================================================== */
+
+.toast {
+    @apply flex items-start gap-3 p-4 rounded-xl shadow-lg;
+    @apply min-w-[320px] max-w-md;
+    @apply animate-toastIn;
+}
+
+.toast-success {
+    @apply bg-success-50 border border-success-200 text-success-800;
+}
+
+.toast-error {
+    @apply bg-danger-50 border border-danger-200 text-danger-800;
+}
+
+.toast-warning {
+    @apply bg-warning-50 border border-warning-200 text-warning-800;
+}
+
+.toast-info {
+    @apply bg-info-50 border border-info-200 text-info-800;
+}
+
+.toast i {
+    @apply text-xl flex-shrink-0;
+}
+
+.toast-content {
+    @apply flex-1 min-w-0;
+}
+
+.toast-title {
+    @apply font-semibold text-sm;
+}
+
+.toast-message {
+    @apply text-sm mt-0.5 opacity-90;
+}
+
+.toast-close {
+    @apply p-1 rounded-lg hover:bg-black/5 transition-colors;
+    @apply flex-shrink-0;
+}
+
+.toast-hide {
+    @apply animate-toastOut;
+}
+
+/* === TABLES =============================================================== */
+
+.table-container {
+    @apply overflow-x-auto rounded-xl border border-gray-200;
+}
+
+.table {
+    @apply w-full text-sm text-left;
+}
+
+.table thead {
+    @apply bg-gray-50 border-b border-gray-200;
+}
+
+.table th {
+    @apply px-4 py-3 font-semibold text-gray-700;
+}
+
+.table tbody tr {
+    @apply border-b border-gray-100 hover:bg-gray-50;
+    @apply transition-colors duration-fast;
+}
+
+.table td {
+    @apply px-4 py-3 text-gray-900;
+}
+
+/* === EMPTY STATES ========================================================= */
+
+.empty-state {
+    @apply flex flex-col items-center justify-center py-12 px-4 text-center;
+}
+
+.empty-state-icon {
+    @apply w-16 h-16 rounded-full bg-gray-100 text-gray-400;
+    @apply flex items-center justify-center text-3xl mb-4;
+}
+
+.empty-state-title {
+    @apply text-lg font-semibold text-gray-900 mb-2;
+}
+
+.empty-state-message {
+    @apply text-sm text-gray-600 max-w-sm;
+}
+
+/* === UTILITIES ============================================================ */
+
+/* Focus Visible */
+:focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+}
+
+/* Smooth Scroll */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Selection */
+::selection {
+    @apply bg-primary-200 text-primary-900;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+}
+
+/* Screen Reader Only */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Skip Link */
+.skip-link {
+    @apply absolute top-0 left-0 px-4 py-2 bg-primary-600 text-white;
+    @apply transform -translate-y-full focus:translate-y-0;
+    @apply transition-transform duration-normal;
+    @apply z-50;
+}

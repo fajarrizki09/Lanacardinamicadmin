@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Minimal permissions for the local bootstrap window.",
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*"
+    ]
+  },
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-start-backend",
+    "allow-native-get-paths",
+    "allow-native-get-diagnostics",
+    "allow-native-get-process-status",
+    "allow-native-open-path",
+    "allow-native-reveal-path",
+    "allow-native-open-external-url",
+    "allow-native-open-invoice-file",
+    "allow-native-print-file"
+  ]
+}

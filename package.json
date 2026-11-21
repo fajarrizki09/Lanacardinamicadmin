@@ -1,0 +1,25 @@
+{
+  "name": "lancar-dynamic-admin",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build:css": "tailwindcss -i ./api/static/src/input.css -o ./api/static/tailwind.css --minify",
+    "watch:css": "tailwindcss -i ./api/static/src/input.css -o ./api/static/tailwind.css --watch",
+    "build:assets": "npm run build:css && npm run build:ts",
+    "build:ts": "tsc -p tsconfig.static.json && node tools/copy-built-app.cjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:stage-runtime": "powershell -ExecutionPolicy Bypass -File tools/stage-tauri-runtime.ps1",
+    "tauri:build": "npm run build:assets && npm run tauri:stage-runtime && powershell -ExecutionPolicy Bypass -File tools/build-tauri-sidecar.ps1 && tauri build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:services": "tsc -p tsconfig.json --noEmit --pretty false",
+    "version:bump": "python tools/bump-version.py"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^6.0.0"
+  }
+}
