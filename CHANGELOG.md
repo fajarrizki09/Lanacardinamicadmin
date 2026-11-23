@@ -1,5 +1,18 @@
 # Catatan Perubahan
 
+## 2026-11-23 - Perbaiki Backup & Bantuan Offline Mode (v1.7.54)
+
+**🟢 MEDIUM PRIORITY FEATURE - OFFLINE SUPPORT**
+
+### Backup & Bantuan Tab Bisa Diakses Tanpa Internet
+- **IMPROVED:** Menambahkan timeout pada semua fetch request (default 10 detik, 8-30 detik untuk backup) agar tidak hanging saat backend tidak merespons.
+- **FIXED:** `loadBackupManagement()` - fallback UI saat offline: menampilkan pesan informatif + tombol "Buka Folder Backup" yang menggunakan Tauri native API (`window.LancarApi.openPath('backups')`).
+- **FIXED:** `createWebBackup()` dan `restoreWebBackup()` - error handling membedakan offline (network error) vs error lain dengan pesan yang jelas.
+- **FIXED:** `loadHelpInfo()` - fallback data offline via `getFallbackHelpData()` yang menyediakan versi aplikasi, path folder lokal, status lisensi "Offline", info support default.
+- **FIXED:** `api.ts` - menambahkan `timeoutMs` parameter pada `ApiRequestOptions` dan `AbortController` untuk membatalkan request yang timeout.
+- **FIXED:** CSP compliance - mengganti `onclick` inline handler dengan `data-settings-action` delegation.
+- File: `api/static/ts/api.ts`, `api/static/ts/settings.ts`, `api/static/ts/help.ts`, `api/static/ts/types.ts`, `types/admin-globals.d.ts`
+
 ## 2026-11-21 - Perbaiki Scroll Edit Pasien & Riwayat Kunjungan (v1.7.53)
 
 **🔴 CRITICAL PRIORITY UI FIX - EDIT PASIEN SCROLL (REVISI 2)**

@@ -1,5 +1,6 @@
 type ApiRequestOptions = RequestInit & {
     parseJson?: boolean;
+    timeoutMs?: number;
 };
 
 type LancarApiClient = {
@@ -82,10 +83,16 @@ async function parseApiResponse<T = unknown>(response: Response): Promise<T> {
 }
 
 async function apiRequest<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<T> {
-    const { parseJson = true, ...requestOptions } = options;
-    const response = await fetch(url, requestOptions);
-    if (!parseJson) return response as T;
-    return parseApiResponse<T>(response);
+    const { parseJson = true, timeoutMs = 10000, ...requestOptions } = options;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { ...requestOptions, signal: controller.signal });
+        if (!parseJson) return response as T;
+        return parseApiResponse<T>(response);
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 function apiGetJson<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<T> {
