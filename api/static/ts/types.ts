@@ -97,3 +97,19 @@ type AdminApiStatusResponse<T = unknown> = {
     detail?: unknown;
     data?: T;
 };
+
+type BackupFileInfo = {
+    path: string;
+    name: string;
+    size: number;
+    mtime: number;
+    created_at?: string;
+};
+
+type BackupListResponse = {
+    status?: Record<string, unknown>;
+    items: BackupFileInfo[];
+    count: number;
+    total_size: number;
+    backup_dir: string;
+};

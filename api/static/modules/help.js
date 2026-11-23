@@ -141,12 +141,19 @@ function helpGuideCard(title, steps) {
 }
 async function loadHelpInfo() {
     try {
-        const data = await apiGetJson('/support/app_info');
+        const data = await apiGetJson('/support/app_info', { timeoutMs: 8000 });
         renderHelpSupport(data.support || {});
         renderHelpAppInfo(data);
     }
     catch (error) {
-        const safe = sanitizeAppErrorMessage(error);
+        const isOffline = error instanceof TypeError && error.message.includes('Failed to fetch') || error.name === 'AbortError';
+        const safe = isOffline
+            ? 'Tidak dapat terhubung ke server lokal. Menampilkan informasi offline.'
+            : sanitizeAppErrorMessage(error);
+        // Provide fallback data for offline mode
+        const fallbackData = getFallbackHelpData();
+        renderHelpSupport(fallbackData.support);
+        renderHelpAppInfo(fallbackData);
         const supportCard = document.getElementById('help-support-card');
         const supportDetail = document.getElementById('help-support-detail');
         const appInfo = document.getElementById('help-app-info');
@@ -157,6 +164,35 @@ async function loadHelpInfo() {
         if (appInfo)
             appInfo.textContent = safe;
     }
+}
+function getFallbackHelpData() {
+    // Try to get version from meta tag or global
+    let version = '1.7.53';
+    try {
+        const versionMeta = document.querySelector('meta[name="app-version"]');
+        if (versionMeta)
+            version = versionMeta.getAttribute('content') || version;
+    }
+    catch { }
+    return {
+        app_version: version,
+        database_path: 'Data lokal (offline)',
+        backup_dir: 'Folder backup lokal',
+        logs_dir: 'Folder log lokal',
+        exports_dir: 'Folder export lokal',
+        license: {
+            valid: false,
+            status: 'Offline',
+            expired_at: '',
+            clinic_id: '',
+            clinic_name: '',
+        },
+        support: {
+            support_name: 'Bantuan Lancar Dynamic',
+            support_whatsapp: '',
+            support_email: '',
+        },
+    };
 }
 function renderHelpSupport(support) {
     const name = support.support_name || 'Bantuan Lancar Dynamic';

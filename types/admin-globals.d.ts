@@ -200,6 +200,9 @@ type HelpAppInfo = {
   license?: {
     valid?: boolean;
     status?: string;
+    expired_at?: string;
+    clinic_id?: string;
+    clinic_name?: string;
   };
   detail?: string;
 };

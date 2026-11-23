@@ -41,11 +41,18 @@ async function parseApiResponse(response) {
     return payload;
 }
 async function apiRequest(url, options = {}) {
-    const { parseJson = true, ...requestOptions } = options;
-    const response = await fetch(url, requestOptions);
-    if (!parseJson)
-        return response;
-    return parseApiResponse(response);
+    const { parseJson = true, timeoutMs = 10000, ...requestOptions } = options;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { ...requestOptions, signal: controller.signal });
+        if (!parseJson)
+            return response;
+        return parseApiResponse(response);
+    }
+    finally {
+        clearTimeout(timeoutId);
+    }
 }
 function apiGetJson(url, options = {}) {
     return apiRequest(url, { ...options, method: options.method || "GET" });

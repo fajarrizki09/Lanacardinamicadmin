@@ -1,6 +1,6 @@
 [package]
 name = "lancar-dynamic-admin"
-version = "1.7.53"
+version = "1.7.54"
 description = "Tauri desktop shell for Lancar Dynamic Admin"
 authors = ["Lancar Dynamic Admin"]
 edition = "2021"

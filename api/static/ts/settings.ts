@@ -55,6 +55,9 @@ function ensureSettingsEventDelegation(): void {
             case 'restore-backup':
                 restoreWebBackup(button.dataset.path || '');
                 break;
+            case 'open-backup-folder':
+                openBackupFolder();
+                break;
             case 'reset-discount-form':
                 resetDiscountRuleForm();
                 break;
@@ -1578,12 +1581,45 @@ async function loadBackupManagement() {
     if (list) list.innerHTML = '<div class="settings-muted-row"><i class="fas fa-spinner fa-spin"></i> Memuat daftar backup...</div>';
 
     try {
-        const response = await fetch('/backups');
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || 'Gagal memuat backup.');
+        const data = await apiGetJson<BackupListResponse>('/backups', { timeoutMs: 8000 });
         renderBackupManagement(data);
     } catch (error) {
-        if (list) list.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
+        if (list) {
+            const isOffline = error instanceof TypeError && error.message.includes('Failed to fetch') || error.name === 'AbortError';
+            const message = isOffline
+                ? 'Tidak dapat terhubung ke server lokal. Periksa apakah backend berjalan.'
+                : escapeHtml(error.message);
+            list.innerHTML = `
+                <div class="settings-error-row">${message}</div>
+                <div class="settings-info-row" style="margin-top: 12px;">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Backup masih dapat diakses melalui folder data aplikasi: <code id="backup-folder-path" style="font-size: 11px;">Memuat...</code></span>
+                </div>
+                <button type="button" class="btn btn-secondary" style="margin-top: 8px;" data-settings-action="open-backup-folder">
+                    <i class="fas fa-folder-open"></i> Buka Folder Backup
+                </button>
+            `;
+            loadBackupFolderPath();
+        }
+    }
+}
+
+async function loadBackupFolderPath() {
+    try {
+        const data = await apiGetJson<{ backup_dir: string }>('/support/app_info', { timeoutMs: 5000 });
+        const pathEl = document.getElementById('backup-folder-path');
+        if (pathEl) pathEl.textContent = data.backup_dir || 'Tidak tersedia';
+    } catch {
+        const pathEl = document.getElementById('backup-folder-path');
+        if (pathEl) pathEl.textContent = 'Tidak dapat dimuat';
+    }
+}
+
+function openBackupFolder() {
+    if (window.LancarApi?.openPath) {
+        window.LancarApi.openPath('backups').catch(() => {
+            showToast('Gagal membuka folder backup.', 'error');
+        });
     }
 }
 
@@ -1592,13 +1628,16 @@ async function createWebBackup() {
     if (result) result.innerHTML = '<div class="settings-info-row"><i class="fas fa-spinner fa-spin"></i><span>Membuat backup database...</span></div>';
 
     try {
-        const response = await fetch('/backups/create', { method: 'POST' });
-        const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal membuat backup.');
+        const data = await apiPostForm<{ status: string; message: string }>('/backups/create', new FormData(), { timeoutMs: 15000 });
+        if (data.status !== 'success') throw new Error(data.message || 'Gagal membuat backup.');
         showToast(data.message || 'Backup berhasil dibuat.', 'success');
         await loadBackupManagement();
     } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
+        const isOffline = error instanceof TypeError && error.message.includes('Failed to fetch') || error.name === 'AbortError';
+        const message = isOffline
+            ? 'Tidak dapat terhubung ke server lokal. Periksa apakah backend berjalan.'
+            : escapeHtml(error.message);
+        if (result) result.innerHTML = `<div class="settings-error-row">${message}</div>`;
     }
 }
 
@@ -1612,13 +1651,16 @@ async function restoreWebBackup(path) {
     try {
         const formData = new FormData();
         formData.set('relative_path', path);
-        const response = await fetch('/backups/restore', { method: 'POST', body: formData });
-        const data = await response.json();
-        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Gagal restore backup.');
+        const data = await apiPostForm<{ status: string; message: string }>('/backups/restore', formData, { timeoutMs: 30000 });
+        if (data.status !== 'success') throw new Error(data.message || 'Gagal restore backup.');
         showToast(data.message || 'Restore backup berhasil.', 'success');
         await loadBackupManagement();
     } catch (error) {
-        if (result) result.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message)}</div>`;
+        const isOffline = error instanceof TypeError && error.message.includes('Failed to fetch') || error.name === 'AbortError';
+        const message = isOffline
+            ? 'Tidak dapat terhubung ke server lokal. Periksa apakah backend berjalan.'
+            : escapeHtml(error.message);
+        if (result) result.innerHTML = `<div class="settings-error-row">${message}</div>`;
     }
 }
 
