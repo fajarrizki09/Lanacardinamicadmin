@@ -1,5 +1,15 @@
 # Catatan Perubahan
 
+## 2026-11-23 - Perbaiki Scroll Modal Edit Pasien & Riwayat Kunjungan (v1.7.55)
+
+**🔴 HIGH PRIORITY - BUG FIX**
+
+### Perbaikan Scroll Modal
+- **FIXED:** Modal Edit Pasien & Riwayat Kunjungan tidak bisa di-scroll karena nested scroll container (visits) dengan max-height:360px; overflow-y:auto
+- **IMPROVED:** Hapus scroll internal pada #fe-visits-container agar seluruh modal menjadi satu area scroll (body)
+- File: pi/static/modules/modal.js
+- File: pi/static/ts/modal.ts
+
 ## 2026-11-23 - Perbaiki Backup & Bantuan Offline Mode (v1.7.54)
 
 **🟢 MEDIUM PRIORITY FEATURE - OFFLINE SUPPORT**
