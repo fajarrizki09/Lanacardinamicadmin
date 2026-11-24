@@ -145,7 +145,18 @@ module.exports = {
           text: '#0f172a',
           muted: '#64748b',
           sidebar: '#022c22'
-        }
+        },
+        // Legacy color aliases used in input.css
+        'app-primary': '#059669',
+        'app-primary-light': '#10b981',
+        'app-primary-dark': '#047857',
+        'app-bg': '#f8fafc',
+        'app-card': '#ffffff',
+        'app-border': '#e2e8f0',
+        'app-text': '#0f172a',
+        'app-muted': '#64748b',
+        'app-sidebar': '#022c22',
+        'app-warning': '#f59e0b'
       },
       borderRadius: {
         none: '0',
@@ -170,7 +181,12 @@ module.exports = {
         xl: '0 20px 25px rgba(15, 23, 42, 0.1), 0 10px 10px rgba(15, 23, 42, 0.04)',
         '2xl': '0 25px 50px rgba(15, 23, 42, 0.12)',
         inner: 'inset 0 2px 4px rgba(15, 23, 42, 0.06)',
-        // App-specific shadows
+        // App-specific shadows (legacy aliases)
+        app: '0 2px 10px rgba(16, 35, 31, 0.035)',
+        'app-md': '0 8px 22px rgba(16, 35, 31, 0.06)',
+        'app-lg': '0 12px 34px rgba(16, 35, 31, 0.08)',
+        'app-hover': '0 12px 28px rgba(15, 118, 110, 0.15)',
+        // App-specific shadows (new)
         card: '0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06)',
         'card-hover': '0 10px 25px rgba(15, 23, 42, 0.1), 0 4px 6px rgba(15, 23, 42, 0.05)',
         'card-elevated': '0 20px 25px rgba(15, 23, 42, 0.12), 0 10px 10px rgba(15, 23, 42, 0.04)',
