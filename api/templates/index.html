@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lancar Dynamic Admin - Aplikasi Klinik</title>
+    <meta name="app-version" content="1.7.54">
     <!-- Font (Offline) -->
     <link rel="stylesheet" href="/static/vendor/css/inter.css">
     <!-- FontAwesome Icons (Offline) -->
@@ -19,109 +20,114 @@
     <link rel="stylesheet" href="/static/components.css?v={{ cache_buster }}">
     <!-- Dashboard Specific Styles -->
     <link rel="stylesheet" href="/static/dashboard.css?v={{ cache_buster }}">
-    <!-- Custom CSS (legacy overrides during Tailwind migration) -->
-    <link rel="stylesheet" href="/static/style.css?v={{ cache_buster }}&activity_layout=20260515_modal_v4">
+    <!-- Custom CSS (Core Styles) -->
+    <link rel="stylesheet" href="/static/style.css?v={{ cache_buster }}">
 </head>
 
-<body class="lancar-shell flex h-screen overflow-hidden text-app-text">
-    <div class="sidebar app-sidebar flex h-screen max-h-screen w-[272px] shrink-0 flex-col overflow-y-auto overflow-x-hidden text-white">
-        <div class="logo app-sidebar-brand sticky top-0 z-[3] flex items-center gap-3.5 px-5 py-5">
+<body class="lancar-shell flex h-screen overflow-hidden">
+    <!-- Mobile Sidebar Overlay -->
+    <div class="mobile-sidebar-overlay" id="mobileSidebarOverlay" aria-hidden="true"></div>
+
+    <div class="sidebar app-sidebar flex h-screen max-h-screen flex-col overflow-y-auto overflow-x-hidden"
+        style="width: var(--sidebar-width); flex: 0 0 var(--sidebar-width);">
+        <div class="logo app-sidebar-brand sticky top-0 z-[3] flex items-center gap-3.5 px-4 py-4">
             <div class="brand-orb" aria-hidden="true"><i class="fas fa-clinic-medical"></i></div>
             <div class="brand-copy min-w-0">
-                <h2 id="sidebar-clinic-name" class="overflow-anywhere text-base font-bold leading-tight text-white">Lancar Dynamic Admin</h2>
+                <h2 id="sidebar-clinic-name" class="overflow-hidden text-base font-bold leading-tight text-white">Lancar Dynamic Admin</h2>
                 <span>Offline clinic workspace</span>
             </div>
             <button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-btn" aria-label="Tutup sidebar" title="Tutup sidebar">
                 <i class="fas fa-angles-left"></i>
             </button>
         </div>
-        <ul class="nav-links mt-4 flex flex-1 list-none flex-col gap-0.5 px-3 pb-[18px]">
+        <ul class="nav-links mt-4 flex flex-1 list-none flex-col gap-0.5 px-2 pb-[18px]"
+            role="navigation" aria-label="Menu utama">
             <li class="nav-group-label"><span>Operasional</span></li>
-            <li class="active flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="dashboard" data-tooltip="Dashboard">
-                <i class="fas fa-chart-line w-[18px] text-center text-[15px]"></i>
+            <li class="active flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="dashboard" data-tooltip="Dashboard">
+                <i class="fas fa-chart-line w-[20px] text-center text-[15px]"></i>
                 <span>Dashboard</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="patients" data-tooltip="Pasien">
-                <i class="fas fa-users w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="patients" data-tooltip="Pasien">
+                <i class="fas fa-users w-[20px] text-center text-[15px]"></i>
                 <span>Pasien</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="visits" data-tooltip="Kunjungan">
-                <i class="fas fa-notes-medical w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="visits" data-tooltip="Kunjungan">
+                <i class="fas fa-notes-medical w-[20px] text-center text-[15px]"></i>
                 <span>Kunjungan</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="therapists" data-tooltip="Terapis">
-                <i class="fas fa-user-md w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="therapists" data-tooltip="Terapis">
+                <i class="fas fa-user-md w-[20px] text-center text-[15px]"></i>
                 <span>Terapis</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="services" data-tooltip="Layanan">
-                <i class="fas fa-spa w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="services" data-tooltip="Layanan">
+                <i class="fas fa-spa w-[20px] text-center text-[15px]"></i>
                 <span>Layanan</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="herbals" data-tooltip="Herbal / Produk">
-                <i class="fas fa-leaf w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="herbals" data-tooltip="Herbal / Produk">
+                <i class="fas fa-leaf w-[20px] text-center text-[15px]"></i>
                 <span>Herbal / Produk</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="inventory" data-tooltip="Inventori">
-                <i class="fas fa-box-open w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="inventory" data-tooltip="Inventori">
+                <i class="fas fa-box-open w-[20px] text-center text-[15px]"></i>
                 <span>Inventori</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="invoices" data-tooltip="Invoice">
-                <i class="fas fa-file-invoice w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="invoices" data-tooltip="Invoice">
+                <i class="fas fa-file-invoice w-[20px] text-center text-[15px]"></i>
                 <span>Invoice</span>
             </li>
             <li class="nav-group-label"><span>Komunikasi</span></li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="crm" data-tooltip="Follow-up Pasien">
-                <i class="fas fa-user-check w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="crm" data-tooltip="Follow-up Pasien">
+                <i class="fas fa-user-check w-[20px] text-center text-[15px]"></i>
                 <span>Follow-up Pasien</span>
             </li>
             <li class="nav-group-label"><span>Analisis</span></li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="analytics" data-tooltip="Analytics">
-                <i class="fas fa-chart-bar w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="analytics" data-tooltip="Analytics">
+                <i class="fas fa-chart-bar w-[20px] text-center text-[15px]"></i>
                 <span>Analytics</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="owner-report" data-tooltip="Owner Report">
-                <i class="fas fa-briefcase w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="owner-report" data-tooltip="Owner Report">
+                <i class="fas fa-briefcase w-[20px] text-center text-[15px]"></i>
                 <span>Owner Report</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="vouchers" data-tooltip="Voucher">
-                <i class="fas fa-ticket-alt w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="vouchers" data-tooltip="Voucher">
+                <i class="fas fa-ticket-alt w-[20px] text-center text-[15px]"></i>
                 <span>Voucher</span>
             </li>
             <li class="nav-group-label"><span>Sistem</span></li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="audit" data-tooltip="Aktivitas">
-                <i class="fas fa-history w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="audit" data-tooltip="Aktivitas">
+                <i class="fas fa-history w-[20px] text-center text-[15px]"></i>
                 <span>Aktivitas</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="settings" data-tooltip="Settings">
-                <i class="fas fa-cog w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="settings" data-tooltip="Settings">
+                <i class="fas fa-cog w-[20px] text-center text-[15px]"></i>
                 <span>Settings</span>
             </li>
-            <li class="flex cursor-pointer items-center gap-3 rounded-app px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-teal-400/10 hover:text-teal-100" data-tab="help" data-tooltip="Backup & Bantuan">
-                <i class="fas fa-circle-question w-[18px] text-center text-[15px]"></i>
+            <li class="flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-white/8 hover:text-white" data-tab="help" data-tooltip="Backup & Bantuan">
+                <i class="fas fa-circle-question w-[20px] text-center text-[15px]"></i>
                 <span>Backup & Bantuan</span>
             </li>
         </ul>
     </div>
 
     <div class="main-content flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header class="app-header z-50 mx-6 mt-4 flex min-h-[76px] items-center justify-between gap-4 px-6 py-4">
-            <div class="header-title min-w-0">
+        <header class="app-header z-50 flex min-h-[76px] items-center justify-between gap-4 px-6 py-4">
+            <div class="header-title min-w-0 flex-1">
                 <div id="breadcrumb" class="app-breadcrumb"><span>Workspace</span><i class="fas fa-chevron-right"></i><strong>Dashboard</strong></div>
-                <h1 id="page-title" class="truncate text-[22px] font-bold leading-tight text-app-text">Dashboard</h1>
-                <p class="mt-1 truncate text-[13px] text-app-muted">Ringkasan Klinik & Aktivitas Hari Ini</p>
+                <h1 id="page-title" class="truncate text-[22px] font-bold leading-tight">Dashboard</h1>
+                <p class="header-subtitle mt-1 truncate text-[13px]">Ringkasan Klinik & Aktivitas Hari Ini</p>
             </div>
             <div class="header-actions flex min-w-0 items-center justify-end gap-2">
                 <button type="button" class="header-icon-btn" data-quick-tab="visits" title="Catat kunjungan" aria-label="Catat kunjungan"><i class="fas fa-plus"></i></button>
                 <button type="button" class="header-icon-btn" data-quick-tab="patients" title="Cari pasien" aria-label="Cari pasien"><i class="fas fa-search"></i></button>
                 <button type="button" id="theme-toggle" class="header-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><i class="fas fa-moon"></i></button>
-                <div id="license-indicator" class="license-indicator loading flex max-w-[min(260px,42vw)] items-center gap-2 whitespace-nowrap rounded-xl border border-blue-600/20 bg-blue-50 px-3 py-2 text-blue-600 shadow-sm">
+                <div id="license-indicator" class="license-indicator loading flex max-w-[min(260px,42vw)] items-center gap-2 whitespace-nowrap rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-blue-700">
                     <i class="fas fa-key shrink-0 text-[13px]"></i>
                     <span>Memuat lisensi</span>
                 </div>
             </div>
         </header>
 
-        <main id="app-container" class="flex-1 overflow-y-auto px-6 pb-7 pt-5 scroll-smooth">
+        <main id="app-container" class="flex-1 overflow-y-auto pb-7 scroll-smooth">
             <!-- Loading Indicator -->
             <div id="loader" class="loader-container tw-loader">
                 <div class="spinner tw-spinner"></div>

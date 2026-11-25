@@ -1255,7 +1255,12 @@ async function openCRMWhatsAppLink(patientId, event) {
     const digits = String(phone).replace(/\D/g, '');
     const chatId = digits.startsWith('62') ? digits : '62' + digits.replace(/^0/, '');
     const url = `https://wa.me/${chatId}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    if (typeof window.openDesktopExternalUrl === 'function') {
+        await window.openDesktopExternalUrl(url, 'whatsapp_help');
+    }
+    else {
+        window.open(url, '_blank');
+    }
     showToast('Membuka obrolan WhatsApp di browser.', 'success');
 }
 async function readCRMActionPayload(response, fallbackMessage) {

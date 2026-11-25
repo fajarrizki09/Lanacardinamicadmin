@@ -296,33 +296,31 @@ function renderServices(data) {
         </button>
     `;
     const html = `
-        <div class="services-page">
-            <div class="service-header">
-                <div class="service-header-left">
-                    <h2><i class="fas fa-spa"></i> Daftar Layanan</h2>
-                </div>
-                <button type="button" data-service-action="open-add" class="service-add-btn">
-                    <i class="fas fa-plus-circle"></i> Tambah Layanan
-                </button>
+        <div class="service-header">
+            <div class="service-header-left">
+                <h2><i class="fas fa-spa"></i> Daftar Layanan</h2>
             </div>
-
-            <div class="service-filter-row">
-                ${filterButton('active', 'Aktif', activeCount)}
-                ${filterButton('inactive', 'Nonaktif', inactiveCount)}
-                ${filterButton('all', 'Semua', data.length)}
-            </div>
-
-            ${visibleServices.length === 0 ? `
-                <div class="service-empty-state">
-                    <i class="fas fa-spa"></i>
-                    <p>${data.length === 0 ? 'Belum ada layanan. Klik "Tambah Layanan" untuk memulai.' : 'Tidak ada layanan pada filter ini.'}</p>
-                </div>
-            ` : `
-                <div class="service-card-grid">
-                    ${visibleServices.map(service => serviceCard(service)).join('')}
-                </div>
-            `}
+            <button type="button" data-service-action="open-add" class="service-add-btn">
+                <i class="fas fa-plus-circle"></i> Tambah Layanan
+            </button>
         </div>
+
+        <div class="service-filter-row">
+            ${filterButton('active', 'Aktif', activeCount)}
+            ${filterButton('inactive', 'Nonaktif', inactiveCount)}
+            ${filterButton('all', 'Semua', data.length)}
+        </div>
+
+        ${visibleServices.length === 0 ? `
+            <div class="service-empty-state">
+                <i class="fas fa-spa"></i>
+                <p>${data.length === 0 ? 'Belum ada layanan. Klik "Tambah Layanan" untuk memulai.' : 'Tidak ada layanan pada filter ini.'}</p>
+            </div>
+        ` : `
+            <div class="service-card-grid">
+                ${visibleServices.map(service => serviceCard(service)).join('')}
+            </div>
+        `}
     `;
     const displayArea = document.getElementById('display-area');
     if (displayArea)

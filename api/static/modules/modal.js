@@ -74,7 +74,7 @@ function initModals() {
              style="display:none; position:fixed; inset:0; z-index:9999;
                     background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);
                     align-items:flex-start; justify-content:center; padding-top: 3vh;">
-            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height: calc(100vh - 6vh); display:flex; flex-direction:column;
+            <div class="runtime-modal-panel full-edit-panel" style="background:var(--color-surface); border-radius:16px; width:1100px; max-width:96vw; max-height:calc(100vh - 6vh); display:flex; flex-direction:column;
                         box-shadow:0 24px 64px rgba(0,0,0,0.3); animation:modalIn 0.2s ease;">
                 
                 <!-- HEADER -->
@@ -111,7 +111,7 @@ function initModals() {
                         </div>
                     </div>
 
-                    <!-- Visits Section -->
+<!-- Visits Section -->
                     <div class="card" style="margin:0; padding:0;">
                         <div class="runtime-modal-header" style="padding:14px 18px; background:var(--color-surface-muted); border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; align-items:center;">
                             <h4 style="margin:0; font-size:14px; color:var(--text-main);">
@@ -119,11 +119,11 @@ function initModals() {
                             </h4>
                             <span id="fe-visit-count" style="font-size:12px; color:var(--color-text-muted); font-weight:600; background:var(--color-surface-raised); padding:3px 8px; border-radius:12px;"></span>
                         </div>
-                        <div id="fe-visits-container" style="max-height:360px; overflow-y:auto; padding:10px;">
+                        <div id="fe-visits-container" style="padding:10px;">
                             <!-- Injected by JS -->
                         </div>
                     </div>
-                    
+
                 </div>
 
                 <!-- FOOTER (always visible, not covered by scroll) -->

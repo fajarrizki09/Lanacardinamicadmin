@@ -13,6 +13,16 @@
 - File: `helpers/crm_analysis_helper.py`, `api/static/ts/crm.ts`
 - chore: bump version to 1.7.55
 
+## 2026-11-23 - Perbaiki Scroll Modal Edit Pasien & Riwayat Kunjungan (v1.7.55)
+
+**🔴 HIGH PRIORITY - BUG FIX**
+
+### Perbaikan Scroll Modal
+- **FIXED:** Modal Edit Pasien & Riwayat Kunjungan tidak bisa di-scroll karena nested scroll container (visits) dengan max-height:360px; overflow-y:auto
+- **IMPROVED:** Hapus scroll internal pada #fe-visits-container agar seluruh modal menjadi satu area scroll (body)
+- File: `api/static/modules/modal.js`
+- File: `api/static/ts/modal.ts`
+
 ## 2026-11-23 - Perbaiki Backup & Bantuan Offline Mode (v1.7.54)
 
 **🟢 MEDIUM PRIORITY FEATURE - OFFLINE SUPPORT**

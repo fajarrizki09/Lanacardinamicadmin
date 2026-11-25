@@ -1,0 +1,195 @@
+# TASK: REDESIGN UI/UX LANCAR DYNAMIC ADMIN
+
+Lakukan redesign tampilan aplikasi Lancar Dynamic Admin agar lebih modern, profesional, konsisten, dan memiliki standar visual aplikasi desktop komersial.
+
+Gunakan screenshot referensi halaman Produk / Herbal yang diberikan sebagai acuan desain.
+
+## 1. TARGET DESAIN
+
+Gunakan konsep:
+- Modern Clinic Management Dashboard.
+- Clean, premium, minimalis.
+- Dominasi warna emerald green, dark teal, dan putih.
+- Background abu-abu kebiruan yang sangat lembut.
+- Card dengan rounded corner dan shadow halus.
+- Typography Inter atau font modern yang sudah tersedia.
+- Ikon konsisten dan mudah dikenali.
+- Layout responsif untuk ukuran jendela desktop.
+
+## 2. SIDEBAR
+
+Perbaiki sidebar:
+- Dark teal dengan gradasi sangat halus.
+- Identitas dan logo klinik lebih profesional.
+- Menu aktif menggunakan highlight emerald.
+- Ikon memiliki ukuran dan alignment konsisten.
+- Jarak antar-menu lebih proporsional.
+- Pastikan sidebar tetap bisa di-scroll.
+- Pertahankan fungsi collapse/expand.
+
+## 3. HEADER
+
+Perbaiki bagian header:
+- Breadcrumb lebih minimalis.
+- Judul halaman lebih tegas.
+- Subtitle lebih ringan.
+- Area status lisensi tetap terlihat jelas.
+- Tombol pencarian, notifikasi, dan dark mode konsisten.
+- Jangan mengubah mekanisme pemeriksaan lisensi.
+
+## 4. KARTU STATISTIK
+
+Standarkan seluruh kartu statistik:
+- Hijau: kondisi normal/tersedia.
+- Amber: peringatan/menipis.
+- Merah: kondisi kritis/habis.
+- Angka utama lebih menonjol.
+- Ikon menggunakan background lembut.
+- Ukuran dan jarak antar-card konsisten.
+
+## 5. TOMBOL DAN ACTION
+
+Buat hierarki tombol yang jelas:
+
+Primary:
+- Tambah
+- Simpan
+- Jual
+- Konfirmasi
+
+Secondary:
+- Edit
+- Koreksi
+- Retur
+- Filter
+
+Danger:
+- Hapus
+- Void
+- Batalkan
+
+Gunakan warna, ukuran, radius, hover, dan disabled state secara konsisten.
+
+## 6. TABEL DATA
+
+Perbaiki seluruh tabel:
+- Header tabel lebih bersih.
+- Padding antarbaris proporsional.
+- Alignment angka dan nominal konsisten.
+- Status menggunakan badge.
+- Tombol aksi menggunakan ikon konsisten.
+- Hover row lembut.
+- Empty state lebih informatif.
+- Loading state lebih profesional.
+- Hindari tabel terlalu padat.
+
+## 7. MODAL DAN FORM
+
+Perbaiki seluruh modal:
+- Header modal lebih rapi.
+- Input memiliki label yang jelas.
+- Jarak antar-field konsisten.
+- Tombol footer konsisten.
+- Modal memiliki batas tinggi yang sesuai viewport.
+- Konten modal harus bisa di-scroll secara vertikal.
+- Header dan footer tetap terlihat apabila memungkinkan.
+- Pastikan tidak ada field atau tombol yang terpotong.
+- Perhatikan khusus modal Edit Pasien yang sebelumnya mengalami masalah scrolling.
+
+## 8. DESIGN SYSTEM GLOBAL
+
+Buat konsistensi visual untuk:
+- Dashboard
+- Pasien
+- Kunjungan
+- Terapis
+- Layanan
+- Herbal / Produk
+- Inventori
+- Invoice
+- Follow-up Pasien / CRM
+- Analytics
+- Pengaturan
+- Seluruh modal, form, tabel, notifikasi, dan dialog.
+
+Gunakan token warna, spacing, typography, radius, shadow, dan komponen yang konsisten.
+
+Jangan membuat setiap halaman memiliki gaya desain sendiri-sendiri.
+
+## 9. ATURAN WAJIB: JANGAN MERUSAK FITUR
+
+Ini adalah aplikasi yang sudah berjalan dan memiliki data operasional.
+
+DILARANG:
+- Mengubah struktur database.
+- Mengubah API atau endpoint.
+- Mengubah mekanisme autentikasi.
+- Mengubah sistem lisensi.
+- Mengubah mekanisme aktivasi perangkat.
+- Mengubah perhitungan transaksi.
+- Mengubah logika stok dan inventori.
+- Mengubah proses invoice.
+- Mengubah alur CRM dan WhatsApp.
+- Menghapus fitur yang sudah tersedia.
+- Mengubah nama fungsi atau kontrak antar-modul tanpa kebutuhan nyata.
+- Melakukan refactor backend yang tidak diperlukan.
+
+Fokus hanya pada UI/UX, CSS, layout, dan komponen frontend yang diperlukan.
+
+## 10. TAHAPAN PENGERJAAN
+
+Tahap 1:
+Audit struktur frontend dan identifikasi stylesheet, komponen global, serta halaman yang digunakan.
+
+Tahap 2:
+Buat rancangan Design System berdasarkan screenshot referensi.
+
+Tahap 3:
+Implementasikan komponen global dan sidebar/header.
+
+Tahap 4:
+Terapkan desain secara konsisten ke seluruh halaman.
+
+Tahap 5:
+Perbaiki modal, form, tabel, scrolling, dan responsivitas.
+
+Tahap 6:
+Lakukan regression testing.
+
+## 11. VALIDASI WAJIB
+
+Pastikan:
+- Seluruh menu tetap berfungsi.
+- Seluruh tombol tetap berfungsi.
+- Modal tambah/edit tetap berfungsi.
+- Scroll modal berjalan.
+- Tabel tetap menampilkan data.
+- Pencarian dan filter tidak rusak.
+- Dark mode tetap berfungsi.
+- Status lisensi tetap akurat.
+- Tidak ada perubahan data atau transaksi.
+- Tidak ada error JavaScript baru.
+- Tidak ada layout overflow.
+
+Jalankan seluruh test yang tersedia sebelum dan sesudah perubahan.
+
+## 12. OUTPUT
+
+Sebelum mengubah kode:
+1. Audit struktur frontend.
+2. Identifikasi file yang perlu diubah.
+3. Laporkan potensi risiko regresi.
+4. Susun rencana implementasi.
+
+Setelah selesai:
+1. Laporkan semua file yang diubah.
+2. Jelaskan perubahan UI.
+3. Laporkan hasil pengujian.
+4. Laporkan bug yang ditemukan.
+5. Pastikan tidak ada perubahan backend/database.
+6. Berikan rekomendasi langkah berikutnya.
+
+**PRINSIP UTAMA:**
+Tampilan boleh berubah secara menyeluruh, tetapi seluruh fungsi, data, proses bisnis, dan sistem lisensi harus tetap bekerja seperti sebelumnya.
+
+Jangan mengerjakan perubahan sebelum mendapatkan instruksi persetujuan dari pengguna.

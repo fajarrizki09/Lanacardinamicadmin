@@ -121,7 +121,7 @@ function initModals() {
                             </h4>
                             <span id="fe-visit-count" style="font-size:12px; color:var(--color-text-muted); font-weight:600; background:var(--color-surface-raised); padding:3px 8px; border-radius:12px;"></span>
                         </div>
-                        <div id="fe-visits-container" style="max-height:360px; overflow-y:auto; padding:10px;">
+                        <div id="fe-visits-container" style="padding:10px;">
                             <!-- Injected by JS -->
                         </div>
                     </div>
