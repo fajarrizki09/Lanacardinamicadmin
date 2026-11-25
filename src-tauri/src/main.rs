@@ -1202,7 +1202,7 @@ mod tests {
     #[test]
     fn diagnostics_payload_does_not_define_secret_fields() {
         let payload = NativeDiagnosticsResponse {
-            app_version: "1.7.54".to_string(),
+            app_version: "1.7.55".to_string(),
             platform: "windows-x86_64".to_string(),
             app_data_path: "C:\\Users\\example\\AppData\\Roaming\\Lancar".to_string(),
             log_path: "C:\\Users\\example\\AppData\\Roaming\\Lancar\\logs".to_string(),

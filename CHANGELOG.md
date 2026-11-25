@@ -1,5 +1,18 @@
 # Catatan Perubahan
 
+## 2026-11-25 - Perbaikan Template & Bahasa Follow-up CRM (v1.7.55)
+
+**🟡 MEDIUM PRIORITY - WHATSAPP CRM TEMPLATE**
+
+### Perbaikan Template & Bahasa Pesan Follow-up WhatsApp CRM
+- **IMPROVED:** Konsistensi sapaan Pak/Bapak atau Bu/Ibu di seluruh isi pesan, tidak tercampur lagi.
+- **IMPROVED:** Nama klinik diambil dari pengaturan branding (`clinic_name`), bukan nama aplikasi "Lancar Dynamic Admin".
+- **IMPROVED:** Format tanggal Indonesia, misalnya "29 Mei 2026" alih-nya "29/05/2026".
+- **IMPROVED:** Bahasa natural, ramah, dan profesional sesuai `formatpesan.md`; hilangkan gaya robot dan frasa berulang.
+- **IMPROVED:** Susun ulang dropdown template WhatsApp menurut kategori (Follow-up kunjungan, Reaktivasi, Aftercare, Promosi), hapus label duplikat.
+- File: `helpers/crm_analysis_helper.py`, `api/static/ts/crm.ts`
+- chore: bump version to 1.7.55
+
 ## 2026-11-23 - Perbaiki Backup & Bantuan Offline Mode (v1.7.54)
 
 **🟢 MEDIUM PRIORITY FEATURE - OFFLINE SUPPORT**

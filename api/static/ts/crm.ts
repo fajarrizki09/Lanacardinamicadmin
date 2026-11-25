@@ -61,24 +61,21 @@ const CRM_LABELS = {
 };
 
 const CRM_MESSAGE_TEMPLATES = {
+    // Follow-up kunjungan
     kontrol: "Kontrol rutin",
-    routine_polite: "Kontrol sopan",
-    routine_warm: "Kontrol hangat",
+    routine_friendly: "Kontrol ramah",
     routine_short: "Kontrol singkat",
-    routine_neutral: "Kontrol netral",
-    routine_friendly: "Kontrol santai",
+    // Reaktivasi
     reaktivasi: "Aktifkan kembali",
-    reactivation_polite: "Aktifkan kembali",
-    reactivation_neutral: "Aktifkan kembali netral",
-    promo: "Promo / paket",
-    promo_polite: "Promo / paket",
-    promo_neutral: "Promo netral",
-    aftercare: "Aftercare",
-    aftercare_polite: "Aftercare",
-    aftercare_neutral: "Aftercare netral",
-    kondisi: "Cek kondisi",
-    kondisi_polite: "Cek kondisi (sopan)",
-    kondisi_neutral: "Cek kondisi (netral)",
+    reactivation_polite: "Reaktivasi ramah",
+    reactivation_neutral: "Reaktivasi netral",
+    // Aftercare
+    aftercare: "Tindak lanjut kunjungan",
+    kondisi_polite: "Cek kondisi pasien",
+    kondisi_neutral: "Cek kondisi singkat",
+    // Promosi
+    promo: "Promo dan paket",
+    promo_neutral: "Informasi layanan",
     custom: "Custom"
 };
 

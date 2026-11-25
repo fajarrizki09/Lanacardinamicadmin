@@ -214,6 +214,20 @@ def _friendly_date(value):
     return value.strftime("%d/%m/%Y")
 
 
+def _friendly_date_id(value):
+    if not value:
+        return ""
+    try:
+        dt = datetime.strptime(str(value), "%Y-%m-%d")
+    except Exception:
+        return str(value)
+    bulan = [
+        "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    ][dt.month]
+    return f"{dt.day} {bulan} {dt.year}"
+
+
 def _format_currency(value):
     return f"Rp {int(float(value or 0)):,}".replace(",", ".")
 
@@ -620,6 +634,10 @@ def _patient_metrics(patient, followup, now, manual_tags=None, contact_preferenc
     first_visit = visits[0].date if visits else None
     last_visit = visits[-1].date if visits else None
     days_since_last_visit = (now.date() - last_visit.date()).days if last_visit else None
+    last_service = ""
+    if visits:
+        last_visit_obj = visits[-1]
+        last_service = last_visit_obj.service_name or (last_visit_obj.service.name if getattr(last_visit_obj, "service", None) else "") or ""
 
     intervals = []
     for idx in range(1, len(visits)):
@@ -684,6 +702,7 @@ def _patient_metrics(patient, followup, now, manual_tags=None, contact_preferenc
         "days_since_last_visit": days_since_last_visit,
         "avg_visit_gap": avg_visit_gap,
         "top_service": top_service,
+        "last_service": last_service,
         "top_therapist": top_therapist,
         "segment": segment,
         "segment_label": segment_label,
@@ -908,63 +927,51 @@ def _time_of_day_greeting() -> str:
     return "Selamat malam"
 
 
-def build_followup_message(row, template="kontrol", clinic_name=None):
-    template = template if template in MESSAGE_TEMPLATES else "kontrol"
-    name = row.get("name") or "Bapak/Ibu"
-    first_name = name.strip().split()[0] if name.strip() else "Bapak/Ibu"
+def _build_standard_followup_message(row, clinic_name=None):
+    """Bangun pesan follow-up WhatsApp dengan format standar formatpesan.md."""
+    name = str(row.get("name") or "").strip()
+    first_name = name.split()[0] if name else ""
     salutation = _patient_salutation(row)
     if clinic_name is None:
         clinic_name = _clinic_profile().get("clinic_name", "Lancar Dynamic Admin")
     clinic = (clinic_name or "Lancar Dynamic Admin").strip()
-    service = row.get("top_service") or "terapi"
+    service = row.get("last_service") or row.get("top_service") or "terapi"
     last_visit = row.get("last_visit") or ""
-    last_visit_text = _friendly_date(datetime.strptime(last_visit, "%Y-%m-%d")) if last_visit else ""
+    last_visit_text = _friendly_date_id(last_visit) if last_visit else ""
     days = row.get("days_since_last_visit")
+    days_text = str(days) if days is not None else "beberapa"
 
     time_greeting = _time_of_day_greeting()
-    intro = f"Assalamu'alaikum {salutation} {first_name}, {time_greeting}. Ini admin {clinic}."
 
-    if template == "reaktivasi":
-        context = (
-            f"Kami cek terakhir kunjungan {last_visit_text}."
-            if last_visit_text
-            else "Kami ingin menyapa kembali setelah beberapa waktu belum berkunjung."
-        )
-        ask = "Apakah ada keluhan yang ingin dikontrol atau jadwal yang cocok untuk terapi lanjutan minggu ini?"
-    elif template == "promo":
-        context = f"Kami sedang menyiapkan jadwal untuk pasien yang biasa mengambil layanan {service}."
-        ask = "Kalau berkenan, kami bantu cek slot terdekat dan info paket yang sesuai kebutuhan."
-    elif template == "aftercare":
-        context = (
-            f"Semoga kondisi setelah layanan {service} kemarin semakin membaik."
-            if service
-            else "Semoga kondisi setelah terapi kemarin semakin membaik."
-        )
-        ask = "Apakah ada keluhan lanjutan atau hal yang perlu kami bantu pantau?"
-    elif template in ("kondisi", "kondisi_polite", "kondisi_neutral"):
-        condition = str(row.get("condition") or row.get("kondisi") or "").strip()
-        if condition:
-            context = f"Kami kaitkan pesan ini dengan kondisi Anda saat ini: {condition}."
-        else:
-            context = "Kami ingin mengecek kondisi Anda setelah kunjungan terakhir."
-        if template == "kondisi_polite":
-            ask = "Mohon beritahu kami jika ada keluhan atau pertanyaan seputar kesehatan Anda."
-        elif template == "kondisi_neutral":
-            ask = "Apakah ada update terkait kondisi kesehatan Anda yang perlu kami ketahui?"
-        else:
-            ask = "Bagaimana kondisi Anda sekarang? Kami siap membantu jika ada keluhan lanjutan."
+    raw_salutation = _patient_salutation(row)
+    if raw_salutation == "Pak":
+        honorific_short = "Pak"
+        honorific_full = "Bapak"
+    elif raw_salutation == "Ibu":
+        honorific_short = "Bu"
+        honorific_full = "Ibu"
     else:
-        if days is not None:
-            context = f"Sudah sekitar {days} hari sejak kunjungan terakhir"
-            if last_visit_text:
-                context += f" pada {last_visit_text}"
-            context += f" untuk layanan {service}."
-        else:
-            context = "Kami ingin membantu menjadwalkan kunjungan pertama."
-        ask = "Apakah ingin kami bantu jadwalkan kontrol atau terapi lanjutan?"
+        honorific_short = ""
+        honorific_full = "Bapak/Ibu"
 
-    closing = "Silakan balas pesan ini, nanti kami bantu pilihkan jadwal yang paling nyaman. Terima kasih."
-    message = f"{intro}\n\n{context}\n{ask}\n\n{closing}"
+    greeting = f"{honorific_short} {first_name}".strip() if first_name else (honorific_short or honorific_full)
+    intro = f"Assalamu'alaikum {greeting}, {time_greeting}. 😊"
+    kabar = f"Apa kabar {honorific_full}? Semoga selalu sehat dan dalam keadaan baik."
+    clinic_line = f"Kami dari {clinic} ingin menyapa."
+    if last_visit_text:
+        context = f"Terakhir kali {honorific_full} berkunjung untuk layanan {service} pada {last_visit_text}."
+    else:
+        context = f"Terakhir kali {honorific_full} berkunjung untuk layanan {service}."
+
+    ask = f"Jika {honorific_full} ingin berkunjung kembali atau melakukan terapi, kami dengan senang hati siap membantu mengatur jadwal kunjungan."
+    closing = f"Terima kasih telah mempercayakan perawatan kepada {clinic}.\n\nSalam sehat. 🙏"
+
+    return f"{intro}\n\n{kabar}\n\n{clinic_line} {context}\n\n{ask}\n\n{closing}"
+
+
+def build_followup_message(row, template="kontrol", clinic_name=None):
+    template = template if template in MESSAGE_TEMPLATES else "kontrol"
+    message = _build_standard_followup_message(row, clinic_name=clinic_name)
     phone = _clean_phone(row.get("phone"))
 
     return {
@@ -1005,137 +1012,9 @@ def _build_lock_warning(log, message_type, lock_days):
 
 
 def _whatsapp_template_message(row, template_type, variant_index=0, voucher=None):
-    salutation = _patient_salutation(row)
-    first_name = _patient_first_name(row)
-    greeting_name = f"{salutation} {first_name}".strip() if first_name else salutation
-    service = row.get("top_service") or "terapi"
-    last_visit = row.get("last_visit") or ""
-    last_visit_text = _friendly_date(datetime.strptime(last_visit, "%Y-%m-%d")) if last_visit else ""
-    days = row.get("days_since_last_visit")
+    template_type = WHATSAPP_TEMPLATE_ALIASES.get(str(template_type or "").strip(), "routine")
     profile = _clinic_profile()
-
-    if template_type == "reactivation_neutral":
-        context = (
-            f"Kami melihat kunjungan terakhir {greeting_name} pada {last_visit_text} untuk layanan {service}."
-            if last_visit_text
-            else f"Kami ingin menyapa kembali dan membantu cek kebutuhan layanan {service}."
-        )
-        message = (
-            f"Halo {greeting_name}, kami dari {profile['clinic_name']}.\n\n"
-            f"{context}\n\n"
-            "Jika ada keluhan yang ingin dikontrol atau ingin dibantu cek jadwal terapi lanjutan, admin siap membantu.\n\n"
-            "Silakan balas pesan ini kapan saja. Terima kasih."
-        )
-    elif template_type in ("reactivation", "reactivation_polite"):
-        context = (
-            f"Kami cek kunjungan terakhir {greeting_name} pada {last_visit_text} untuk layanan {service}."
-            if last_visit_text
-            else f"Kami ingin menyapa kembali dan membantu cek kebutuhan layanan {service}."
-        )
-        ask_options = [
-            "Apakah ada keluhan yang ingin dikontrol atau ingin dibantu pilih jadwal terapi lanjutan?",
-            f"Jika {salutation} berkenan, kami bisa bantu cek jadwal kontrol yang nyaman minggu ini.",
-        ]
-        message = (
-            f"Assalamu'alaikum, {greeting_name}.\n\n"
-            f"Semoga {greeting_name} dalam keadaan sehat selalu.\n\n"
-            f"Kami dari {profile['clinic_name']} ingin menyapa kembali. {context}\n\n"
-            f"{ask_options[variant_index % len(ask_options)]}\n\n"
-            f"Silakan balas pesan ini kapan saja ya, {salutation}. Nanti kami bantu carikan jadwal yang paling nyaman.\n\n"
-            "Terima kasih."
-        )
-    elif template_type == "promo_neutral":
-        context = f"Kami sedang menyiapkan info jadwal dan promo yang bisa disesuaikan dengan kebutuhan layanan {service}."
-        message = (
-            f"Halo {greeting_name}, kami dari {profile['clinic_name']}.\n\n"
-            f"{context}\n\n"
-            "Jika berkenan, admin bisa bantu kirimkan pilihan jadwal dan paket yang sesuai kebutuhan.\n\n"
-            "Silakan balas pesan ini untuk cek slot terdekat. Terima kasih."
-        )
-    elif template_type in ("promo", "promo_polite"):
-        context = f"Kami sedang menyiapkan info jadwal dan promo yang bisa disesuaikan dengan kebutuhan layanan {service}."
-        ask_options = [
-            "Kalau berkenan, kami bantu cek slot terdekat dan pilihan paket yang paling cocok.",
-            f"Boleh kami bantu kirimkan pilihan jadwal dan paket yang sesuai kebutuhan {salutation}?",
-        ]
-        message = (
-            f"Assalamu'alaikum, {greeting_name}.\n\n"
-            "Semoga sehat selalu.\n\n"
-            f"{context}\n\n"
-            f"{ask_options[variant_index % len(ask_options)]}\n\n"
-            f"Jika {salutation} ingin konsultasi lebih dulu, silakan balas pesan ini. Admin siap bantu.\n\n"
-            "Terima kasih."
-        )
-    elif template_type == "aftercare_neutral":
-        context = f"Semoga kondisi setelah layanan {service} semakin membaik."
-        message = (
-            f"Halo {greeting_name}, kami dari {profile['clinic_name']}.\n\n"
-            f"{context}\n\n"
-            "Apakah ada keluhan lanjutan atau hal yang perlu kami bantu pantau setelah terapi?\n\n"
-            "Silakan balas pesan ini jika membutuhkan arahan dari admin. Terima kasih."
-        )
-    elif template_type in ("aftercare", "aftercare_polite"):
-        context = f"Semoga kondisi setelah layanan {service} semakin membaik."
-        ask_options = [
-            "Apakah ada keluhan lanjutan atau hal yang perlu kami bantu pantau?",
-            "Kalau ada reaksi atau keluhan setelah terapi, silakan kabari kami agar bisa kami bantu arahkan.",
-        ]
-        message = (
-            f"Assalamu'alaikum, {greeting_name}.\n\n"
-            f"{context}\n\n"
-            f"{ask_options[variant_index % len(ask_options)]}\n\n"
-            f"Silakan balas pesan ini kapan saja ya, {salutation}. Semoga lekas pulih dan sehat selalu.\n\n"
-            "Terima kasih."
-        )
-    else:
-        if days is not None:
-            context = f"Sudah sekitar {days} hari sejak kunjungan terakhir"
-            if last_visit_text:
-                context += f" pada {last_visit_text}"
-            context += f" untuk layanan {service}."
-        else:
-            context = f"Kami ingin membantu menjadwalkan kunjungan pertama {salutation}."
-
-        if template_type == "routine_neutral":
-            message = (
-                f"Halo {greeting_name}, kami dari {profile['clinic_name']}.\n\n"
-                f"Kami ingin menginformasikan bahwa {context[0].lower() + context[1:]}\n\n"
-                "Jika ingin melakukan kontrol atau konsultasi lanjutan, admin siap bantu cek jadwal terdekat.\n\n"
-                "Silakan balas pesan ini kapan saja. Terima kasih."
-            )
-        elif template_type == "routine_friendly":
-            message = (
-                f"Halo {greeting_name}, apa kabar?\n\n"
-                f"Kami dari {profile['clinic_name']} ingin follow-up. {context}\n\n"
-                "Kalau ingin kontrol lanjutan atau cek jadwal terdekat, balas pesan ini ya. Admin siap bantu.\n\n"
-                "Terima kasih."
-            )
-        elif template_type == "routine_short":
-            message = (
-                f"Assalamu'alaikum, {greeting_name}.\n\n"
-                f"Kami dari {profile['clinic_name']} ingin mengingatkan bahwa {context[0].lower() + context[1:]}\n\n"
-                "Jika ingin kontrol atau konsultasi lanjutan, admin siap bantu cek jadwal terdekat.\n\n"
-                "Terima kasih."
-            )
-        elif template_type == "routine_warm":
-            message = (
-                f"Assalamu'alaikum, {greeting_name}.\n\n"
-                f"Semoga {greeting_name} dan keluarga dalam keadaan sehat selalu.\n\n"
-                f"Kami dari {profile['clinic_name']} ingin follow-up kabar {greeting_name}. {context}\n\n"
-                "Jika ada keluhan yang ingin dikonsultasikan atau ingin kontrol lanjutan, silakan balas pesan ini. "
-                "Nanti admin bantu cek slot jadwal yang paling nyaman.\n\n"
-                "Terima kasih."
-            )
-        else:
-            message = (
-                f"Assalamu'alaikum, {greeting_name}.\n\n"
-                f"Semoga {greeting_name} dalam keadaan sehat selalu.\n\n"
-                f"Kami dari {profile['clinic_name']} ingin menginformasikan bahwa {context[0].lower() + context[1:]}\n\n"
-                "Jika ingin melakukan kontrol atau konsultasi lanjutan, admin siap bantu cek slot jadwal terdekat yang tersedia.\n\n"
-                f"Silakan balas pesan ini kapan saja ya, {salutation}. Nanti kami bantu carikan jadwal yang paling nyaman.\n\n"
-                "Terima kasih."
-            )
-
+    message = _build_standard_followup_message(row, clinic_name=profile.get("clinic_name", "Lancar Dynamic Admin"))
     return f"{message}{_voucher_message_block(voucher)}{_clinic_contact_footer(profile)}"
 
 
