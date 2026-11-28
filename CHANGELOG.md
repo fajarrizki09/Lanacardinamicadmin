@@ -1,5 +1,17 @@
 # Catatan Perubahan
 
+## 2026-11-28 - Tab & Gaya Modal Follow-up Pasien (v1.7.58)
+
+**🟡 MEDIUM PRIORITY - UI/UX MODAL FOLLOW-UP**
+
+### Perbaikan Modal Detail Follow-up Pasien
+- **IMPROVED:** Modal follow-up sekarang menggunakan sistem tab (Info Pasien, WhatsApp, Riwayat, Hasil, Voucher) seperti halaman Pengaturan, tidak perlu scroll dalam modal; setiap tab geser saat diklik, footer Simpan Follow-up sticky di bawah.
+- **FIXED:** Checkbox preferensi kontak (crm-checkbox-line) lebih rapi, tidak berjauhan, padding dan hover konsisten, variant "Jangan dihubungi" warna merah.
+- **IMPROVED:** Info pasien di tab Info kini dalam kartu (crm-info-item) dengan border, radius, padding, hover lift, bukan teks polos.
+- **FIXED:** Modal lebar diperbesar 1000px → 1150px (max-width 96vw), header & footer sticky, hanya satu area konten yang scroll (tanpa nested scrolling).
+- File: `api/static/modules/crm.js`, `api/static/style.css`
+- chore: bump version to 1.7.58
+
 ## 2026-11-28 - Perbaikan Tampilan & UI Dashboard (v1.7.57)
 
 **🟡 MEDIUM PRIORITY - UI/UX VISUAL FIX**

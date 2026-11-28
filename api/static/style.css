@@ -3249,7 +3249,7 @@ body.theme-dark .license-indicator.warning {
 
 .patient-edit-btn {
   flex: 0 0 auto;
-  min-height: 32px;
+  min-height: 34px;
   padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--color-surface-300);
@@ -3257,9 +3257,9 @@ body.theme-dark .license-indicator.warning {
   color: var(--text-main);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: inline-flex;
   align-items: center;
@@ -3276,10 +3276,13 @@ body.theme-dark .license-indicator.warning {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  vertical-align: middle;
 }
 
 .patient-edit-btn span {
-  line-height: 1;
+  line-height: 1.2;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 .patient-edit-btn:hover {
@@ -4108,6 +4111,63 @@ body.audit-modal-open {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
+}
+
+/* === DASHBOARD ENHANCEMENTS ================================================= */
+.ops-updated {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-700);
+}
+
+.card-stats-period {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.revenue-chart-period {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.revenue-bar-pct {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--color-primary-600);
+  margin-top: 4px;
+}
+
+.activity-stock {
+  cursor: pointer;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--color-surface-50);
+  transition: all 0.18s ease;
+}
+
+.activity-stock:hover {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.discount-dashboard-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
 }
 
 .top-service-list {
@@ -5142,46 +5202,116 @@ body.audit-modal-open {
 }
 
 /* === CRM FOLLOW-UP DETAIL MODAL =========================================== */
+.crm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.crm-modal {
+  background: var(--card-bg);
+  border-radius: var(--r-xl);
+  width: 1150px;
+  max-width: 96vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-shadow: var(--shadow-xl);
+  animation: modalIn 0.2s ease;
+}
+
 #crm-followup-form {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .crm-followup-form-body {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 18px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  gap: 0;
   padding: 24px;
   background: var(--color-surface-50);
 }
 
+.crm-followup-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  background: var(--color-surface-50);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 .crm-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--border-color);
   background: var(--color-card);
   border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+.crm-modal-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .crm-modal-header h3 {
   margin: 0;
   color: var(--text-main);
-  font-size: 18px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
 }
 
-.crm-modal-header p {
-  margin: 4px 0 0;
+.crm-modal-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.crm-meta-days {
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.crm-meta-divider {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.crm-meta-status {
+  font-size: 11.5px;
+  padding: 3px 8px;
 }
 
 .crm-modal-header button {
@@ -5190,11 +5320,12 @@ body.audit-modal-open {
   font-size: 20px;
   color: var(--text-muted);
   cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .crm-followup-layout {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
+  grid-template-columns: 1fr 1.35fr;
   gap: 24px;
   min-height: 0;
   background: transparent;
@@ -5203,13 +5334,12 @@ body.audit-modal-open {
 .crm-followup-column {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
 }
 
 .crm-followup-right-column {
-  align-items: stretch;
-  gap: 16px;
+  gap: 14px;
 }
 
 .crm-followup-right-column > * {
@@ -5224,24 +5354,87 @@ body.audit-modal-open {
   gap: 12px;
 }
 
+.crm-info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crm-group-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crm-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 14px;
+  min-width: 0;
+}
+
+.crm-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-sm);
+  background: var(--color-card);
+}
+
+.crm-info-item:hover {
+  border-color: var(--color-primary-300, #a7f3d0);
+  background: var(--color-primary-50, #f0fdf4);
+}
+
+.crm-info-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
+.crm-info-value {
+  font-size: 13px;
+  color: var(--text-main);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.crm-info-value .badge {
+  font-size: 10.5px;
+  padding: 2px 7px;
+}
+
 .crm-history-box {
   background: var(--color-card);
   border: 1px solid var(--border-color);
   border-radius: var(--r-lg);
-  padding: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .crm-history-box h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--text-main);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .crm-voucher-tools {
@@ -5249,8 +5442,9 @@ body.audit-modal-open {
   flex-direction: column;
   gap: 10px;
   border-bottom: 1px solid var(--border-color);
-  padding-bottom: 16px;
-  margin-bottom: 8px;
+  padding-bottom: 14px;
+  margin-bottom: 6px;
+  min-width: 0;
 }
 
 .crm-voucher-row {
@@ -5274,41 +5468,42 @@ body.audit-modal-open {
 }
 
 .crm-history-empty {
-  padding: 20px;
+  padding: 16px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   font-style: italic;
 }
 
 .crm-history-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 250px;
-  overflow-y: auto;
-  padding-right: 4px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .crm-history-item {
   background: var(--color-surface-50);
-  padding: 12px;
+  padding: 11px 13px;
   border-radius: var(--r-md);
   border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
 }
 
 .crm-history-item > div {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .crm-history-item strong {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-main);
+  overflow-wrap: anywhere;
 }
 
 .crm-history-item span {
@@ -5318,18 +5513,102 @@ body.audit-modal-open {
 
 .crm-history-item p {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-main);
-  line-height: 1.4;
+  line-height: 1.45;
   border-top: 1px dashed var(--color-border);
-  padding-top: 6px;
+  padding-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.crm-whatsapp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  background: var(--color-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-lg);
+  padding: 16px;
+}
+
+.crm-whatsapp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+}
+
+.whatsapp-message-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crm-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.crm-warning.hidden {
+  display: none;
+}
+
+.whatsapp-template-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.whatsapp-template-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.btn-action {
+  flex: 0 0 auto;
+}
+
+.whatsapp-message-textarea {
+  min-height: 150px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.crm-followup-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.crm-followup-action-row .btn-outline,
+.crm-followup-action-row .btn-wa {
+  position: static;
+  min-height: 40px;
+  flex: 1 1 140px;
+  justify-content: center;
 }
 
 .crm-modal-actions {
-  position: static;
-  z-index: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
   flex: 0 0 auto;
-  padding: 16px 24px;
+  padding: 12px 24px;
   border-top: 1px solid var(--border-color);
   background: var(--color-card);
   text-align: right;
@@ -5341,39 +5620,237 @@ body.audit-modal-open {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
 }
 
 .crm-followup-save-row .btn {
   min-height: 42px;
+  padding: 0 18px;
 }
 
-.crm-followup-action-row {
+.crm-modal-actions-end {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.crm-outcome-grid {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crm-outcome-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.crm-outcome-note-textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+  background: var(--color-card);
+  color: var(--color-text);
+}
+
+.crm-row-btn {
+  flex: 0 0 auto;
+}
+
+.crm-collapsible {
+  min-width: 0;
+}
+
+.crm-collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.crm-collapsible-icon {
+  flex: 0 0 auto;
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+
+.crm-collapsible-content {
+  min-width: 0;
+}
+
+/* === Checkbox / preference styling (neat, aligned, compact) ================ */
+.crm-checkbox-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-sm);
+  background: var(--color-card);
+  cursor: pointer;
+  min-height: 38px;
+  transition: all 0.16s ease;
+}
+
+.crm-checkbox-line input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.crm-checkbox-line span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.crm-checkbox-line:hover {
+  border-color: var(--color-primary-400, #34d399);
+  background: var(--color-surface-50);
+}
+
+.crm-checkbox-line.danger span {
+  color: var(--color-danger-700, #b91c1c);
+}
+
+.crm-checkbox-line.danger:hover {
+  border-color: var(--color-danger-400, #fca5a5);
+  background: var(--color-danger-50, #fef2f2);
+}
+
+/* Manual tag pills – compact, tight vertical spacing */
+.crm-checkbox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-sm);
+  background: var(--color-card);
+  font-size: 12.5px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.crm-checkbox-pill input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.crm-checkbox-pill span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1;
+}
+
+.crm-checkbox-grid {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
+  gap: 6px 10px;
+}
+
+.crm-custom-tags-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  background: var(--color-card);
+  color: var(--color-text);
+  margin-top: 6px;
+  min-width: 0;
+}
+
+.crm-lock-override {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-top: 10px;
+  font-size: 13px;
 }
 
-.crm-followup-action-row .btn-outline,
-.crm-followup-action-row .btn-wa {
-  position: static;
-  min-height: 40px;
-  flex: 1 1 150px;
-  justify-content: center;
-}
-
-.crm-followup-history-box {
+.crm-lock-override input {
   flex: 0 0 auto;
   margin: 0;
-  position: static;
-  order: 0;
 }
 
-.crm-followup-history-box .crm-history-list {
-  max-height: 180px;
+.crm-voucher-confirm-wrap {
+  flex: 0 0 auto;
+}
+
+/* === Modal action button base styles (btn-outline, btn-wa) ================= */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--r-sm);
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 40px;
+  transition: all 0.16s ease;
+}
+
+.btn-outline i {
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.btn-outline:hover {
+  border-color: var(--color-primary-400, #34d399);
+  background: var(--color-surface-50);
+}
+
+.btn-wa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--color-success-400, #34d399);
+  border-radius: var(--r-sm);
+  background: var(--color-success-50, #f0fdf4);
+  color: var(--color-success-800, #15803d);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  min-height: 40px;
+  transition: all 0.16s ease;
+}
+
+.btn-wa i {
+  font-size: 13px;
+  flex: 0 0 auto;
+  color: var(--color-success-600, #059669);
+}
+
+.btn-wa:hover {
+  border-color: var(--color-success-500, #10b981);
+  background: var(--color-success-100, #dcfce7);
 }
 
 @media (max-width: 900px) {
@@ -5381,12 +5858,518 @@ body.audit-modal-open {
     grid-template-columns: 1fr;
   }
   .crm-form-row,
-  .crm-voucher-create-row {
+  .crm-voucher-create-row,
+  .crm-voucher-row {
     grid-template-columns: 1fr;
+  }
+  .crm-outcome-grid {
+    grid-template-columns: 1fr;
+  }
+  .crm-info-grid {
+    grid-template-columns: 1fr;
+  }
+  .crm-followup-action-row .btn-outline,
+  .crm-followup-action-row .btn-wa {
+    flex: 1 1 100%;
   }
 }
 
-/* === REDUCED MOTION (Accessibility) ========================================= */
+/* === VISIT NOTES (Catatan Medis) textarea ==================================== */
+.visit-notes-section textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 96px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+  background: var(--color-card);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.visit-notes-section textarea:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+/* === VISIT PAYMENT QUICK ACTIONS – perbedaan warna status ==================== */
+.visit-payment-quick-actions button[data-status="paid"][data-method="cash"] {
+  border-color: var(--color-success-400, #34d399);
+  background: var(--color-success-50, #f0fdf4);
+  color: var(--color-success-800, #15803d);
+}
+
+.visit-payment-quick-actions button[data-status="paid"][data-method="cash"] i {
+  color: var(--color-success-600, #059669);
+}
+
+.visit-payment-quick-actions button[data-status="paid"][data-method="cash"]:hover {
+  border-color: var(--color-success-500, #10b981);
+  background: var(--color-success-100, #dcfce7);
+  color: var(--color-success-900, #14532d);
+}
+
+.visit-payment-quick-actions button[data-status="paid"][data-method="qris"] {
+  border-color: var(--color-info-400, #67e8f9);
+  background: var(--color-info-50, #eff6ff);
+  color: var(--color-info-800, #1e3a8a);
+}
+
+.visit-payment-quick-actions button[data-status="paid"][data-method="qris"] i {
+  color: var(--color-info-600, #0284c7);
+}
+
+.visit-payment-quick-actions button[data-status="paid"][data-method="qris"]:hover {
+  border-color: var(--color-info-500, #0ea5e9);
+  background: var(--color-info-100, #dbeafe);
+  color: var(--color-info-900, #1e3a8a);
+}
+
+.visit-payment-quick-actions button[data-status="unpaid"] {
+  border-color: var(--color-warning-400, #fbbf24);
+  background: var(--color-warning-50, #fffbeb);
+  color: var(--color-warning-800, #92400e);
+}
+
+.visit-payment-quick-actions button[data-status="unpaid"] i {
+  color: var(--color-warning-600, #d97706);
+}
+
+.visit-payment-quick-actions button[data-status="unpaid"]:hover {
+  border-color: var(--color-warning-500, #f59e0b);
+  background: var(--color-warning-100, #fef3c7);
+  color: var(--color-warning-900, #78350f);
+}
+
+.visit-payment-quick-actions button[data-status="partial"] {
+  border-color: var(--color-info-400, #67e8f9);
+  background: var(--color-info-50, #eff6ff);
+  color: var(--color-info-800, #1e3a8a);
+}
+
+.visit-payment-quick-actions button[data-status="partial"] i {
+  color: var(--color-info-600, #0284c7);
+}
+
+.visit-payment-quick-actions button[data-status="partial"]:hover {
+  border-color: var(--color-info-500, #0ea5e9);
+  background: var(--color-info-100, #dbeafe);
+  color: var(--color-info-900, #1e3a8a);
+}
+
+/* Status yang aktif dipilih – highlighting tebal */
+.visit-payment-quick-actions button[data-active="true"] {
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+/* Responsive – layar kecil tombol menyesuaikan */
+@media (max-width: 640px) {
+  .visit-payment-quick-actions {
+    flex-direction: column;
+  }
+  .visit-payment-quick-actions button {
+    flex: 1 1 100%;
+    min-height: 44px;
+  }
+}
+
+/* === VISIT LAYOUT – seimbangkan kiri dan kanan =============================== */
+.visit-main-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
+  gap: 18px;
+}
+
+.visit-panel,
+.visit-panel-legacy {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.visit-panel-content,
+.visit-panel-legacy-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.visit-panel-empty,
+.visit-panel-legacy-empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
+
+.visit-panel-empty i,
+.visit-panel-legacy-empty i {
+  font-size: 34px;
+  opacity: 0.45;
+}
+
+.visit-panel-empty p,
+.visit-panel-legacy-empty p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.visit-panel-empty small,
+.visit-panel-legacy-empty small {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* === INVOICE STAT CARD IKON – putih, kontras tinggi ========================== */
+.invoice-stats-grid .stat-card .stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.invoice-stats-grid .stat-card .stat-icon i {
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+}
+
+.invoice-stats-grid .stat-card .stat-details h4 {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 3px 0;
+}
+
+.invoice-stats-grid .stat-card .stat-details h2 {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  margin: 0;
+}
+
+/* === INVOICE STATUS PILL – berbeda & mudah dikenali ========================== */
+.invoice-status-pill,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.invoice-status-pill i,
+.status-pill i {
+  font-size: 9px;
+}
+
+.status-pill.status-void {
+  background: var(--color-danger-100, #fee2e2);
+  color: var(--color-danger-700, #b91c1c);
+  border: 1px solid var(--color-danger-200, #fecaca);
+}
+
+.status-pill.status-paid {
+  background: var(--color-success-100, #dcfce7);
+  color: var(--color-success-700, #15803d);
+  border: 1px solid var(--color-success-200, #86efac);
+}
+
+.status-pill.status-pending,
+.status-pill.status-unpaid {
+  background: var(--color-warning-100, #fef3c7);
+  color: var(--color-warning-700, #b45309);
+  border: 1px solid var(--color-warning-200, #fde68a);
+}
+
+/* === INVOICE FILE HILANG – perhatian khusus (beda dari VOID) ================= */
+.invoice-file-missing,
+.invoice-missing-file-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--color-warning-100, #fef3c7);
+  color: var(--color-warning-700, #b45309);
+  border: 1px solid var(--color-warning-200, #fde68a);
+  white-space: nowrap;
+}
+
+/* === INVOICE ACTION BUTTONS – alignment, ukuran, padding, tooltip =========== */
+.invoice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  align-items: center;
+}
+
+.invoice-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--r-sm);
+  background: var(--color-card);
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+
+.invoice-action-btn i {
+  font-size: 12px;
+}
+
+.invoice-action-btn span {
+  font-size: 11.5px;
+}
+
+.invoice-action-btn:hover {
+  border-color: var(--color-primary-400, #34d399);
+  background: var(--color-surface-50);
+  transform: translateY(-1px);
+}
+
+.invoice-action-btn:active {
+  transform: translateY(0);
+}
+
+.invoice-action-btn-pdf,
+.invoice-action-btn-print,
+.invoice-action-btn-update,
+.invoice-action-btn-generate,
+.invoice-action-btn-generate-herbal {
+  border-color: var(--color-primary-300, #a7f3d0);
+  color: var(--color-primary-700, #065f46);
+}
+
+.invoice-action-btn-pdf:hover,
+.invoice-action-btn-print:hover {
+  border-color: var(--color-primary-500, #10b981);
+  background: var(--color-primary-50, #f0fdf4);
+}
+
+.invoice-action-btn-void {
+  border-color: var(--color-danger-300, #fca5a5);
+  color: var(--color-danger-700, #b91c1c);
+}
+
+.invoice-action-btn-void:hover {
+  border-color: var(--color-danger-500, #ef4444);
+  background: var(--color-danger-50, #fef2f2);
+}
+
+.invoice-action-btn-link,
+.invoice-action-btn-check {
+  border-color: var(--color-info-300, #93c5fd);
+  color: var(--color-info-700, #1d4ed8);
+}
+
+.invoice-action-btn-link:hover,
+.invoice-action-btn-check:hover {
+  border-color: var(--color-info-500, #0ea5e9);
+  background: var(--color-info-50, #eff6ff);
+}
+
+.invoice-action-btn-paid {
+  border-color: var(--color-success-300, #86efac);
+  color: var(--color-success-700, #15803d);
+}
+
+.invoice-action-btn-paid:hover {
+  border-color: var(--color-success-500, #10b981);
+  background: var(--color-success-50, #f0fdf4);
+}
+
+.invoice-action-btn-partial {
+  border-color: var(--color-info-300, #93c5fd);
+  color: var(--color-info-700, #1d4ed8);
+}
+
+.invoice-action-btn-partial:hover {
+  border-color: var(--color-info-500, #0ea5e9);
+  background: var(--color-info-50, #eff6ff);
+}
+
+.invoice-gateway-create-btn {
+  border-color: var(--color-primary-400, #34d399);
+  color: var(--color-primary-700, #065f46);
+}
+
+.invoice-gateway-create-btn:hover {
+  border-color: var(--color-primary-500, #10b981);
+  background: var(--color-primary-50, #f0fdf4);
+}
+
+@media (max-width: 900px) {
+  .invoice-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .invoice-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .invoice-action-btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+/* === CRM FOLLOW-UP MODAL TABS ============================================= */
+.crm-followup-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.crm-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 24px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--color-card);
+  z-index: 10;
+}
+
+.crm-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 40px;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.crm-tab-btn i {
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.crm-tab-btn:hover {
+  background: var(--color-surface-50);
+  color: var(--text-main);
+  border-color: var(--color-surface-300);
+  border-bottom-color: transparent;
+}
+
+.crm-tab-btn.crm-tab-active {
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-300);
+  border-bottom: 2px solid var(--color-primary-600);
+  background: var(--color-primary-50);
+}
+
+.crm-tab-panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crm-tab-panel {
+  display: none;
+  flex: 0 0 auto;
+  min-width: 0;
+  animation: tabFadeIn 0.18s ease;
+}
+
+.crm-tab-panel.crm-tab-active {
+  display: block;
+}
+
+.crm-tab-panel .crm-collapsible {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.crm-tab-panel .crm-collapsible-header {
+  padding: 8px 0;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .crm-tab-bar {
+    padding: 0 16px 10px;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .crm-tab-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .crm-tab-btn {
+    flex: 0 0 auto;
+    min-width: auto;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .crm-tab-panels {
+    padding: 0 16px 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

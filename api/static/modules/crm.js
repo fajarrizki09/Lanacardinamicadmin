@@ -686,21 +686,61 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
     let vouchers = { special: [], general: [] };
     const overlay = document.createElement('div');
     overlay.className = 'crm-modal-overlay';
+    const daysSince = patient.days_since_last_visit != null
+        ? `${patient.days_since_last_visit} hari sejak kunjungan terakhir`
+        : 'Belum ada data kunjungan';
+    const followupStatusLabel = crmShortFollowupLabel(patient.followup_status, patient.followup_status_label);
     overlay.innerHTML = `
         <div class="crm-modal" role="dialog" aria-modal="true" aria-label="Follow-up ${escapeHtml(patient.name)}">
             <div class="crm-modal-header">
-                <div>
+                <div class="crm-modal-header-info">
                     <h3>${escapeHtml(patient.name)}</h3>
-                    <p>${escapeHtml(patient.recommendation)}</p>
+                    <p class="crm-modal-header-meta">
+                        <span class="crm-meta-days">${escapeHtml(daysSince)}</span>
+                        <span class="crm-meta-divider">•</span>
+                        <span class="badge ${crmFollowupBadge(patient.followup_status)} crm-meta-status">${escapeHtml(followupStatusLabel)}</span>
+                    </p>
                 </div>
                 <button type="button" data-crm-action="close-modal" aria-label="Tutup"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
             <form id="crm-followup-form" data-crm-form-action="followup">
                 <input type="hidden" name="patient_id" value="${patient.id}">
-                <div class="crm-followup-form-body">
-                    <div class="crm-followup-layout">
-<div class="crm-followup-column crm-followup-left-column">
-                            <div class="crm-form-row">
+                <div class="crm-followup-tabs">
+                    <div class="crm-tab-bar">
+                        <button type="button" class="crm-tab-btn crm-tab-active" data-crm-tab="info" title="Informasi Pasien"><i class="fas fa-user-circle"></i><span>Info Pasien</span></button>
+                        <button type="button" class="crm-tab-btn" data-crm-tab="whatsapp" title="Pengelolaan WhatsApp"><i class="fab fa-whatsapp"></i><span>WhatsApp</span></button>
+                        <button type="button" class="crm-tab-btn" data-crm-tab="history" title="Riwayat Follow-up"><i class="fas fa-history"></i><span>Riwayat</span></button>
+                        <button type="button" class="crm-tab-btn" data-crm-tab="outcome" title="Hasil Follow-up"><i class="fas fa-clipboard-check"></i><span>Hasil</span></button>
+                        <button type="button" class="crm-tab-btn" data-crm-tab="voucher" title="Voucher Follow-up"><i class="fas fa-ticket-alt"></i><span>Voucher</span></button>
+                    </div>
+                    <div class="crm-tab-panels">
+                        <!-- Tab: Info Pasien -->
+                        <div class="crm-tab-panel crm-tab-active" id="crm-tab-info">
+                            <div class="crm-info-group">
+                                <h4 class="crm-group-title"><i class="fas fa-user-circle"></i> Informasi Pasien</h4>
+                                <div class="crm-info-grid">
+                                    <div class="crm-info-item">
+                                        <span class="crm-info-label">Kategori</span>
+                                        <span class="crm-info-value">${escapeHtml(crmHumanLabel(patient.segment, patient.segment_label))}</span>
+                                    </div>
+                                    <div class="crm-info-item">
+                                        <span class="crm-info-label">Total Kunjungan</span>
+                                        <span class="crm-info-value">${Number(patient.total_visits || 0)}x</span>
+                                    </div>
+                                    <div class="crm-info-item">
+                                        <span class="crm-info-label">Total Terpakai</span>
+                                        <span class="crm-info-value">${formatRupiah(patient.total_spent || 0)}</span>
+                                    </div>
+                                    <div class="crm-info-item">
+                                        <span class="crm-info-label">Status Follow-up</span>
+                                        <span class="crm-info-value"><span class="badge ${crmFollowupBadge(patient.followup_status)}">${escapeHtml(followupStatusLabel)}</span></span>
+                                    </div>
+                                    ${patient.follow_up_date ? `<div class="crm-info-item"><span class="crm-info-label">Jadwal Berikutnya</span><span class="crm-info-value">${escapeHtml(patient.follow_up_date)}</span></div>` : ''}
+                                    ${patient.followup_outcome ? `<div class="crm-info-item"><span class="crm-info-label">Hasil Terakhir</span><span class="crm-info-value">${escapeHtml(crmHumanLabel(patient.followup_outcome, patient.followup_outcome_label))}</span></div>` : ''}
+                                </div>
+                            </div>
+                            <div class="crm-info-group">
+                                <h4 class="crm-group-title"><i class="fas fa-edit"></i> Detail Follow-up</h4>
                                 <div class="form-group">
                                     <label>Status Kontak</label>
                                     <select name="status">
@@ -713,38 +753,111 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                     <label>Jadwal Follow-up Berikutnya</label>
                                     <input type="date" name="follow_up_date" value="${escapeHtml(patient.follow_up_date || '')}">
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Catatan</label>
-                                <textarea name="note" rows="4" placeholder="Contoh: sudah WhatsApp, pasien akan cek jadwal...">${escapeHtml(patient.followup_note || '')}</textarea>
+                                <div class="form-group">
+                                    <label>Catatan</label>
+                                    <textarea name="note" rows="3" placeholder="Contoh: sudah WhatsApp, pasien akan cek jadwal...">${escapeHtml(patient.followup_note || '')}</textarea>
+                                </div>
                             </div>
                             <div class="crm-collapsible" data-crm-collapsible="meta">
                                 <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
                                     <i class="fas fa-chevron-down crm-collapsible-icon"></i>
-                                    <span>Tag & Izin Kontak</span>
+                                    <span>Tag &amp; Izin Kontak</span>
                                 </button>
                                 <div class="crm-collapsible-content">
                                     ${renderCRMManualTagEditor(patient)}
                                     ${renderCRMContactPreferenceEditor(patient)}
                                     <div class="crm-modal-actions-end">
                                         <button type="button" class="crm-row-btn" data-crm-action="save-meta" data-patient-id="${escapeHtml(patient.id)}">
-                                            <i class="fas fa-save"></i> Simpan Tag & Izin
+                                            <i class="fas fa-save"></i> Simpan Tag &amp; Izin
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="crm-followup-column crm-followup-right-column">
-                            <div class="crm-collapsible" data-crm-collapsible="history">
+                        <!-- Tab: WhatsApp -->
+                        <div class="crm-tab-panel" id="crm-tab-whatsapp">
+                            <div class="crm-whatsapp-panel">
+                                <div class="crm-whatsapp-head">
+                                    <h4 class="crm-group-title"><i class="fab fa-whatsapp"></i> Pengelolaan WhatsApp</h4>
+                                </div>
+                                <div class="whatsapp-message-panel">
+                                    <div id="crm-whatsapp-lock-warning" class="crm-warning hidden">
+                                        <i class="fas fa-exclamation-triangle"></i> Pasien tidak ingin dihubungi (JANGAN DIHUBUNGI).
+                                    </div>
+                                    <div id="crm-whatsapp-promo-warning" class="crm-warning hidden">
+                                        <i class="fas fa-info-circle"></i> Pasien tidak ingin menerima pesan promosi (JANGAN PROMO).
+                                    </div>
+                                    <div class="whatsapp-template-row">
+                                        <select id="crm-message-template" data-crm-action="message-template" data-patient-id="${escapeHtml(patient.id)}">
+                                            ${Object.entries(CRM_MESSAGE_TEMPLATES).map(([value, label]) => `
+                                                <option value="${value}">${escapeHtml(label)}</option>
+                                            `).join('')}
+                                        </select>
+                                        <button type="button" class="btn-action" data-crm-action="generate-message" data-patient-id="${escapeHtml(patient.id)}">
+                                            <i class="fas fa-magic"></i> Generate
+                                        </button>
+                                    </div>
+                                    <textarea id="crm-generated-message" class="whatsapp-message-textarea" placeholder="Isi pesan akan tampil di sini. Bisa diedit manual."></textarea>
+                                    <div class="whatsapp-actions crm-followup-action-row">
+                                        <button type="button" class="btn-outline" data-crm-action="copy-message">
+                                            <i class="fas fa-copy"></i> Copy Pesan
+                                        </button>
+                                        <button type="button" class="btn-wa" id="crm-btn-open-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}">
+                                            <i class="fab fa-whatsapp"></i> Kirim via WhatsApp
+                                        </button>
+                                        <button type="button" class="btn-outline" data-crm-mark-contacted data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}">
+                                            <i class="fas fa-check"></i> Sudah Dihubungi
+                                        </button>
+                                    </div>
+                                    <span class="crm-subtext">Pesan dibuka di WhatsApp Web browser. Pastikan sudah login di browser.</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Tab: Riwayat -->
+                        <div class="crm-tab-panel" id="crm-tab-history">
+                            <div class="crm-collapsible" data-crm-collapsible="history" style="border:none;padding:0;margin:0;">
                                 <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
                                     <i class="fas fa-chevron-down crm-collapsible-icon"></i>
-                                    <span>Riwayat follow-up</span>
+                                    <span>Riwayat Follow-up</span>
                                 </button>
                                 <div class="crm-collapsible-content">
                                     <div id="crm-followup-history-list">${renderCRMInlineLoading('Memuat riwayat...')}</div>
                                 </div>
                             </div>
-                            <div class="crm-collapsible" data-crm-collapsible="voucher">
+                            <div class="crm-collapsible" data-crm-collapsible="log" style="border:none;padding:0;margin:0;">
+                                <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
+                                    <i class="fas fa-chevron-down crm-collapsible-icon"></i>
+                                    <span>Riwayat WhatsApp</span>
+                                </button>
+                                <div class="crm-collapsible-content">
+                                    <div id="crm-message-log-list">${renderCRMInlineLoading('Memuat riwayat WhatsApp...')}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Tab: Hasil Follow-up -->
+                        <div class="crm-tab-panel" id="crm-tab-outcome">
+                            <div class="crm-collapsible" data-crm-collapsible="outcome" style="border:none;padding:0;margin:0;">
+                                <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
+                                    <i class="fas fa-chevron-down crm-collapsible-icon"></i>
+                                    <span>Hasil Follow-up</span>
+                                </button>
+                                <div class="crm-collapsible-content">
+                                    <div class="crm-outcome-grid">
+                                        <select id="crm-followup-outcome">${crmOptions(CRM_OUTCOMES)}</select>
+                                        <input type="date" id="crm-outcome-follow-up-date" value="${escapeHtml(patient.follow_up_date || '')}">
+                                    </div>
+                                    <textarea id="crm-followup-outcome-note" rows="3" placeholder="Catatan hasil follow-up..." class="crm-outcome-note-textarea"></textarea>
+                                    <div class="crm-outcome-actions">
+                                        <button type="button" class="crm-row-btn" data-crm-action="save-outcome" data-patient-id="${escapeHtml(patient.id)}">
+                                            <i class="fas fa-clipboard-check"></i> Simpan Hasil
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Tab: Voucher -->
+                        <div class="crm-tab-panel" id="crm-tab-voucher">
+                            <div class="crm-collapsible" data-crm-collapsible="voucher" style="border:none;padding:0;margin:0;">
                                 <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
                                     <i class="fas fa-chevron-down crm-collapsible-icon"></i>
                                     <span><i class="fas fa-ticket-alt"></i> Voucher Follow-up</span>
@@ -779,72 +892,6 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
                                     </div>
                                 </div>
                             </div>
-                            <div class="crm-collapsible" data-crm-collapsible="whatsapp">
-                                <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
-                                    <i class="fas fa-chevron-down crm-collapsible-icon"></i>
-                                    <span><i class="fab fa-whatsapp"></i> Pesan WhatsApp</span>
-                                </button>
-                                <div class="crm-collapsible-content">
-                                    <div class="whatsapp-message-panel">
-                                        <div id="crm-whatsapp-lock-warning" class="crm-warning hidden">
-                                            <i class="fas fa-exclamation-triangle"></i> Pasien tidak ingin dihubungi (JANGAN DIHUBUNGI).
-                                        </div>
-                                        <div id="crm-whatsapp-promo-warning" class="crm-warning hidden">
-                                            <i class="fas fa-info-circle"></i> Pasien tidak ingin menerima pesan promosi (JANGAN PROMO).
-                                        </div>
-                                        <div class="whatsapp-template-row">
-                                            <select id="crm-message-template" data-crm-action="message-template" data-patient-id="${escapeHtml(patient.id)}">
-                                                ${Object.entries(CRM_MESSAGE_TEMPLATES).map(([value, label]) => `
-                                                    <option value="${value}">${escapeHtml(label)}</option>
-                                                `).join('')}
-                                            </select>
-                                            <button type="button" class="btn-action" data-crm-action="generate-message" data-patient-id="${escapeHtml(patient.id)}">
-                                                <i class="fas fa-magic"></i> Generate
-                                            </button>
-                                        </div>
-                                        <textarea id="crm-generated-message" class="whatsapp-message-textarea" placeholder="Isi pesan akan tampil di sini. Bisa diedit manual."></textarea>
-                                        <div class="whatsapp-actions crm-followup-action-row">
-                                            <button type="button" class="btn-outline" data-crm-action="copy-message">
-                                                <i class="fas fa-copy"></i> Copy Pesan
-                                            </button>
-                                            <button type="button" class="btn-wa" id="crm-btn-open-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}">
-                                                <i class="fab fa-whatsapp"></i> Kirim via WhatsApp
-                                            </button>
-                                            <button type="button" class="btn-outline" data-crm-mark-contacted data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}">
-                                                <i class="fas fa-check"></i> Sudah Dihubungi
-                                            </button>
-                                        </div>
-                                        <span class="crm-subtext">Pesan dibuka di WhatsApp Web browser. Pastikan sudah login di browser.</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="crm-collapsible" data-crm-collapsible="log">
-                                <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
-                                    <i class="fas fa-chevron-down crm-collapsible-icon"></i>
-                                    <span>Riwayat WhatsApp</span>
-                                </button>
-                                <div class="crm-collapsible-content">
-                                    <div id="crm-message-log-list">${renderCRMInlineLoading('Memuat riwayat WhatsApp...')}</div>
-                                </div>
-                            </div>
-                            <div class="crm-collapsible" data-crm-collapsible="outcome">
-                                <button type="button" class="crm-collapsible-header" data-crm-action="toggle-collapsible">
-                                    <i class="fas fa-chevron-down crm-collapsible-icon"></i>
-                                    <span>Hasil Follow-up</span>
-                                </button>
-                                <div class="crm-collapsible-content">
-                                    <div class="crm-outcome-grid">
-                                        <select id="crm-followup-outcome">${crmOptions(CRM_OUTCOMES)}</select>
-                                        <input type="date" id="crm-outcome-follow-up-date" value="${escapeHtml(patient.follow_up_date || '')}">
-                                    </div>
-                                    <textarea id="crm-followup-outcome-note" rows="3" placeholder="Catatan hasil follow-up..." class="crm-outcome-note-textarea"></textarea>
-                                    <div class="crm-outcome-actions">
-                                        <button type="button" class="crm-row-btn" data-crm-action="save-outcome" data-patient-id="${escapeHtml(patient.id)}">
-                                            <i class="fas fa-clipboard-check"></i> Simpan Hasil
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -856,6 +903,7 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
     `;
     document.body.appendChild(overlay);
     window._currentCRMPatient = patient;
+    setupCRMTabSwitching(overlay);
     onCRMVoucherSelectChange();
     generateCRMMessage(patient.id);
     if (focusWhatsApp) {
@@ -903,6 +951,30 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
             messageLogList.innerHTML = renderCRMErrorMini('Riwayat WhatsApp gagal dimuat.');
         if (voucherSelect)
             voucherSelect.innerHTML = renderCRMVoucherOptions({ special: [], general: [] });
+    });
+}
+function setupCRMTabSwitching(overlay) {
+    const tabBtns = overlay.querySelectorAll('.crm-tab-btn');
+    const tabPanels = overlay.querySelectorAll('.crm-tab-panel');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.crmTab;
+            tabBtns.forEach(b => {
+                b.classList.remove('crm-tab-active');
+                b.setAttribute('aria-selected', 'false');
+            });
+            tabPanels.forEach(p => {
+                p.classList.remove('crm-tab-active');
+                p.setAttribute('aria-hidden', 'true');
+            });
+            btn.classList.add('crm-tab-active');
+            btn.setAttribute('aria-selected', 'true');
+            const panel = overlay.querySelector(`#crm-tab-${tab}`);
+            if (panel) {
+                panel.classList.add('crm-tab-active');
+                panel.setAttribute('aria-hidden', 'false');
+            }
+        });
     });
 }
 async function openCRMWhatsApp(patientId) {

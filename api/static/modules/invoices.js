@@ -643,7 +643,7 @@ function renderInvoices(data) {
                     : 'Pending';
             const paymentInfo = `
                 <div class="invoice-payment-meta">
-                    <span class="status-pill ${statusBadgeClass}"><i class="fas fa-circle" aria-hidden="true"></i>${statusBadgeText}</span>
+                    <span class="invoice-status-pill ${statusBadgeClass}"><i class="fas fa-circle" aria-hidden="true"></i>${statusBadgeText}</span>
                     <span>Metode: <strong>${escapeHtml(_paymentMethodLabel(paymentMethod))}</strong></span>
                     ${providerBadge}
                 </div>

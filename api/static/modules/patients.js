@@ -659,8 +659,8 @@ async function renderVisits() {
                     <div class="visit-form-section visit-notes-section visit-secondary-section">
                         <div class="visit-section-title"><i class="fas fa-clipboard-list"></i> Catatan Medis</div>
                         <div class="form-group">
-                            <label>Catatan</label>
-                            <input type="text" name="medical_notes" id="visit-notes-input" placeholder="Keluhan, kondisi, dll...">
+                            <label>Catatan Medis</label>
+                            <textarea name="medical_notes" id="visit-notes-input" rows="3" placeholder="Keluhan, kondisi, catatan medis tambahan..."></textarea>
                         </div>
                     </div>
                     <div class="visit-form-section visit-payment-section visit-secondary-section">

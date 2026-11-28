@@ -167,9 +167,9 @@ async function renderDashboard() {
             <div>
                 <span class="section-kicker">Ringkasan operasional</span>
                 <h2>Operasional Klinik</h2>
-                <p>Angka di bawah adalah total data klinik. Diperbarui pada ${lastUpdated}.</p>
+                <p>Semua angka di bawah adalah data akumulasi klinik. <span class="ops-updated">Terakhir diperbarui: ${lastUpdated}</span></p>
             </div>
-            <div class="ops-status ${stockStatus > 0 ? 'attention' : ''}">
+            <div class="ops-status ${stockStatus > 0 ? 'attention' : ''}" data-dashboard-action="open-inventory" role="button" tabindex="0" title="${stockStatus > 0 ? `Lihat ${stockStatus} item stok yang perlu dicek` : 'Lihat stok aman'}">
                 <i class="fas ${stockStatus > 0 ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
                 <span>${stockStatus > 0 ? `${stockStatus} item perlu dicek` : 'Stok aman'}</span>
             </div>
@@ -188,6 +188,7 @@ async function renderDashboard() {
                     <div class="card-stats-trend">
                         <i class="fas fa-chart-line"></i>
                         <span>Semua pasien terdaftar</span>
+                        <span class="card-stats-period">Data akumulasi</span>
                     </div>
                 </div>
             </div>
@@ -201,6 +202,7 @@ async function renderDashboard() {
                     <div class="card-stats-trend">
                         <span class="badge badge-info">${totalVisits} kunjungan</span>
                         <span class="badge badge-success">${herbalSales} herbal</span>
+                        <span class="card-stats-period">Berdasarkan periode</span>
                     </div>
                 </div>
             </div>
@@ -214,6 +216,7 @@ async function renderDashboard() {
                     <div class="card-stats-trend">
                         <i class="fas fa-arrow-up text-success"></i>
                         <span>Akumulasi pendapatan</span>
+                        <span class="card-stats-period">Rupiah</span>
                     </div>
                 </div>
             </div>
@@ -253,11 +256,14 @@ async function renderDashboard() {
                             <span class="status-pill status-paid"><i class="fas fa-circle" aria-hidden="true"></i> Aktif</span>
                         </div>
                         <div class="revenue-chart" role="img" aria-label="Ilustrasi komposisi pendapatan, bukan rincian akurat">
+                            <div class="revenue-chart-period">Data periode terkini</div>
                             ${revenueBars.map((bar, index) => {
         const height = Math.max(18, Math.round((bar.value / maxChartValue) * 100));
+        const pct = totalIncome > 0 ? Math.round((bar.value / totalIncome) * 100) : 0;
         return `
-                                    <div class="revenue-bar-wrap" style="--bar-height:${height}%; animation-delay:${0.08 * index}s;" role="img" aria-label="${escapeHtml(bar.label)}: ${escapeHtml(formatRupiah(bar.value))}">
+                                    <div class="revenue-bar-wrap" style="--bar-height:${height}%; animation-delay:${0.08 * index}s;" role="img" aria-label="${escapeHtml(bar.label)}: ${escapeHtml(formatRupiah(bar.value))} (${pct}%)" title="${escapeHtml(bar.label)}: ${escapeHtml(formatRupiah(bar.value))} (${pct}%)">
                                         <div class="revenue-bar-value" aria-hidden="true">${formatRupiah(bar.value)}</div>
+                                        <div class="revenue-bar-pct" aria-hidden="true">${pct}%</div>
                                         <div class="revenue-bar" aria-hidden="true"><span></span></div>
                                         <div class="revenue-bar-label" aria-hidden="true"><i class="fas ${bar.icon}"></i>${escapeHtml(bar.label)}</div>
                                     </div>`;
@@ -275,7 +281,7 @@ async function renderDashboard() {
                         <div class="top-service-list">
                             <div><strong>Kunjungan</strong><span>${totalVisits.toLocaleString('id-ID')} kunjungan tercatat</span><b>${Math.max(0, Math.round((totalVisits / Math.max(totalTransactions, 1)) * 100))}%</b></div>
                             <div><strong>Produk / Herbal</strong><span>${herbalSales.toLocaleString('id-ID')} transaksi produk</span><b>${herbalSales}</b></div>
-                            <div><strong>Stok perlu dicek</strong><span>Inventory dan herbal kritis</span><b>${stockStatus}</b></div>
+                            <div class="activity-stock" data-dashboard-action="open-inventory" role="button" tabindex="0" title="Buka halaman stok"><strong>Stok perlu dicek</strong><span>Inventory dan herbal kritis</span><b>${stockStatus}</b></div>
                         </div>
                     </section>
                 </div>
@@ -308,6 +314,9 @@ async function renderDashboard() {
                         <div><strong>${Number(discountSummary.active_count || 0)}</strong><span>Diskon aktif</span></div>
                         <div><strong>${Number(discountSummary.active_voucher_count || 0)}</strong><span>Voucher aktif</span></div>
                         <div><strong>${Number(discountSummary.active_visit_count || 0)}</strong><span>Reward kunjungan</span></div>
+                    </div>
+                    <div class="discount-dashboard-actions">
+                        <button type="button" class="btn btn-outline" data-dashboard-action="open-discounts" title="Buka pengelolaan diskon dan voucher"><i class="fas fa-external-link-alt"></i> Lihat Semua</button>
                     </div>
                     <div class="discount-dashboard-note">
                         <i class="fas fa-info-circle"></i>
@@ -360,6 +369,20 @@ async function renderDashboard() {
         button.addEventListener('click', () => {
             const tabName = button.getAttribute('data-dashboard-tab');
             const navItem = document.querySelector(`.nav-links li[data-tab="${tabName}"]`);
+            if (navItem)
+                navItem.click();
+        });
+    });
+    document.querySelectorAll('[data-dashboard-action="open-inventory"]').forEach(button => {
+        button.addEventListener('click', () => {
+            const navItem = document.querySelector('.nav-links li[data-tab="inventory"]');
+            if (navItem)
+                navItem.click();
+        });
+    });
+    document.querySelectorAll('[data-dashboard-action="open-discounts"]').forEach(button => {
+        button.addEventListener('click', () => {
+            const navItem = document.querySelector('.nav-links li[data-tab="vouchers"]');
             if (navItem)
                 navItem.click();
         });
