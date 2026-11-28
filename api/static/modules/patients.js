@@ -139,10 +139,53 @@ function ensurePatientsEventDelegation() {
     });
     document.addEventListener('submit', (event) => {
         const form = event.target;
-        if (form?.dataset?.patientFormAction !== 'add-visit')
+        if (form?.dataset?.patientFormAction === 'add-visit') {
+            validateVisitPatientSelected(event);
             return;
-        validateVisitPatientSelected(event);
+        }
+        if (form?.classList?.contains('patient-form-grid')) {
+            handleAddPatientSubmit(event, form);
+        }
     });
+}
+async function handleAddPatientSubmit(event, form) {
+    event.preventDefault();
+    const submitBtn = form.querySelector('.patient-submit-btn');
+    const originalHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
+    try {
+        const response = await fetch(form.action || '/add_patient', {
+            method: 'POST',
+            body: new FormData(form),
+            headers: { 'Accept': 'application/json' },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok)
+            throw new Error(data.detail || 'Gagal menambah pasien.');
+        form.reset();
+        if (window._patientsDT) {
+            window._patientsDT.ajax.reload(null, false);
+        }
+        else if (typeof renderPatients === 'function') {
+            await renderPatients();
+        }
+        if (typeof showToast === 'function')
+            showToast(data.message || 'Pasien baru berhasil ditambahkan.', 'success');
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (typeof showToast === 'function')
+            showToast(message, 'error');
+    }
+    finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalHtml;
+        }
+    }
 }
 function setVisitSubmitLoading(isLoading) {
     window._visitSubmitInProgress = !!isLoading;
@@ -796,7 +839,10 @@ function _initPatientsDataTable() {
         catch (e) { }
         window._patientsDT = null;
     }
-    window._patientsDT = $('#patients-dt-visits').DataTable({
+    const isVisitsMode = window._patientsTableMode === 'visits';
+    const tableSelector = isVisitsMode ? '#patients-dt-visits' : '#patients-dt';
+    const totalBadgeId = isVisitsMode ? 'dt-total-badge-visits' : 'dt-total-badge';
+    window._patientsDT = $(tableSelector).DataTable({
         serverSide: true,
         processing: true,
         searchDelay: 300,
@@ -824,7 +870,7 @@ function _initPatientsDataTable() {
             fetch(url)
                 .then(r => r.json())
                 .then(data => {
-                const badge = document.getElementById('dt-total-badge-visits');
+                const badge = document.getElementById(totalBadgeId);
                 if (badge)
                     badge.textContent = `Total: ${data.recordsTotal} pasien`;
                 callback({

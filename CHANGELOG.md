@@ -1,5 +1,15 @@
 # Catatan Perubahan
 
+## 2026-11-28 - Perbaikan Tampilan & UI Dashboard (v1.7.57)
+
+**🟡 MEDIUM PRIORITY - UI/UX VISUAL FIX**
+
+### Perbaikan Tampilan Dashboard & Module
+- **IMPROVED:** Tampilan dashboard stat card dan modul CRM, Invoice, Pasien, serta style global.
+- **FIXED:** Tampilan template index dan styling modul agar konsisten di seluruh halaman.
+- File: `api/static/dashboard.css`, `api/static/modules/crm.js`, `api/static/modules/invoices.js`, `api/static/modules/patients.js`, `api/static/style.css`, `api/templates/index.html`
+- chore: bump version to 1.7.57
+
 ## 2026-11-28 - Aksesibilitas UI/UX & Perbaikan Visual Stat Card (v1.7.56)
 
 **🟠 HIGH PRIORITY - UI/UX ACCESSIBILITY & VISUAL FIX**

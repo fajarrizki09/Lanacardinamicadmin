@@ -527,7 +527,7 @@ function renderCRMRowCard(patient) {
 
             <div class="crm-action-block">
                 <div class="crm-inline-actions">
-                    <button type="button" class="btn btn-sm btn-outline crm-inline-contacted" data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}" title="Tandai sudah dihubungi" aria-label="Tandai sudah dihubungi">
+                    <button type="button" class="btn btn-sm btn-outline crm-inline-contacted" data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}" title="Tandai selesai" aria-label="Tandai selesai">
                         <i class="fas fa-check" aria-hidden="true"></i>
                     </button>
                     <button type="button" class="btn btn-sm btn-wa crm-inline-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}" data-patient-template="kontrol" title="Kirim WhatsApp" aria-label="Kirim WhatsApp">

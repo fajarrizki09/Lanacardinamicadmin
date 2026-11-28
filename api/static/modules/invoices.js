@@ -688,19 +688,19 @@ function renderInvoices(data) {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
                         ${stalePdfNotice}
-                        <button class="invoice-action-btn invoice-action-btn-pdf" data-invoice-action="open-invoice" data-path="${safePath}" title="Buka PDF Herbal">
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-pdf" data-invoice-action="open-invoice" data-path="${safePath}" title="Buka PDF Herbal">
                             <i class="fas fa-file-pdf"></i><span>Lihat</span>
                         </button>
                         <button class="invoice-action-btn invoice-action-btn-text" data-invoice-action="reveal-invoice" data-path="${safePath}" title="Reveal Lokasi PDF Herbal">
                             <i class="fas fa-folder-open"></i><span>Lokasi</span>
                         </button>
-                        <button class="invoice-action-btn invoice-action-btn-print" data-invoice-action="print-invoice" data-path="${safePath}" data-print-source="herbal_invoice" title="Print Herbal">
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-print" data-invoice-action="print-invoice" data-path="${safePath}" data-print-source="herbal_invoice" title="Print Herbal">
                             <i class="fas fa-print"></i><span>Print</span>
                         </button>
-                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-update" data-invoice-action="generate-herbal" data-source-id="${escapeHtml(strId.startsWith('hg_') ? 'group:' + numId : numId)}" title="Update PDF dengan status pembayaran terbaru">
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-update" data-invoice-action="generate-herbal" data-source-id="${escapeHtml(strId.startsWith('hg_') ? 'group:' + numId : numId)}" title="Update PDF dengan status pembayaran terbaru">
                             <i class="fas fa-file-circle-check"></i><span>Update</span>
                         </button>`}
-                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-void" data-invoice-action="void-invoice" data-invoice-type="herbal" data-source-id="${escapeHtml(voidTarget)}" title="Void Invoice Herbal">
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-void" data-invoice-action="void-invoice" data-invoice-type="herbal" data-source-id="${escapeHtml(voidTarget)}" title="Void Invoice Herbal">
                             <i class="fas fa-ban"></i><span>Void</span>
                         </button>`}
                     `;
@@ -718,19 +718,19 @@ function renderInvoices(data) {
                 if (hasInvoicePath && fileExists) {
                     actionHtml = `
                         ${stalePdfNotice}
-                        <button class="invoice-action-btn invoice-action-btn-pdf" data-invoice-action="open-invoice" data-path="${safePath}" title="Buka PDF">
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-pdf" data-invoice-action="open-invoice" data-path="${safePath}" title="Buka PDF">
                             <i class="fas fa-file-pdf"></i><span>Lihat</span>
                         </button>
                         <button class="invoice-action-btn invoice-action-btn-text" data-invoice-action="reveal-invoice" data-path="${safePath}" title="Reveal Lokasi PDF">
                             <i class="fas fa-folder-open"></i><span>Lokasi</span>
                         </button>
-                        <button class="invoice-action-btn invoice-action-btn-print" data-invoice-action="print-invoice" data-path="${safePath}" data-print-source="invoice" title="Print Langsung">
+                        <button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-print" data-invoice-action="print-invoice" data-path="${safePath}" data-print-source="invoice" title="Print Langsung">
                             <i class="fas fa-print"></i><span>Print</span>
                         </button>
-                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-update" data-invoice-action="generate-visit" data-source-id="${escapeHtml(numId)}" title="Update PDF dengan status pembayaran terbaru">
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-update" data-invoice-action="generate-visit" data-source-id="${escapeHtml(numId)}" title="Update PDF dengan status pembayaran terbaru">
                             <i class="fas fa-file-circle-check"></i><span>Update</span>
                         </button>`}
-                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-void" data-invoice-action="void-invoice" data-invoice-type="visit" data-source-id="${escapeHtml(voidTarget)}" title="Void Invoice">
+                        ${isVoid ? '' : `<button class="invoice-action-btn invoice-action-btn-text invoice-action-btn-void" data-invoice-action="void-invoice" data-invoice-type="visit" data-source-id="${escapeHtml(voidTarget)}" title="Void Invoice">
                             <i class="fas fa-ban"></i><span>Void</span>
                         </button>`}
                     `;
