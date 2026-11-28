@@ -1,5 +1,19 @@
 # Catatan Perubahan
 
+## 2026-11-28 - Perbaikan Tampilan Invoice & Tab Modal Follow-up (v1.7.59)
+
+**🟡 MEDIUM PRIORITY - UI/UX FIX**
+
+### Perbaikan Tampilan Invoice
+- **FIXED:** Kembalikan semua class CSS invoice yang hilang (invoice-stats-grid, invoice-card-wrapper, invoice-header, invoice-table, invoice-row-*, invoice-action-btn, invoice-status-pill, invoice-provider-badge, invoice-file-missing, invoice-pagination, dll) sehingga tampilan invoice tidak lagi kacau/berantakan.
+- **FIXED:** Tombol aksi invoice (PDF, Print, Update, Void, Link, Cek Status, Buat Link Pembayaran) kembali rapi dengan warna per fungsi dan hover effect.
+- **IMPROVED:** Stateless invoice card, stat card ikon, status pill, dan badge file hilang kembali bergaya.
+
+### Perbaikan Tab Modal Follow-up
+- **FIXED:** Panel tab aktif menggunakan `display: flex` (bukan `block`) agar konten dalam tab mengikuti layout flex container dan tidak tumpang tindih.
+- File: `api/static/modules/crm.js`, `api/static/modules/invoices.js`, `api/static/style.css`
+- chore: bump version to 1.7.59
+
 ## 2026-11-28 - Tab & Gaya Modal Follow-up Pasien (v1.7.58)
 
 **🟡 MEDIUM PRIORITY - UI/UX MODAL FOLLOW-UP**
