@@ -527,11 +527,11 @@ function renderCRMRowCard(patient) {
 
             <div class="crm-action-block">
                 <div class="crm-inline-actions">
-                    <button type="button" class="btn btn-sm btn-outline crm-inline-contacted" data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}" title="Tandai sudah dihubungi">
-                        <i class="fas fa-check"></i>
+                    <button type="button" class="btn btn-sm btn-outline crm-inline-contacted" data-crm-action="mark-contacted" data-patient-id="${escapeHtml(patient.id)}" title="Tandai sudah dihubungi" aria-label="Tandai sudah dihubungi">
+                        <i class="fas fa-check" aria-hidden="true"></i>
                     </button>
-                    <button type="button" class="btn btn-sm btn-wa crm-inline-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}" data-patient-template="kontrol" title="Kirim WhatsApp">
-                        <i class="fab fa-whatsapp"></i>
+                    <button type="button" class="btn btn-sm btn-wa crm-inline-wa" data-crm-action="open-whatsapp" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}" data-patient-template="kontrol" title="Kirim WhatsApp" aria-label="Kirim WhatsApp">
+                        <i class="fab fa-whatsapp" aria-hidden="true"></i>
                     </button>
                 </div>
                 <button type="button" class="btn btn-primary crm-detail-btn" data-crm-action="open-followup" data-patient-id="${escapeHtml(patient.id)}" data-patient-phone="${escapeHtml(patient.phone || '')}">
@@ -687,13 +687,13 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
     const overlay = document.createElement('div');
     overlay.className = 'crm-modal-overlay';
     overlay.innerHTML = `
-        <div class="crm-modal">
+        <div class="crm-modal" role="dialog" aria-modal="true" aria-label="Follow-up ${escapeHtml(patient.name)}">
             <div class="crm-modal-header">
                 <div>
                     <h3>${escapeHtml(patient.name)}</h3>
                     <p>${escapeHtml(patient.recommendation)}</p>
                 </div>
-                <button type="button" data-crm-action="close-modal"><i class="fas fa-times"></i></button>
+                <button type="button" data-crm-action="close-modal" aria-label="Tutup"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
             <form id="crm-followup-form" data-crm-form-action="followup">
                 <input type="hidden" name="patient_id" value="${patient.id}">
@@ -861,8 +861,11 @@ async function openCRMFollowup(patientId, focusWhatsApp = false, focusVoucher = 
     if (focusWhatsApp) {
         setTimeout(() => document.getElementById('crm-generated-message')?.focus(), 80);
     }
-    if (focusVoucher) {
+    else if (focusVoucher) {
         setTimeout(() => document.getElementById('crm-new-voucher-name')?.focus(), 80);
+    }
+    else {
+        setTimeout(() => overlay.querySelector('[data-crm-action="close-modal"]')?.focus(), 80);
     }
     const detailPromise = cachedPatient
         ? Promise.resolve(cachedPatient)

@@ -216,14 +216,14 @@ function renderSettings(s, options = {}) {
                             <input type="text" name="clinic_website" value="${escapeHtml(s.clinic_website || '')}">
                         </div>
                         <div class="form-group">
-                            <label>Logo Klinik</label>
+                            <label for="clinic-logo-file">Logo Klinik</label>
                             <div class="settings-logo-upload-row">
                                 <input type="file" id="clinic-logo-file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" data-settings-action="upload-logo">
                                 <button type="button" class="btn btn-secondary" data-settings-action="clear-logo">
-                                    <i class="fas fa-times"></i> Hapus
+                                    <i class="fas fa-times" aria-hidden="true"></i> Hapus
                                 </button>
                             </div>
-                            <input type="text" id="clinic-logo-path" name="clinic_logo_path" value="${escapeHtml(s.clinic_logo_path || '')}" placeholder="Path logo akan terisi setelah pilih file" class="settings-logo-path-input">
+                            <input type="text" id="clinic-logo-path" name="clinic_logo_path" value="${escapeHtml(s.clinic_logo_path || '')}" placeholder="Path logo akan terisi setelah pilih file" aria-label="Path logo klinik" class="settings-logo-path-input">
                             <small class="settings-logo-help">Contoh: PNG/JPG/WebP, ideal 512x512 px atau rasio persegi, maksimal 2 MB. File akan disalin ke folder data aplikasi.</small>
                             <div id="clinic-logo-result" class="settings-logo-result"></div>
                         </div>
@@ -624,21 +624,21 @@ function renderSettings(s, options = {}) {
                 </div>
             </div>
             <div id="discount-rules-result" style="margin-bottom:12px;"></div>
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse;">
+            <div class="table-wrapper">
+                <table class="table">
                     <thead>
-                        <tr style="background:var(--color-surface-muted); color:var(--color-text-muted); font-size:12px; text-transform:uppercase;">
-                            <th style="padding:10px; text-align:left;">Nama</th>
-                            <th style="padding:10px; text-align:left;">Tipe</th>
-                            <th style="padding:10px; text-align:left;">Diskon</th>
-                            <th style="padding:10px; text-align:left;">Kondisi</th>
-                            <th style="padding:10px; text-align:left;">Periode</th>
-                            <th style="padding:10px; text-align:left;">Status</th>
-                            <th style="padding:10px; text-align:right;">Aksi</th>
+                        <tr>
+                            <th scope="col">Nama</th>
+                            <th scope="col">Tipe</th>
+                            <th scope="col">Diskon</th>
+                            <th scope="col">Kondisi</th>
+                            <th scope="col">Periode</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="text-right">Aksi</th>
                         </tr>
                     </thead>
                     <tbody id="discount-rules-body">
-                        <tr><td colspan="7" style="padding:14px; color:var(--text-muted);">Memuat aturan diskon...</td></tr>
+                        <tr><td colspan="7" class="text-muted" style="padding:14px;">Memuat aturan diskon...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -762,7 +762,7 @@ async function loadFreeVisitReasons() {
     catch (error) {
         input.value = defaultFreeVisitReasons().join('\n');
         if (result) {
-            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-danger-50); color:var(--color-danger-700); font-size:13px;">${escapeHtml(error.message)}</div>`;
         }
     }
 }
@@ -780,7 +780,7 @@ async function submitFreeVisitReasons(event) {
     const lines = input.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
     if (!lines.length) {
         if (result)
-            result.innerHTML = '<div style="padding:10px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:13px;">Minimal isi satu alasan promo gratis.</div>';
+            result.innerHTML = '<div style="padding:10px; border-radius:8px; background:var(--color-warning-50); color:var(--color-warning-700); font-size:13px;">Minimal isi satu alasan promo gratis.</div>';
         return;
     }
     const formData = new FormData();
@@ -792,12 +792,12 @@ async function submitFreeVisitReasons(event) {
             throw new Error(data.detail || 'Gagal menyimpan alasan promo gratis.');
         input.value = (data.items || lines).join('\n');
         if (result)
-            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-success-50); color:var(--color-success-700); font-size:13px;">${escapeHtml(data.message)}</div>`;
         showToast(data.message, 'success');
     }
     catch (error) {
         if (result)
-            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-danger-50); color:var(--color-danger-700); font-size:13px;">${escapeHtml(error.message)}</div>`;
         showToast(error.message, 'error');
     }
 }
@@ -1693,9 +1693,9 @@ function renderLicenseSettingsStatus(data) {
     const message = data && data.message ? data.message : '';
     if (clinicInput && !clinicInput.value)
         clinicInput.value = clinicId;
-    box.style.background = isValid ? '#ecfdf5' : '#fef2f2';
-    box.style.borderColor = isValid ? '#a7f3d0' : '#fecaca';
-    box.style.color = isValid ? '#065f46' : '#991b1b';
+    box.style.background = isValid ? 'var(--color-success-50)' : 'var(--color-danger-50)';
+    box.style.borderColor = isValid ? 'var(--color-success-200)' : 'var(--color-danger-200)';
+    box.style.color = isValid ? 'var(--color-success-700)' : 'var(--color-danger-700)';
     box.innerHTML = `
         <div style="display:flex; align-items:flex-start; gap:10px;">
             <i class="fas ${isValid ? 'fa-check-circle' : 'fa-exclamation-triangle'}" style="margin-top:2px;"></i>
@@ -1754,7 +1754,7 @@ async function submitLicenseActivation(event) {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memverifikasi...';
     }
     if (result) {
-        result.innerHTML = '<div style="color:#4f46e5;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Menghubungi pusat lisensi...</div>';
+        result.innerHTML = '<div style="color:var(--color-info-600);font-size:13px;"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Menghubungi pusat lisensi...</div>';
     }
     try {
         const response = await fetch('/activate_license', {
@@ -1765,7 +1765,7 @@ async function submitLicenseActivation(event) {
         if (!response.ok || data.status !== 'success')
             throw new Error(data.detail || 'Aktivasi lisensi gagal.');
         if (result) {
-            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-success-50); color:var(--color-success-700); font-size:13px;">${escapeHtml(data.message)}</div>`;
         }
         document.getElementById('license-key-input').value = '';
         renderLicenseSettingsStatus(data.license || {});
@@ -1774,7 +1774,7 @@ async function submitLicenseActivation(event) {
     }
     catch (error) {
         if (result) {
-            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
+            result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-danger-50); color:var(--color-danger-700); font-size:13px;">${escapeHtml(error.message)}</div>`;
         }
         await loadLicenseSettingsStatus();
     }
@@ -2142,7 +2142,7 @@ async function loadDiscountRules() {
         `).join('');
     }
     catch (error) {
-        body.innerHTML = `<tr><td colspan="7" style="padding:14px; color:#dc2626;">${escapeHtml(error.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7" style="padding:14px; color:var(--color-danger-600);">${escapeHtml(error.message)}</td></tr>`;
     }
 }
 function resetDiscountRuleForm() {
@@ -2190,12 +2190,12 @@ async function submitDiscountRule(event) {
         const data = await response.json();
         if (!response.ok || data.status !== 'success')
             throw new Error(data.detail || 'Gagal menyimpan aturan diskon.');
-        result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#ecfdf5; color:#065f46; font-size:13px;">${escapeHtml(data.message)}</div>`;
+        result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-success-50); color:var(--color-success-700); font-size:13px;">${escapeHtml(data.message)}</div>`;
         resetDiscountRuleForm();
         await loadDiscountRules();
     }
     catch (error) {
-        result.innerHTML = `<div style="padding:10px; border-radius:8px; background:#fef2f2; color:#dc2626; font-size:13px;">${escapeHtml(error.message)}</div>`;
+        result.innerHTML = `<div style="padding:10px; border-radius:8px; background:var(--color-danger-50); color:var(--color-danger-700); font-size:13px;">${escapeHtml(error.message)}</div>`;
     }
 }
 async function toggleDiscountRule(ruleId, isActive) {
@@ -2231,18 +2231,18 @@ async function submitImport(event) {
     const file = fileInput.files[0];
     const formData = new FormData();
     formData.append('file', file, file.name);
-    resultDiv.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:#6366f1;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Sedang mengimpor data...</div>';
+    resultDiv.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--color-info-600);font-size:13px;"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Sedang mengimpor data...</div>';
     try {
         const res = await fetch('/import', { method: 'POST', body: formData });
         const result = await res.json();
         const isSuccess = result.status === 'success';
         resultDiv.innerHTML = `
-            <div style="display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:8px;background:${isSuccess ? '#ecfdf5' : '#fef3c7'};border:1px solid ${isSuccess ? '#a7f3d0' : '#fcd34d'};">
-                <i class="fas ${isSuccess ? 'fa-check-circle' : 'fa-exclamation-circle'}" style="color:${isSuccess ? '#10b981' : '#f59e0b'};margin-top:1px;"></i>
-                <span style="font-size:13px;color:${isSuccess ? '#065f46' : '#92400e'};">${result.message}</span>
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:8px;background:${isSuccess ? 'var(--color-success-50)' : 'var(--color-warning-50)'};border:1px solid ${isSuccess ? 'var(--color-success-200)' : 'var(--color-warning-300)'};">
+                <i class="fas ${isSuccess ? 'fa-check-circle' : 'fa-exclamation-circle'}" style="color:${isSuccess ? 'var(--color-success-500)' : 'var(--color-warning-500)'};margin-top:1px;" aria-hidden="true"></i>
+                <span style="font-size:13px;color:${isSuccess ? 'var(--color-success-700)' : 'var(--color-warning-700)'};">${result.message}</span>
             </div>`;
     }
     catch (e) {
-        resultDiv.innerHTML = `<div style="padding:12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;"><i class="fas fa-times-circle"></i> Error: ${e.message}</div>`;
+        resultDiv.innerHTML = `<div style="padding:12px;border-radius:8px;background:var(--color-danger-50);border:1px solid var(--color-danger-200);color:var(--color-danger-700);font-size:13px;"><i class="fas fa-times-circle" aria-hidden="true"></i> Error: ${e.message}</div>`;
     }
 }

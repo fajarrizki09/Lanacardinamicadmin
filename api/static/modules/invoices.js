@@ -212,12 +212,12 @@ function _isSupportedGatewayProvider(provider) {
 function _paymentProviderBadgeStyle(provider) {
     const normalized = String(provider || 'manual').toLowerCase();
     if (normalized === 'midtrans')
-        return { bg: '#ede9fe', color: '#6d28d9' };
+        return { bg: 'var(--color-info-100)', color: 'var(--color-info-700)' };
     if (normalized === 'gateway_mock')
-        return { bg: '#dcfce7', color: '#047857' };
+        return { bg: 'var(--color-success-100)', color: 'var(--color-success-700)' };
     if (normalized === 'manual')
-        return { bg: '#f1f5f9', color: '#475569' };
-    return { bg: '#fee2e2', color: '#b91c1c' };
+        return { bg: 'var(--color-surface-100)', color: 'var(--color-surface-600)' };
+    return { bg: 'var(--color-danger-100)', color: 'var(--color-danger-700)' };
 }
 function _paymentStatusLabel(status) {
     const normalized = String(status || '').toLowerCase();
@@ -356,13 +356,13 @@ async function voidInvoice(type, identifier) {
             Invoice akan ditandai VOID. Ini tidak otomatis mengubah stok atau membuat retur.
         </div>
         <div class="form-group">
-            <label>Alasan Pembatalan</label>
+            <label for="void-invoice-reason">Alasan Pembatalan</label>
             <textarea id="void-invoice-reason" rows="4" minlength="5" required placeholder="Contoh: Invoice salah cetak / transaksi dibatalkan"></textarea>
         </div>
         <div class="invoice-modal-actions">
-            <button type="button" class="btn btn-cancel" data-invoice-action="close-modal">Batal</button>
-            <button type="button" class="btn btn-primary btn-danger" data-invoice-action="submit-void" data-invoice-type="${type}" data-source-id="${escapeHtml(idText)}">
-                <i class="fas fa-ban"></i> Void Invoice
+            <button type="button" class="btn btn-secondary" data-invoice-action="close-modal">Batal</button>
+            <button type="button" class="btn btn-danger" data-invoice-action="submit-void" data-invoice-type="${type}" data-source-id="${escapeHtml(idText)}">
+                <i class="fas fa-ban" aria-hidden="true"></i> Void Invoice
             </button>
         </div>
     `;
@@ -436,7 +436,7 @@ function manualInvoicePayment(invoiceId, status, amount, currentMethod = 'cash')
             ${isPartial ? 'Catat pembayaran sebagian manual.' : 'Tandai transaksi sebagai lunas manual.'}
         </div>
         <div class="form-group">
-            <label>Metode Pembayaran</label>
+            <label for="manual-payment-method">Metode Pembayaran</label>
             <select id="manual-payment-method">
                 <option value="cash" ${safeMethod === 'cash' ? 'selected' : ''}>Tunai</option>
                 <option value="qris" ${safeMethod === 'qris' ? 'selected' : ''}>QRIS Manual</option>
@@ -446,15 +446,15 @@ function manualInvoicePayment(invoiceId, status, amount, currentMethod = 'cash')
         </div>
         ${isPartial ? `
             <div class="form-group">
-                <label>Jumlah DP</label>
+                <label for="manual-payment-amount">Jumlah DP</label>
                 <input type="number" id="manual-payment-amount" min="1" max="${Math.max(0, Math.round(Number(amount || 0) - 1))}" placeholder="Masukkan jumlah bayar">
-                <small class="invoice-modal-amount">Total tagihan: ${formatRupiah(amount)}</small>
+                <small class="form-helper">Total tagihan: ${formatRupiah(amount)}</small>
             </div>
         ` : `<input type="hidden" id="manual-payment-amount" value="${Math.round(Number(amount || 0))}">`}
         <div class="invoice-modal-actions">
-            <button type="button" class="btn btn-cancel" data-invoice-action="close-modal">Batal</button>
+            <button type="button" class="btn btn-secondary" data-invoice-action="close-modal">Batal</button>
             <button type="button" class="btn btn-primary" data-invoice-action="submit-manual-payment" data-source-id="${escapeHtml(String(invoiceId || ''))}" data-status="${status}" data-amount="${Number(amount || 0)}">
-                <i class="fas fa-check-circle"></i> ${isPartial ? 'Simpan DP' : 'Tandai Lunas'}
+                <i class="fas fa-check-circle" aria-hidden="true"></i> ${isPartial ? 'Simpan DP' : 'Tandai Lunas'}
             </button>
         </div>
     `;
@@ -558,7 +558,7 @@ function renderInvoices(data) {
         <div class="card invoice-card-wrapper">
             <div class="invoice-header">
                 <div class="invoice-header-title">
-                    <h3><i class="fas fa-file-invoice-dollar"></i> Semua Transaksi (Kunjungan & Herbal)</h3>
+                    <h3><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i> Semua Transaksi (Kunjungan & Herbal)</h3>
                     <span class="invoice-header-meta">Periode aktif: ${periodTitle}. Halaman ${window._invoicesPage}. Menampilkan maksimal 100 transaksi.</span>
                 </div>
                 
@@ -566,10 +566,12 @@ function renderInvoices(data) {
                 <div class="invoice-controls">
                 <input type="search" id="invoice-search-input" value="${escapeHtml(window._invoicesSearch || '')}" placeholder="Cari transaksi..."
                        data-action="invoice-search"
+                       aria-label="Cari transaksi"
                        class="invoice-search-input">
-                <div class="invoice-period-filter">
+                <div class="invoice-period-filter" role="group" aria-label="Filter periode transaksi">
                     ${Object.entries(periodMap).map(([k, v]) => `
                         <button type="button" data-invoice-action="period" data-period="${escapeHtml(k)}"
+                                aria-pressed="${(window._invoicesPeriod || 'all') === k ? 'true' : 'false'}"
                                 class="${(window._invoicesPeriod || 'all') === k ? 'active' : ''}">
                             ${v}
                         </button>
@@ -641,7 +643,7 @@ function renderInvoices(data) {
                     : 'Pending';
             const paymentInfo = `
                 <div class="invoice-payment-meta">
-                    <span class="status-pill ${statusBadgeClass}"><i class="fas fa-circle"></i>${statusBadgeText}</span>
+                    <span class="status-pill ${statusBadgeClass}"><i class="fas fa-circle" aria-hidden="true"></i>${statusBadgeText}</span>
                     <span>Metode: <strong>${escapeHtml(_paymentMethodLabel(paymentMethod))}</strong></span>
                     ${providerBadge}
                 </div>

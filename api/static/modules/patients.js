@@ -226,9 +226,9 @@ function getVisitDiscountInfo(v) {
             title: 'Kunjungan gratis',
             detail: v.free_visit_reason || '-',
             finalPrice,
-            color: '#059669',
-            bg: '#ecfdf5',
-            border: '#a7f3d0'
+            color: 'var(--color-primary-700)',
+            bg: 'var(--color-primary-50)',
+            border: 'var(--color-primary-200)'
         };
     }
     const rule = v?.discount_rule_id ? window._visitDiscountRuleMap[v.discount_rule_id] : null;
@@ -237,18 +237,18 @@ function getVisitDiscountInfo(v) {
             title: _visitDiscountKind(rule),
             detail: v.discount_rule_name || rule?.name || 'Diskon terpakai',
             finalPrice,
-            color: '#7c3aed',
-            bg: '#f5f3ff',
-            border: '#ddd6fe'
+            color: 'var(--color-info-700)',
+            bg: 'var(--color-info-50)',
+            border: 'var(--color-info-200)'
         };
     }
     return {
         title: 'Harga normal',
         detail: 'Tanpa voucher atau rule diskon',
         finalPrice,
-        color: '#475569',
-        bg: '#f8fafc',
-        border: '#e2e8f0'
+        color: 'var(--color-surface-600)',
+        bg: 'var(--color-surface-50)',
+        border: 'var(--color-surface-200)'
     };
 }
 function renderVisitDiscountBadge(v) {
@@ -384,20 +384,20 @@ async function renderPatients() {
                 </div>
                 <form action="/add_patient" method="post" class="patient-form-grid">
                     <div class="form-group">
-                        <label>Nama Lengkap</label>
-                        <input type="text" name="name" required placeholder="Contoh: Budi Santoso">
+                        <label for="patient-name">Nama Lengkap</label>
+                        <input type="text" id="patient-name" name="name" required placeholder="Contoh: Budi Santoso">
                     </div>
                     <div class="form-group">
-                        <label>Nomor Telepon/WA</label>
-                        <input type="text" name="phone" placeholder="08xxx (opsional)">
+                        <label for="patient-phone">Nomor Telepon/WA</label>
+                        <input type="text" id="patient-phone" name="phone" placeholder="08xxx (opsional)">
                     </div>
                     <div class="form-group">
-                        <label>Alamat Domisili</label>
-                        <input type="text" name="address" placeholder="Kota atau alamat lengkap...">
+                        <label for="patient-address">Alamat Domisili</label>
+                        <input type="text" id="patient-address" name="address" placeholder="Kota atau alamat lengkap...">
                     </div>
                     <div class="form-group">
-                        <label>Jenis Kelamin</label>
-                        <select name="gender">
+                        <label for="patient-gender">Jenis Kelamin</label>
+                        <select id="patient-gender" name="gender">
                             <option value="Laki-laki">Laki-laki</option>
                             <option value="Perempuan">Perempuan</option>
                         </select>
@@ -539,19 +539,19 @@ async function renderVisits() {
                         <div class="visit-section-title"><i class="fas fa-notes-medical"></i> Detail Kunjungan</div>
                         <div class="visit-section-grid">
                             <div class="form-group">
-                                <label>Pilih Terapis</label>
+                                <label for="visit-therapist-select">Pilih Terapis</label>
                                 <select name="therapist_id" id="visit-therapist-select" required data-patient-action="visit-therapist">${trptOpts}</select>
                                 <div id="visit-therapist-helper" class="field-helper"></div>
                             </div>
                             <div class="form-group">
-                                <label>Layanan</label>
+                                <label for="visit-service-select">Layanan</label>
                                 <select name="service_id" id="visit-service-select" data-patient-action="visit-service">${serviceOpts}</select>
                                 <input type="hidden" name="service_name" id="visit-service-name" value="Bekam">
                                 <div id="visit-service-capability-helper" class="field-helper visit-capability-helper"></div>
                             </div>
                             <div class="form-group visit-metric-field">
                                 <div class="visit-field-head">
-                                    <label id="visit-quantity-label">Jumlah Layanan</label>
+                                    <label id="visit-quantity-label" for="visit-point-input">Jumlah Layanan</label>
                                     <span class="visit-field-spacer" aria-hidden="true"></span>
                                 </div>
                                 <input type="number" name="point_count" id="visit-point-input" required placeholder="Quantity" min="1" data-patient-action="visit-price">
@@ -622,11 +622,11 @@ async function renderVisits() {
                     </div>
                     <div class="visit-form-section visit-payment-section visit-secondary-section">
                         <div class="visit-section-title"><i class="fas fa-wallet"></i> Pembayaran</div>
-                        <div class="visit-payment-quick-actions" aria-label="Pilihan cepat pembayaran">
-                            <button type="button" data-patient-action="payment-quick" data-status="paid" data-method="cash"><i class="fas fa-money-bill-wave"></i> Tunai Lunas</button>
-                            <button type="button" data-patient-action="payment-quick" data-status="paid" data-method="qris"><i class="fas fa-qrcode"></i> QRIS Manual Lunas</button>
-                            <button type="button" data-patient-action="payment-quick" data-status="unpaid" data-method="other"><i class="fas fa-clock"></i> Belum Dibayar</button>
-                            <button type="button" data-patient-action="payment-quick" data-status="partial" data-method="cash"><i class="fas fa-receipt"></i> Catat DP</button>
+                        <div class="visit-payment-quick-actions" role="group" aria-label="Pilihan cepat pembayaran">
+                            <button type="button" class="btn btn-secondary btn-sm" data-patient-action="payment-quick" data-status="paid" data-method="cash"><i class="fas fa-money-bill-wave" aria-hidden="true"></i> Tunai Lunas</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-patient-action="payment-quick" data-status="paid" data-method="qris"><i class="fas fa-qrcode" aria-hidden="true"></i> QRIS Manual Lunas</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-patient-action="payment-quick" data-status="unpaid" data-method="other"><i class="fas fa-clock" aria-hidden="true"></i> Belum Dibayar</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-patient-action="payment-quick" data-status="partial" data-method="cash"><i class="fas fa-receipt" aria-hidden="true"></i> Catat DP</button>
                         </div>
                         <div class="visit-section-grid">
                             <div class="form-group">
@@ -681,10 +681,10 @@ async function renderVisits() {
             <!-- LEFT: DataTable -->
             <div class="card patient-stats-card">
                 <div class="visit-table-toolbar">
-                    <strong><i class="fas fa-address-book"></i> Data Pasien</strong>
-                    <span id="dt-total-badge" class="patient-stats-badge"></span>
+                    <strong><i class="fas fa-address-book" aria-hidden="true"></i> Data Pasien</strong>
+                    <span id="dt-total-badge-visits" class="patient-stats-badge"></span>
                 </div>
-                <table id="patients-dt" class="display patient-dt-table">
+                <table id="patients-dt-visits" class="display patient-dt-table">
                     <thead>
                         <tr>
                             <th>Nama</th>
@@ -796,7 +796,7 @@ function _initPatientsDataTable() {
         catch (e) { }
         window._patientsDT = null;
     }
-    window._patientsDT = $('#patients-dt').DataTable({
+    window._patientsDT = $('#patients-dt-visits').DataTable({
         serverSide: true,
         processing: true,
         searchDelay: 300,
@@ -824,7 +824,7 @@ function _initPatientsDataTable() {
             fetch(url)
                 .then(r => r.json())
                 .then(data => {
-                const badge = document.getElementById('dt-total-badge');
+                const badge = document.getElementById('dt-total-badge-visits');
                 if (badge)
                     badge.textContent = `Total: ${data.recordsTotal} pasien`;
                 callback({
@@ -840,12 +840,12 @@ function _initPatientsDataTable() {
             {
                 data: null,
                 render: function (row) {
-                    const genderColor = row.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
-                    const genderBg = row.gender === 'Laki-laki' ? '#eff6ff' : '#fdf2f8';
+                    const genderColor = row.gender === 'Laki-laki' ? 'var(--color-info-600)' : 'var(--color-danger-500)';
+                    const genderBg = row.gender === 'Laki-laki' ? 'var(--color-info-50)' : 'var(--color-danger-50)';
                     const genderIcon = row.gender === 'Laki-laki' ? 'fa-male' : 'fa-female';
                     return `
                         <div class="patient-name-cell">
-                            <div class="patient-avatar" style="background:${genderBg}; color:${genderColor};">
+                            <div class="patient-avatar" style="background:${genderBg}; color:${genderColor};" aria-hidden="true">
                                 <i class="fas ${genderIcon}"></i>
                             </div>
                             <div class="patient-name-text">
@@ -858,11 +858,11 @@ function _initPatientsDataTable() {
             {
                 data: 'gender',
                 render: function (val) {
-                    const color = val === 'Laki-laki' ? '#1d4ed8' : '#be185d';
-                    const bg = val === 'Laki-laki' ? '#dbeafe' : '#fce7f3';
+                    const color = val === 'Laki-laki' ? 'var(--color-info-700)' : 'var(--color-danger-700)';
+                    const bg = val === 'Laki-laki' ? 'var(--color-info-100)' : 'var(--color-danger-100)';
                     const icon = val === 'Laki-laki' ? 'fa-mars' : 'fa-venus';
                     return `<span class="patient-gender-badge" style="color:${color}; background:${bg};">
-                        <i class="fas ${icon}"></i> ${escapeHtml(val)}
+                        <i class="fas ${icon}" aria-hidden="true"></i> ${escapeHtml(val)}
                     </span>`;
                 },
                 orderable: true
@@ -923,7 +923,7 @@ function _initPatientsDataTable() {
                     return;
                 }
                 _dtShowVisits(data.id);
-                $('#patients-dt tbody tr').removeClass('dt-selected-row');
+                $('#patients-dt-visits tbody tr').removeClass('dt-selected-row');
                 $(row).addClass('dt-selected-row');
             });
         }
@@ -1063,7 +1063,7 @@ async function _dtShowVisits(patientId) {
     if (!patientRow)
         patientRow = { id: patientId };
     // Highlight table row
-    $('#patients-dt tbody tr').removeClass('dt-selected-row');
+    $('#patients-dt-visits tbody tr').removeClass('dt-selected-row');
     table.rows().every(function () {
         if (this.data() && this.data().id === patientId) {
             $(this.node()).addClass('dt-selected-row');
@@ -1088,8 +1088,8 @@ async function _dtShowVisits(patientId) {
         visitPtIdInput.value = patientRow.id;
     const badge = document.getElementById('selected-patient-badge');
     if (badge) {
-        const genderColor = patientRow.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
-        badge.innerHTML = `<span class="visit-selected-patient-badge"><i class="fas fa-user" style="color:${genderColor};"></i> <strong>${escapeHtml(patientRow.name)}</strong> <span class="visit-selected-patient-gender">(${escapeHtml(patientRow.gender)})</span></span>`;
+        const genderColor = patientRow.gender === 'Laki-laki' ? 'var(--color-info-600)' : 'var(--color-danger-500)';
+        badge.innerHTML = `<span class="visit-selected-patient-badge"><i class="fas fa-user" style="color:${genderColor};" aria-hidden="true"></i> <strong>${escapeHtml(patientRow.name)}</strong> <span class="visit-selected-patient-gender">(${escapeHtml(patientRow.gender)})</span></span>`;
     }
     updateVisitSelectedPatientCard(patientRow);
     closeVisitPatientResults();
@@ -1101,12 +1101,12 @@ async function _dtShowVisits(patientId) {
     const visits = patientRow.visits || [];
     const visitCount = patientRow.visits_count || visits.length;
     const totalIncome = visits.reduce((s, v) => s + (parseFloat(v.price) || 0), 0);
-    const genderColor = patientRow.gender === 'Laki-laki' ? '#3b82f6' : '#ec4899';
-    const genderBg = patientRow.gender === 'Laki-laki' ? '#eff6ff' : '#fdf2f8';
+    const genderColor = patientRow.gender === 'Laki-laki' ? 'var(--color-info-600)' : 'var(--color-danger-500)';
+    const genderBg = patientRow.gender === 'Laki-laki' ? 'var(--color-info-50)' : 'var(--color-danger-50)';
     const genderIcon = patientRow.gender === 'Laki-laki' ? 'fa-male' : 'fa-female';
     let content = `
         <div class="visit-patient-header">
-            <div class="visit-patient-avatar" style="background:${genderBg};color:${genderColor};">
+            <div class="visit-patient-avatar" style="background:${genderBg};color:${genderColor};" aria-hidden="true">
                 <i class="fas ${genderIcon}"></i>
             </div>
             <div class="visit-patient-main">
@@ -1363,7 +1363,7 @@ function syncVisitHerbalItems() {
                             <div class="visit-herbal-meta">${item.quantity} ${escapeHtml(item.unit)}</div>
                         </div>
                         <div class="visit-herbal-price">${formatRupiah(subtotal)}</div>
-                        <button type="button" class="visit-herbal-remove" data-patient-action="remove-visit-herbal" data-id="${escapeHtml(item.herbal_id)}" title="Hapus herbal"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="visit-herbal-remove" data-patient-action="remove-visit-herbal" data-id="${escapeHtml(item.herbal_id)}" title="Hapus herbal" aria-label="Hapus herbal"><i class="fas fa-trash" aria-hidden="true"></i></button>
                     </div>`;
             }).join('');
             list.innerHTML = `

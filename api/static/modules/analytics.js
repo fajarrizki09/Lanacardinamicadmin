@@ -39,19 +39,19 @@ function renderAnalytics(data = {}) {
     const maxVisit = Math.max(...mVisits, 1);
     const maxIncome = Math.max(...mIncome, 1);
     const maxTherapist = top.length > 0 ? top[0].visits : 1;
-    // ── Month bar colors (gradient blue shades) ──
-    const barColors = ['#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8'];
+    // ── Month bar colors (gradient blue shades via design tokens) ──
+    const barColors = ['var(--color-info-200)', 'var(--color-info-300)', 'var(--color-info-400)', 'var(--color-info-500)', 'var(--color-info-600)', 'var(--color-info-700)'];
     // ── Helper: mini bar chart row ───────────────────────────────────────────
-    function monthBars(values, max, colorFn, fmtFn) {
+    function monthBars(values, max, colorFn, fmtFn, ariaLabel) {
         return labels.map((lbl, i) => {
             const pct = max > 0 ? (values[i] / max * 100).toFixed(1) : 0;
             return `
-            <div class="analytics-chart-bar-col">
-                <div class="analytics-chart-bar-value">${fmtFn(values[i])}</div>
-                <div class="analytics-chart-bar-track">
+            <div class="analytics-chart-bar-col" role="img" aria-label="${escapeHtml(lbl)}: ${escapeHtml(fmtFn(values[i]))}">
+                <div class="analytics-chart-bar-value" aria-hidden="true">${fmtFn(values[i])}</div>
+                <div class="analytics-chart-bar-track" aria-hidden="true">
                     <div class="analytics-chart-bar-fill" style="height:${pct}%; background:${colorFn(i)}; min-height:${values[i] > 0 ? '3px' : '0'};"></div>
                 </div>
-                <div class="analytics-chart-bar-label">${lbl}</div>
+                <div class="analytics-chart-bar-label" aria-hidden="true">${lbl}</div>
             </div>`;
         }).join('');
     }
@@ -81,13 +81,13 @@ function renderAnalytics(data = {}) {
     <!-- ── Executive Summary ─────────────────────────────────────────────── -->
     <section class="analytics-hero glass-panel">
         <div class="analytics-hero-copy">
-            <span class="analytics-eyebrow"><i class="fas fa-signal"></i> Live clinic analytics</span>
+            <span class="analytics-eyebrow"><i class="fas fa-signal" aria-hidden="true"></i> Live clinic analytics</span>
             <h2>Ringkasan Operasional ${periodTitle}</h2>
             <p>Pantau revenue, kunjungan, performa terapis, stok, dan koreksi transaksi dalam satu layar kerja.</p>
             <div class="analytics-hero-meta">
-                <span><i class="fas fa-receipt"></i> ${data.total_transactions || 0} transaksi</span>
-                <span><i class="fas fa-user-check"></i> ${data.total_visits || 0} kunjungan</span>
-                <span class="${stockTone}"><i class="fas fa-boxes-stacked"></i> ${stockLabel}</span>
+                <span><i class="fas fa-receipt" aria-hidden="true"></i> ${data.total_transactions || 0} transaksi</span>
+                <span><i class="fas fa-user-check" aria-hidden="true"></i> ${data.total_visits || 0} kunjungan</span>
+                <span class="${stockTone}"><i class="fas fa-boxes-stacked" aria-hidden="true"></i> ${stockLabel}</span>
             </div>
         </div>
         <div class="analytics-hero-controls">
@@ -103,7 +103,7 @@ function renderAnalytics(data = {}) {
                 <span>Pendapatan bersih</span>
                 <strong>${formatRupiah(data.current_month_income || 0)}</strong>
                 <small class="${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}">
-                    <i class="fas fa-arrow-${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}"></i>
+                    <i class="fas fa-arrow-${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}" aria-hidden="true"></i>
                     ${Math.abs(data.income_growth_pct || 0)}% bulan ini
                 </small>
             </div>
@@ -113,35 +113,35 @@ function renderAnalytics(data = {}) {
     <!-- ── KPI Cards ─────────────────────────────────────────────────────── -->
     <div class="analytics-kpi-strip analytics-kpi-strip-premium">
         <div class="stat-card analytics-kpi-card-compact analytics-metric-card">
-            <div class="stat-icon blue"><i class="fas fa-users"></i></div>
+            <div class="stat-icon blue"><i class="fas fa-users" aria-hidden="true"></i></div>
             <div class="stat-details"><h4>Total Pasien</h4><h2>${data.total_patients}</h2><small>${visitPerPatient}x kunjungan/pasien</small></div>
         </div>
         <div class="stat-card analytics-kpi-card-compact analytics-metric-card">
-            <div class="stat-icon purple"><i class="fas fa-stethoscope"></i></div>
+            <div class="stat-icon purple"><i class="fas fa-stethoscope" aria-hidden="true"></i></div>
             <div class="stat-details">
                 <h4>Transaksi Bulan Ini</h4>
                 <div class="analytics-kpi-value-row">
                     <h2>${data.current_month_transactions || data.current_month_visits || 0}</h2>
                     <span class="analytics-trend ${(data.visits_growth_pct || 0) >= 0 ? 'up' : 'down'}">
-                        <i class="fas fa-arrow-${(data.visits_growth_pct || 0) >= 0 ? 'up' : 'down'}"></i> ${Math.abs(data.visits_growth_pct || 0)}%
+                        <i class="fas fa-arrow-${(data.visits_growth_pct || 0) >= 0 ? 'up' : 'down'}" aria-hidden="true"></i> ${Math.abs(data.visits_growth_pct || 0)}%
                     </span>
                 </div>
             </div>
         </div>
         <div class="stat-card analytics-kpi-card-compact analytics-metric-card is-featured">
-            <div class="stat-icon green"><i class="fas fa-money-bill-wave"></i></div>
+            <div class="stat-icon green"><i class="fas fa-money-bill-wave" aria-hidden="true"></i></div>
             <div class="stat-details">
                 <h4>Pendapatan Bersih Bulan Ini</h4>
                 <div class="analytics-kpi-value-row wrap">
                     <h2 class="analytics-kpi-money">${formatRupiah(data.current_month_income || 0)}</h2>
                     <span class="analytics-trend ${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}">
-                        <i class="fas fa-arrow-${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}"></i> ${Math.abs(data.income_growth_pct || 0)}%
+                        <i class="fas fa-arrow-${(data.income_growth_pct || 0) >= 0 ? 'up' : 'down'}" aria-hidden="true"></i> ${Math.abs(data.income_growth_pct || 0)}%
                     </span>
                 </div>
             </div>
         </div>
         <div class="stat-card analytics-kpi-card-compact analytics-metric-card">
-            <div class="stat-icon orange"><i class="fas fa-leaf"></i></div>
+            <div class="stat-icon orange"><i class="fas fa-leaf" aria-hidden="true"></i></div>
             <div class="stat-details">
                 <h4>Total Aset Herbal</h4>
                 <h2 class="analytics-kpi-money" title="${formatRupiah(data.total_herbal_value || 0)}">${formatRupiah(data.total_herbal_value || 0)}</h2>
@@ -150,7 +150,7 @@ function renderAnalytics(data = {}) {
         </div>
         <div class="stat-card analytics-kpi-card-compact analytics-metric-card analytics-stock-card ${stockTone}">
             <div class="stat-icon ${data.low_stock_count > 0 ? 'red' : 'green'}">
-                <i class="fas fa-exclamation-triangle"></i>
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
             </div>
             <div class="stat-details">
                 <h4>Stok Kritis</h4>
@@ -162,17 +162,17 @@ function renderAnalytics(data = {}) {
 
     <div class="analytics-insight-grid">
         <div class="analytics-insight-card">
-            <span><i class="fas fa-crown"></i> Terapis teratas</span>
+            <span><i class="fas fa-crown" aria-hidden="true"></i> Terapis teratas</span>
             <strong>${bestTherapist ? escapeHtml(bestTherapist.name) : 'Belum ada data'}</strong>
             <small>${bestTherapist ? `${bestTherapist.visits || 0} kunjungan, ${bestTherapist.points || 0} titik` : 'Data muncul setelah ada kunjungan.'}</small>
         </div>
         <div class="analytics-insight-card">
-            <span><i class="fas fa-chart-line"></i> Bulan revenue tertinggi</span>
+            <span><i class="fas fa-chart-line" aria-hidden="true"></i> Bulan revenue tertinggi</span>
             <strong>${peakIncome > 0 ? peakIncomeLabel : '-'}</strong>
             <small>${peakIncome > 0 ? formatRupiah(peakIncome) : 'Belum ada pendapatan pada periode ini.'}</small>
         </div>
         <div class="analytics-insight-card ${Number(data.void_invoice_total || 0) > 0 ? 'danger' : ''}">
-            <span><i class="fas fa-shield-alt"></i> Kontrol koreksi</span>
+            <span><i class="fas fa-shield-alt" aria-hidden="true"></i> Kontrol koreksi</span>
             <strong>${data.void_invoice_count || 0} invoice void</strong>
             <small>Retur ${(data.correction_summary && data.correction_summary.herbal_returns) || 0}, koreksi stok ${(data.correction_summary && data.correction_summary.stock_corrections) || 0}.</small>
         </div>
@@ -266,8 +266,8 @@ function renderAnalytics(data = {}) {
                 <small>Harga modal barang terjual.</small>
             </div>
             <div class="form-group analytics-profit-input-field">
-                <label>Biaya Operasional</label>
-                <input type="number" id="profit-operational-expense" value="0" min="0" data-analytics-action="profit-preview">
+                <label for="profit-operational-expense">Biaya Operasional</label>
+                <input type="number" class="form-input" id="profit-operational-expense" value="0" min="0" data-analytics-action="profit-preview">
             </div>
             <div class="analytics-monitor-item">
                 <span>Laba Kotor</span>
@@ -286,16 +286,16 @@ function renderAnalytics(data = {}) {
 
         <div class="card analytics-chart-card">
             <div class="card-header analytics-chart-header">
-                <h3><i class="fas fa-chart-bar" style="color:#3b82f6;"></i> Kunjungan</h3>
+                <h3><i class="fas fa-chart-bar" style="color:var(--color-info-600);" aria-hidden="true"></i> Kunjungan</h3>
             </div>
             <div class="analytics-chart-bars">
-                ${monthBars(mVisits, maxVisit, (i) => barColors[i] || '#3b82f6', (v) => v + 'x')}
+                ${monthBars(mVisits, maxVisit, (i) => barColors[i] || 'var(--color-info-500)', (v) => v + 'x')}
             </div>
         </div>
 
         <div class="card analytics-chart-card">
             <div class="card-header analytics-chart-header">
-                <h3><i class="fas fa-chart-area" style="color:#10b981;"></i> Pendapatan Bersih Kunjungan & Herbal</h3>
+                <h3><i class="fas fa-chart-area" style="color:var(--color-primary-500);" aria-hidden="true"></i> Pendapatan Bersih Kunjungan & Herbal</h3>
             </div>
             <div class="analytics-chart-bars">
                 ${monthBars(mIncome, maxIncome, (i) => `hsl(${150 - i * 5}, 65%, ${55 + i * 3}%)`, (v) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'jt' : (v / 1000).toFixed(0) + 'rb')}
@@ -309,7 +309,7 @@ function renderAnalytics(data = {}) {
         <!-- Top Therapists -->
         <div class="card analytics-chart-card">
             <div class="card-header analytics-chart-header">
-                <h3><i class="fas fa-trophy" style="color:#f59e0b;"></i> Top Terapis</h3>
+                <h3><i class="fas fa-trophy" style="color:var(--color-warning-500);" aria-hidden="true"></i> Top Terapis</h3>
             </div>
             ${top.length === 0
         ? `<div class="analytics-empty-state">Belum ada data kunjungan.</div>`
@@ -322,8 +322,8 @@ function renderAnalytics(data = {}) {
                             <span class="analytics-top-list-name">${medals[i] || ''} ${escapeHtml(t.name)}</span>
                             <span class="analytics-top-list-stats">${t.visits}x - <span class="analytics-top-list-stats-primary">${t.points || 0} ttk</span></span>
                         </div>
-                        <div class="analytics-top-list-bar-bg">
-                            <div class="analytics-top-list-bar-fill" style="width:${pct}%;"></div>
+                        <div class="analytics-top-list-bar-bg" role="img" aria-label="${escapeHtml(t.name)}: ${t.visits} kunjungan, ${t.points || 0} poin">
+                            <div class="analytics-top-list-bar-fill" style="width:${pct}%;" aria-hidden="true"></div>
                         </div>
                     </div>`;
         }).join('')}
@@ -332,30 +332,30 @@ function renderAnalytics(data = {}) {
         <!-- Gender Breakdown -->
         <div class="card analytics-gender-card">
             <div class="card-header analytics-chart-header">
-                <h3><i class="fas fa-venus-mars" style="color:#8b5cf6;"></i> Gender</h3>
+                <h3><i class="fas fa-venus-mars" style="color:var(--color-info-500);" aria-hidden="true"></i> Gender</h3>
             </div>
-            <div class="analytics-donut-wrap">
-                <div style="width:100px; height:100px; border-radius:50%; background: conic-gradient(#3b82f6 0deg ${mAngle}deg, #f472b6 ${mAngle}deg 360deg);"></div>
-                <div class="analytics-donut-center">
+            <div class="analytics-donut-wrap" role="img" aria-label="Laki-laki ${data.male_count} (${malePct}%), Perempuan ${data.female_count} (${femalePct}%)">
+                <div style="width:100px; height:100px; border-radius:50%; background: conic-gradient(var(--color-info-500) 0deg ${mAngle}deg, var(--color-danger-400) ${mAngle}deg 360deg);" aria-hidden="true"></div>
+                <div class="analytics-donut-center" aria-hidden="true">
                     ${total}
                 </div>
             </div>
             <div class="analytics-legend-row">
-                <span class="analytics-legend-item"><span class="analytics-legend-box" style="background:#3b82f6;"></span>L: ${data.male_count} (${malePct}%)</span>
-                <span class="analytics-legend-item"><span class="analytics-legend-box" style="background:#f472b6;"></span>P: ${data.female_count} (${femalePct}%)</span>
+                <span class="analytics-legend-item"><span class="analytics-legend-box" style="background:var(--color-info-500);" aria-hidden="true"></span>L: ${data.male_count} (${malePct}%)</span>
+                <span class="analytics-legend-item"><span class="analytics-legend-box" style="background:var(--color-danger-400);" aria-hidden="true"></span>P: ${data.female_count} (${femalePct}%)</span>
             </div>
         </div>
 
         <!-- Visit Frequency -->
         <div class="card analytics-frequency-card">
             <div class="card-header analytics-chart-header">
-                <h3><i class="fas fa-redo" style="color:#10b981;"></i> Frekuensi</h3>
+                <h3><i class="fas fa-redo" style="color:var(--color-primary-500);" aria-hidden="true"></i> Frekuensi</h3>
             </div>
             <p class="analytics-frequency-desc">Berapa kali pasien datang berkunjung</p>
             ${[
-        { label: '1x kunjungan', key: '1', color: '#fbbf24' },
-        { label: '2-4x kunjungan', key: '2-4', color: '#3b82f6' },
-        { label: '5x+ (loyal)', key: '5+', color: '#10b981' },
+        { label: '1x kunjungan', key: '1', color: 'var(--color-warning-500)' },
+        { label: '2-4x kunjungan', key: '2-4', color: 'var(--color-info-500)' },
+        { label: '5x+ (loyal)', key: '5+', color: 'var(--color-primary-500)' },
     ].map(f => {
         const count = vf[f.key] || 0;
         const pct = total > 0 ? Math.round(count / total * 100) : 0;
@@ -365,8 +365,8 @@ function renderAnalytics(data = {}) {
                         <span>${f.label}</span>
                         <span style="font-weight:700; color:${f.color};">${count} pasien</span>
                     </div>
-                    <div class="analytics-frequency-bar-bg">
-                        <div class="analytics-frequency-bar-fill" style="width:${pct}%; background:${f.color};"></div>
+                    <div class="analytics-frequency-bar-bg" role="img" aria-label="${f.label}: ${count} pasien (${pct}%)">
+                        <div class="analytics-frequency-bar-fill" style="width:${pct}%; background:${f.color};" aria-hidden="true"></div>
                     </div>
                 </div>`;
     }).join('')}
@@ -376,7 +376,7 @@ function renderAnalytics(data = {}) {
     <!-- ── Row 4: Recent Visits Table ────────────────────────────────────── -->
     <div class="card analytics-recent-card">
         <div class="card-header analytics-recent-header">
-            <h3><i class="fas fa-history" style="color:#6366f1;"></i> 10 Transaksi Terbaru</h3>
+            <h3><i class="fas fa-history" style="color:var(--color-primary-500);" aria-hidden="true"></i> 10 Transaksi Terbaru</h3>
         </div>
         <div class="table-container">
             <table>

@@ -1,5 +1,23 @@
 # Catatan Perubahan
 
+## 2026-11-28 - Aksesibilitas UI/UX & Perbaikan Visual Stat Card (v1.7.56)
+
+**🟠 HIGH PRIORITY - UI/UX ACCESSIBILITY & VISUAL FIX**
+
+### Audit Aksesibilitas 8 Halaman + Integrasi Skill ui-ux-pro-max
+- **FIXED:** `.stat-card`, `.stat-icon` (+ varian `blue/purple/green/orange/red`), `.stat-details`, `.border-success/warning/danger`, dan `.table-icon-btn` tidak terdefinisi di CSS sehingga kartu KPI inventory/herbals/invoices/crm tampil tanpa gaya; kini bergaya penuh (gradient ikon, hover lift, shadow, border aksen).
+- **IMPROVED:** `.table-icon-btn` kini 44px (touch target) + hover edit/delete berwarna; kartu Analytics (`.analytics-metric-card`) dikecualikan agar layout grid glassmorphism tetap utuh.
+- **IMPROVED:** `components.css`/`style.css`/`dashboard.css` - reduced-motion global + teks 9-10px dinaikkan ke 11-12px.
+- **FIXED:** `analytics.js` - grafik `role="img"`+`aria-label`, 10+ hex→token, label input profit, ikon `aria-hidden`.
+- **FIXED:** `patients.js` - gender/status hex→token, hapus ID ganda, label `for`/`id`, quick-pay `.btn btn-secondary btn-sm`.
+- **FIXED:** `invoices.js` - badge provider hex→token, label modal, `aria-pressed` period pill.
+- **FIXED:** `herbals.js`/`inventory.js` - Tailwind hardcoded→token, baris `<tr>` focusable + keydown, progress `role="progressbar"`, tabel koreksi→`.table` semantik.
+- **FIXED:** `settings.js` - label file input, tabel rules semantik, 20+ hex→token.
+- **FIXED:** `crm.js` - modal `role="dialog"`/`aria-modal` + focus, tombol ikon `aria-label`.
+- **IMPROVED:** `owner_report.js` - tombol custom→`.btn` design system; `dashboard.js` - label grafik jujur ("Komposisi Pendapatan"/"Ringkasan Aktivitas").
+- File: `api/static/components.css`, `api/static/style.css`, `api/static/dashboard.css`, `api/static/modules/{analytics,patients,invoices,herbals,inventory,settings,crm,owner_report,dashboard}.js`
+- chore: bump version to 1.7.56
+
 ## 2026-11-25 - Perbaikan Template & Bahasa Follow-up CRM (v1.7.55)
 
 **🟡 MEDIUM PRIORITY - WHATSAPP CRM TEMPLATE**

@@ -248,18 +248,18 @@ async function renderDashboard() {
                         <div class="panel-heading-row">
                             <div>
                                 <span class="section-kicker">Revenue</span>
-                                <h3>Grafik Pendapatan</h3>
+                                <h3>Komposisi Pendapatan</h3>
                             </div>
-                            <span class="status-pill status-paid"><i class="fas fa-circle"></i> Aktif</span>
+                            <span class="status-pill status-paid"><i class="fas fa-circle" aria-hidden="true"></i> Aktif</span>
                         </div>
-                        <div class="revenue-chart" aria-label="Grafik pendapatan sederhana">
+                        <div class="revenue-chart" role="img" aria-label="Ilustrasi komposisi pendapatan, bukan rincian akurat">
                             ${revenueBars.map((bar, index) => {
         const height = Math.max(18, Math.round((bar.value / maxChartValue) * 100));
         return `
-                                    <div class="revenue-bar-wrap" style="--bar-height:${height}%; animation-delay:${0.08 * index}s;">
-                                        <div class="revenue-bar-value">${formatRupiah(bar.value)}</div>
-                                        <div class="revenue-bar"><span></span></div>
-                                        <div class="revenue-bar-label"><i class="fas ${bar.icon}"></i>${escapeHtml(bar.label)}</div>
+                                    <div class="revenue-bar-wrap" style="--bar-height:${height}%; animation-delay:${0.08 * index}s;" role="img" aria-label="${escapeHtml(bar.label)}: ${escapeHtml(formatRupiah(bar.value))}">
+                                        <div class="revenue-bar-value" aria-hidden="true">${formatRupiah(bar.value)}</div>
+                                        <div class="revenue-bar" aria-hidden="true"><span></span></div>
+                                        <div class="revenue-bar-label" aria-hidden="true"><i class="fas ${bar.icon}"></i>${escapeHtml(bar.label)}</div>
                                     </div>`;
     }).join('')}
                         </div>
@@ -268,12 +268,12 @@ async function renderDashboard() {
                         <div class="panel-heading-row">
                             <div>
                                 <span class="section-kicker">Prioritas</span>
-                                <h3>Top Layanan</h3>
+                                <h3>Ringkasan Aktivitas</h3>
                             </div>
-                            <span class="status-pill status-pending"><i class="fas fa-clock"></i> Hari ini</span>
+                            <span class="status-pill status-pending"><i class="fas fa-clock" aria-hidden="true"></i> Hari ini</span>
                         </div>
                         <div class="top-service-list">
-                            <div><strong>Terapi reguler</strong><span>${totalVisits.toLocaleString('id-ID')} kunjungan tercatat</span><b>${Math.max(0, Math.round((totalVisits / Math.max(totalTransactions, 1)) * 100))}%</b></div>
+                            <div><strong>Kunjungan</strong><span>${totalVisits.toLocaleString('id-ID')} kunjungan tercatat</span><b>${Math.max(0, Math.round((totalVisits / Math.max(totalTransactions, 1)) * 100))}%</b></div>
                             <div><strong>Produk / Herbal</strong><span>${herbalSales.toLocaleString('id-ID')} transaksi produk</span><b>${herbalSales}</b></div>
                             <div><strong>Stok perlu dicek</strong><span>Inventory dan herbal kritis</span><b>${stockStatus}</b></div>
                         </div>
@@ -289,7 +289,7 @@ async function renderDashboard() {
                         ${quickActions.map((action, index) => `
                             <button type="button" class="btn btn-outline btn-lg quick-action-btn animate-fadeIn" data-dashboard-tab="${action.tab}" style="animation-delay: ${0.5 + (index * 0.05)}s;">
                                 <div class="quick-action-icon">
-                                    <i class="fas ${action.icon}"></i>
+                                    <i class="fas ${action.icon}" aria-hidden="true"></i>
                                 </div>
                                 <div class="quick-action-content">
                                     <span class="quick-action-label">${escapeHtml(action.label)}</span>

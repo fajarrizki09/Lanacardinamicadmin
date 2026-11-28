@@ -130,6 +130,15 @@ function ensureHerbalEventDelegation() {
         if (action === 'return-sync')
             syncHerbalReturnInfo();
     });
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ')
+            return;
+        const row = event.target?.closest?.('[data-herbal-action="select-row"]');
+        if (!row)
+            return;
+        event.preventDefault();
+        selectHerbal(row);
+    });
     document.addEventListener('submit', (event) => {
         const form = event.target;
         const action = form?.dataset?.herbalFormAction || '';
@@ -219,12 +228,12 @@ function renderHerbals(data) {
                 <div class="stat-details"><h4>Tersedia</h4><h2>${goodStock}</h2></div>
             </div>
             <div class="stat-card border-warning">
-                <div class="stat-icon orange"><i class="fas fa-exclamation"></i></div>
-                <div class="stat-details"><h4>Menipis</h4><h2 style="color:${lowStockHerb > 0 ? 'var(--warning)' : 'var(--text-main)'}">${lowStockHerb}</h2></div>
+                <div class="stat-icon orange"><i class="fas fa-exclamation" aria-hidden="true"></i></div>
+                <div class="stat-details"><h4>Menipis</h4><h2 style="color:${lowStockHerb > 0 ? 'var(--color-warning-600)' : 'var(--color-text)'}">${lowStockHerb}</h2></div>
             </div>
             <div class="stat-card border-danger">
-                <div class="stat-icon red"><i class="fas fa-times"></i></div>
-                <div class="stat-details"><h4>Habis</h4><h2 style="color:${outOfStock > 0 ? 'var(--danger)' : 'var(--text-main)'}">${outOfStock}</h2></div>
+                <div class="stat-icon red"><i class="fas fa-times" aria-hidden="true"></i></div>
+                <div class="stat-details"><h4>Habis</h4><h2 style="color:${outOfStock > 0 ? 'var(--color-danger-600)' : 'var(--color-text)'}">${outOfStock}</h2></div>
             </div>
         </div>
 
@@ -269,8 +278,9 @@ function renderHerbals(data) {
         : paginatedData.map((h) => {
             const isEmpty = h.stock <= 0;
             const isLow = !isEmpty && h.stock <= (h.min_stock || 5);
-            const stockColor = isEmpty ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)';
-            const rowBg = isEmpty ? 'bg-red-50' : isLow ? 'bg-amber-50' : '';
+            const stockColor = isEmpty ? 'var(--color-danger-600)' : isLow ? 'var(--color-warning-600)' : 'var(--color-success-600)';
+            const rowBg = isEmpty ? 'var(--color-danger-50)' : isLow ? 'var(--color-warning-50)' : '';
+            const rowBgStyle = rowBg ? ` style="background:${rowBg};"` : '';
             const statusBadge = isEmpty
                 ? `<span class="herbal-status-badge empty">HABIS</span>`
                 : isLow
@@ -279,7 +289,8 @@ function renderHerbals(data) {
             return `
                                     <tr data-id="${h.id}" data-name="${escapeHtml(h.name)}" data-stock="${h.stock}" data-price="${h.price}" data-unit="${escapeHtml(h.unit)}" data-package-unit="${escapeHtml(h.package_unit || '')}" data-package-size="${Number(h.package_size || 1)}"
                                         data-herbal-action="select-row"
-                                        class="${rowBg} ${window._selectedHerbalId === h.id ? 'row-selected' : ''}" data-rowbg="${rowBg}">
+                                        tabindex="0" role="button" aria-pressed="${window._selectedHerbalId === h.id ? 'true' : 'false'}"
+                                        class="${window._selectedHerbalId === h.id ? 'row-selected' : ''}"${rowBgStyle} data-rowbg="${rowBg}">
                                         <td class="table-cell-name" title="${escapeHtml(h.name)}">${escapeHtml(h.name)}</td>
                                         <td class="table-cell-center">
                                             <span class="stock-display-main" style="color:${stockColor}">${escapeHtml(h.stock_display || h.stock)}</span>
@@ -289,19 +300,19 @@ function renderHerbals(data) {
                                             <span class="price-display-main">${formatRupiah(h.price)}</span>
                                             <span class="price-display-sub">Modal ${formatRupiah(h.cost_price || 0)}</span>
                                         </td>
-                                        <td class="table-cell-right font-semibold" style="color:${Number(h.margin || 0) >= 0 ? 'var(--primary)' : 'var(--danger)'}">${formatRupiah(h.margin || 0)}</td>
+                                        <td class="table-cell-right font-semibold" style="color:${Number(h.margin || 0) >= 0 ? 'var(--color-primary-600)' : 'var(--color-danger-600)'}">${formatRupiah(h.margin || 0)}</td>
                                         <td class="table-cell-center">${statusBadge}</td>
                                         <td class="table-cell-center">
                                             <div class="table-action-buttons">
                                                 <button type="button" data-herbal-action="edit" data-id="${h.id}"
-                                                        title="Edit Produk / Herbal"
+                                                        title="Edit Produk / Herbal" aria-label="Edit Produk / Herbal"
                                                         class="table-icon-btn edit">
-                                                    <i class="fas fa-edit"></i>
+                                                    <i class="fas fa-edit" aria-hidden="true"></i>
                                                 </button>
                                                 <button type="button" data-herbal-action="delete" data-id="${h.id}"
-                                                        title="Hapus Produk / Herbal"
+                                                        title="Hapus Produk / Herbal" aria-label="Hapus Produk / Herbal"
                                                         class="table-icon-btn delete">
-                                                    <i class="fas fa-trash-alt"></i>
+                                                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
                                                 </button>
                                             </div>
                                         </td>
@@ -576,7 +587,7 @@ function openHerbalSaleModal() {
         <div id="herbal-sale-info" class="unit-field-hint">Pilih produk/herbal untuk melihat stok dan harga.</div>
         <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
             <input type="number" id="herbal-sale-qty" min="1" placeholder="Jumlah" data-herbal-action="sale-qty">
-            <button type="button" class="btn btn-primary px-3 py-2 bg-green-600" data-herbal-action="sale-add"><i class="fas fa-plus"></i> Tambah</button>
+            <button type="button" class="btn btn-primary px-3 py-2" data-herbal-action="sale-add"><i class="fas fa-plus" aria-hidden="true"></i> Tambah</button>
         </div>
         <div id="herbal-sale-warning" class="sale-warning hidden"></div>
         <div id="herbal-sale-list" class="mt-3"></div>
@@ -670,7 +681,7 @@ function syncHerbalSaleItems() {
     const items = window._herbalSaleItems || [];
     if (list) {
         if (!items.length) {
-            list.innerHTML = '<div class="text-xs text-app-muted p-2.5 bg-slate-50 rounded-md">Belum ada item penjualan.</div>';
+            list.innerHTML = '<div class="text-xs text-muted p-2.5 bg-surface-50 rounded-md">Belum ada item penjualan.</div>';
         }
         else {
             list.innerHTML = items.map((item) => {
@@ -681,7 +692,7 @@ function syncHerbalSaleItems() {
                             <div class="sale-item-name">${escapeHtml(item.name)}</div>
                             <div class="sale-item-details">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)} x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}</div>
                         </div>
-                        <button type="button" data-herbal-action="sale-remove" data-id="${Number(item.herbal_id || 0)}" title="Hapus item" class="border-0 bg-red-100 text-red-800 rounded px-[7px] py-[5px] cursor-pointer"><i class="fas fa-trash"></i></button>
+                        <button type="button" data-herbal-action="sale-remove" data-id="${Number(item.herbal_id || 0)}" title="Hapus item" aria-label="Hapus item" class="table-action-btn danger"><i class="fas fa-trash" aria-hidden="true"></i></button>
                     </div>`;
             }).join('');
         }
@@ -763,7 +774,7 @@ async function loadCorrectionHistory() {
         if (!Array.isArray(rows))
             throw new Error('Gagal memuat riwayat koreksi.');
         if (!rows.length) {
-            panel.innerHTML = '<div class="p-3 bg-slate-50 rounded-md">Belum ada riwayat koreksi.</div>';
+            panel.innerHTML = '<div class="p-3 bg-surface-50 rounded-md">Belum ada riwayat koreksi.</div>';
             return;
         }
         const labelMap = {
@@ -772,15 +783,15 @@ async function loadCorrectionHistory() {
             void_invoice: 'Void Invoice'
         };
         panel.innerHTML = `
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse text-xs">
+            <div class="table-wrapper">
+                <table class="table">
                     <thead>
-                        <tr class="bg-slate-50">
-                            <th class="text-left p-[9px]">Tanggal</th>
-                            <th class="text-left p-[9px]">Tipe</th>
-                            <th class="text-left p-[9px]">Objek</th>
-                            <th class="text-center p-[9px]">Stok</th>
-                            <th class="text-left p-[9px]">Alasan</th>
+                        <tr>
+                            <th scope="col">Tanggal</th>
+                            <th scope="col">Tipe</th>
+                            <th scope="col">Objek</th>
+                            <th scope="col" class="text-center">Stok</th>
+                            <th scope="col">Alasan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -790,12 +801,12 @@ async function loadCorrectionHistory() {
                 : `${row.stock_before} -> ${row.stock_after}`;
             const objectText = row.herbal_name || `${row.reference_type || '-'} #${row.reference_id || '-'}`;
             return `
-                                <tr class="border-b border-slate-100">
-                                    <td class="p-[9px] text-app-muted">${escapeHtml(_formatCorrectionDate(row.created_at))}</td>
-                                    <td class="p-[9px] font-bold">${escapeHtml(labelMap[row.action_type || ''] || row.action_type || '-')}</td>
-                                    <td class="p-[9px]">${escapeHtml(objectText)}</td>
-                                    <td class="p-[9px] text-center">${escapeHtml(stockText)}</td>
-                                    <td class="p-[9px] text-app-muted">${escapeHtml(row.reason || '-')}</td>
+                                <tr>
+                                    <td class="text-muted">${escapeHtml(_formatCorrectionDate(row.created_at))}</td>
+                                    <td class="font-semibold">${escapeHtml(labelMap[row.action_type || ''] || row.action_type || '-')}</td>
+                                    <td>${escapeHtml(objectText)}</td>
+                                    <td class="text-center">${escapeHtml(stockText)}</td>
+                                    <td class="text-muted">${escapeHtml(row.reason || '-')}</td>
                                 </tr>`;
         }).join('')}
                     </tbody>
@@ -803,7 +814,7 @@ async function loadCorrectionHistory() {
             </div>`;
     }
     catch (error) {
-        panel.innerHTML = `<div class="p-3 bg-red-50 text-red-800 rounded-md">${escapeHtml(herbalErrorMessage(error))}</div>`;
+        panel.innerHTML = `<div class="p-3 bg-danger-50 text-danger-700 rounded-md">${escapeHtml(herbalErrorMessage(error))}</div>`;
     }
 }
 async function openHerbalReturnModal() {
@@ -831,7 +842,7 @@ async function openHerbalReturnModal() {
         </div>
         <div class="sale-modal-actions">
             <button type="button" class="btn btn-modal-cancel" data-herbal-action="close-modal">Batal</button>
-            <button type="button" class="btn btn-primary bg-amber-600" data-herbal-action="return-submit"><i class="fas fa-undo"></i> Catat Retur</button>
+            <button type="button" class="btn btn-primary" data-herbal-action="return-submit"><i class="fas fa-undo" aria-hidden="true"></i> Catat Retur</button>
         </div>
     `;
     openModal('Retur Penjualan Produk / Herbal', html);

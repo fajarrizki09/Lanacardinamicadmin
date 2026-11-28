@@ -124,6 +124,15 @@ function ensureInventoryEventDelegation() {
         if (action === 'stock-preview')
             updateInventoryStockPreview();
     });
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ')
+            return;
+        const row = event.target?.closest?.('[data-inventory-action="select-row"]');
+        if (!row)
+            return;
+        event.preventDefault();
+        selectInventory(row);
+    });
     document.addEventListener('submit', (event) => {
         const form = event.target;
         const action = form?.dataset?.inventoryFormAction || '';
@@ -201,8 +210,8 @@ function renderInventory(data) {
                 <div class="stat-details"><h4>Stok Aman</h4><h2>${safeCount}</h2></div>
             </div>
             <div class="stat-card border-warning">
-                <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
-                <div class="stat-details"><h4>Stok Kritis</h4><h2 style="color:${criticalCount > 0 ? 'var(--warning)' : 'var(--text-main)'}">${criticalCount}</h2></div>
+                <div class="stat-icon orange"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+                <div class="stat-details"><h4>Stok Kritis</h4><h2 style="color:${criticalCount > 0 ? 'var(--color-warning-600)' : 'var(--color-text)'}">${criticalCount}</h2></div>
             </div>
         </div>
 
@@ -244,39 +253,39 @@ function renderInventory(data) {
             const { unit, packageUnit, packageSize } = inventoryPackageMeta(i);
             const isLow = quantity <= minStock;
             const pct = minStock > 0 ? Math.min(100, Math.round(quantity / minStock * 100)) : 100;
-            const barColor = isLow ? 'var(--danger)' : (pct < 150 ? 'var(--warning)' : 'var(--success)');
+            const barColor = isLow ? 'var(--color-danger-500)' : (pct < 150 ? 'var(--color-warning-500)' : 'var(--color-success-500)');
             const statusBadge = isLow
                 ? inventoryStockBadge('Kritis', 'fas fa-exclamation-triangle', 'badge-low')
                 : inventoryStockBadge('Aman', 'fas fa-check-circle', 'badge-ok');
             const typeBadge = inventoryStockBadge(inventoryItemTypeLabel(itemType), '', itemType === 'consumable' ? 'badge-ok' : 'badge-low');
             return `
                                 <tr data-id="${i.id}" data-name="${escapeHtml(i.item_name)}" data-type="${itemType}" data-qty="${quantity}" data-min="${minStock}" data-unit="${escapeHtml(unit)}" data-package-unit="${escapeHtml(packageUnit)}" data-package-size="${packageSize}"
-                                    data-inventory-action="select-row" class="${window._selectedInventoryId === Number(i.id) ? 'row-selected' : ''}">
+                                    data-inventory-action="select-row" tabindex="0" role="button" aria-pressed="${window._selectedInventoryId === Number(i.id) ? 'true' : 'false'}" class="${window._selectedInventoryId === Number(i.id) ? 'row-selected' : ''}">
                                     <td class="table-cell-name" title="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</td>
                                     <td class="table-cell-center">
                                         ${typeBadge}
                                     </td>
                                     <td class="table-cell-center">
-                                        <span class="stock-display-main" style="color:${isLow ? 'var(--danger)' : 'var(--text-main)'}">${escapeHtml(i.stock_display || i.quantity)}</span>
+                                        <span class="stock-display-main" style="color:${isLow ? 'var(--color-danger-600)' : 'var(--color-text)'}">${escapeHtml(i.stock_display || i.quantity)}</span>
                                         <span class="stock-display-sub" title="${escapeHtml(packageLabel(i))}">${escapeHtml(packageLabel(i))}</span>
                                     </td>
-                                    <td class="table-cell-center text-app-muted">${minStock} ${escapeHtml(unit)}</td>
+                                    <td class="table-cell-center text-muted">${minStock} ${escapeHtml(unit)}</td>
                                     <td class="table-cell-center">
-                                        <div class="stock-progress-bar">
-                                            <div class="stock-progress-fill" style="width:${Math.min(100, pct)}%;background:${barColor}"></div>
+                                        <div class="stock-progress-bar" role="progressbar" aria-valuenow="${quantity}" aria-valuemin="0" aria-valuemax="${Math.max(minStock, quantity)}" aria-label="Stok ${escapeHtml(i.item_name)}: ${quantity} ${escapeHtml(unit)}">
+                                            <div class="stock-progress-fill" style="width:${Math.min(100, pct)}%;background:${barColor}" aria-hidden="true"></div>
                                         </div>
                                     </td>
                                     <td class="table-cell-center">
                                         <div class="table-action-buttons">
                                             <button type="button" data-inventory-action="edit" data-id="${i.id}"
-                                                    title="Edit Alat"
+                                                    title="Edit Alat" aria-label="Edit Alat"
                                                     class="table-icon-btn edit">
-                                                <i class="fas fa-edit"></i>
+                                                <i class="fas fa-edit" aria-hidden="true"></i>
                                             </button>
                                             <button type="button" data-inventory-action="delete" data-id="${i.id}"
-                                                    title="Hapus Alat"
+                                                    title="Hapus Alat" aria-label="Hapus Alat"
                                                     class="table-icon-btn delete">
-                                                <i class="fas fa-trash-alt"></i>
+                                                <i class="fas fa-trash-alt" aria-hidden="true"></i>
                                             </button>
                                         </div>
                                     </td>

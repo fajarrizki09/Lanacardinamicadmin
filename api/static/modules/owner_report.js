@@ -103,11 +103,11 @@ async function renderOwnerReport() {
                         <span>Sampai</span>
                         <input id="owner-date-to" type="date" value="${escapeHtml(dateTo)}">
                     </label>
-                    <button type="button" class="btn-owner-compact btn-owner-primary" data-owner-action="apply-filter">
-                        <i class="fas fa-filter"></i> Terapkan
+                    <button type="button" class="btn btn-primary btn-sm" data-owner-action="apply-filter">
+                        <i class="fas fa-filter" aria-hidden="true"></i> Terapkan
                     </button>
-                    <button type="button" id="owner-export-excel-btn" class="btn-owner-compact btn-owner-outline" data-owner-action="export-excel">
-                        <i class="fas fa-file-excel"></i> Export Excel
+                    <button type="button" id="owner-export-excel-btn" class="btn btn-secondary btn-sm" data-owner-action="export-excel">
+                        <i class="fas fa-file-excel" aria-hidden="true"></i> Export Excel
                     </button>
                 </div>
             </section>
@@ -237,8 +237,8 @@ function renderOwnerFollowupRows(rows) {
                 <span class="owner-item-sub">${escapeHtml(row.segment_label || row.segment || 'Perlu follow-up')}</span>
                 <span class="owner-item-sub">${Number(row.days_since_last_visit || 0)} hari tidak datang</span>
             </div>
-            <button type="button" class="owner-detail-btn" data-owner-action="open-followup" data-patient-id="${Number(row.id || 0)}">
-                <i class="fas fa-pen"></i> Detail
+            <button type="button" class="btn btn-secondary btn-sm" data-owner-action="open-followup" data-patient-id="${Number(row.id || 0)}">
+                <i class="fas fa-pen" aria-hidden="true"></i> Detail
             </button>
         </div>
     `).join('');
